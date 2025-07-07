@@ -1,7 +1,10 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
+import { useRouter } from 'expo-router';
 
 const AccountPage = () => {
+  const router = useRouter();
+
   const [name, setName] = useState('Melissa Peters');
   const [email, setEmail] = useState('melpeters@gmail.com');
   const [password, setPassword] = useState('********');
@@ -14,105 +17,144 @@ const AccountPage = () => {
     console.log('Password:', password);
     console.log('Date of Birth:', dob);
     console.log('Country/Region:', country);
-    // Add logic to save changes
+    // API logic here
+  };
+
+  const handleLogout = () => {
+    router.replace('/RLogin');
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Profile</Text>
-      <View style={styles.profilePictureContainer}>
-        <View style={styles.profilePicture} />
-        <TouchableOpacity style={styles.editPictureButton}>
-          <Text style={styles.editPictureText}>Edit</Text>
+    <ScrollView contentContainerStyle={styles.container}>
+      <View style={styles.card}>
+        <Text style={styles.title}>Your Profile</Text>
+
+        <View style={styles.profilePictureContainer}>
+          <View style={styles.profilePicture} />
+          <TouchableOpacity style={styles.editPictureButton}>
+            <Text style={styles.editPictureText}>Change Photo</Text>
+          </TouchableOpacity>
+        </View>
+
+        <TextInput
+          style={styles.input}
+          placeholder="Full Name"
+          value={name}
+          onChangeText={setName}
+        />
+        <TextInput
+          style={styles.input}
+          placeholder="Email"
+          value={email}
+          onChangeText={setEmail}
+          keyboardType="email-address"
+        />
+        <TextInput
+          style={styles.input}
+          placeholder="Password"
+          value={password}
+          onChangeText={setPassword}
+          secureTextEntry
+        />
+        <TextInput
+          style={styles.input}
+          placeholder="Date of Birth"
+          value={dob}
+          onChangeText={setDob}
+        />
+        <TextInput
+          style={styles.input}
+          placeholder="Country / Region"
+          value={country}
+          onChangeText={setCountry}
+        />
+
+        <TouchableOpacity style={styles.saveButton} onPress={saveChanges}>
+          <Text style={styles.saveButtonText}>Save Changes</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+          <Text style={styles.logoutButtonText}>Log Out</Text>
         </TouchableOpacity>
       </View>
-      <TextInput
-        style={styles.input}
-        placeholder="Name"
-        value={name}
-        onChangeText={setName}
-      />
-      <TextInput
-        style={styles.input}
-        placeholder="Email"
-        value={email}
-        onChangeText={setEmail}
-      />
-      <TextInput
-        style={styles.input}
-        placeholder="Password"
-        value={password}
-        onChangeText={setPassword}
-        secureTextEntry
-      />
-      <TextInput
-        style={styles.input}
-        placeholder="Date of Birth"
-        value={dob}
-        onChangeText={setDob}
-      />
-      <TextInput
-        style={styles.input}
-        placeholder="Country/Region"
-        value={country}
-        onChangeText={setCountry}
-      />
-      <TouchableOpacity style={styles.saveButton} onPress={saveChanges}>
-        <Text style={styles.saveButtonText}>Save changes</Text>
-      </TouchableOpacity>
-    </View>
+    </ScrollView>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
-    backgroundColor: '#A8E890',
-    alignItems: 'center',
     padding: 20,
+    backgroundColor: '#FAFAFA',
+    flexGrow: 1,
+    justifyContent: 'center',
+  },
+  card: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 25,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 5,
   },
   title: {
     fontSize: 24,
-    fontWeight: 'bold',
+    fontWeight: '700',
+    color: '#333333',
     marginBottom: 20,
+    textAlign: 'center',
   },
   profilePictureContainer: {
     alignItems: 'center',
     marginBottom: 20,
   },
   profilePicture: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
+    width: 110,
+    height: 110,
+    borderRadius: 55,
     backgroundColor: '#C0C0C0',
   },
   editPictureButton: {
-    marginTop: 10,
+    marginTop: 12,
   },
   editPictureText: {
-    color: '#000',
-    fontWeight: 'bold',
+    color: '#4CD964',
+    fontWeight: '600',
+    fontSize: 14,
   },
   input: {
-    width: '100%',
-    height: 40,
+    height: 50,
     borderWidth: 1,
-    borderColor: '#C0C0C0',
-    borderRadius: 5,
-    padding: 10,
-    backgroundColor: '#FFF',
-    marginBottom: 15,
+    borderColor: '#DDDDDD',
+    borderRadius: 12,
+    paddingHorizontal: 15,
+    backgroundColor: '#FDFDFD',
+    fontSize: 16,
+    marginBottom: 16,
   },
   saveButton: {
-    backgroundColor: '#000',
-    padding: 10,
-    borderRadius: 5,
-    width: '100%',
+    backgroundColor: '#4CD964',
+    paddingVertical: 14,
+    borderRadius: 12,
     alignItems: 'center',
+    marginBottom: 14,
   },
   saveButtonText: {
-    color: '#FFF',
-    fontWeight: 'bold',
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: 16,
+  },
+  logoutButton: {
+    backgroundColor: '#FF3B30',
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  logoutButtonText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: 16,
   },
 });
 

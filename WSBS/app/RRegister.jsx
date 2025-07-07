@@ -1,135 +1,207 @@
-import React, { useState } from 'react';
-import { 
-  View, 
-  Text, 
-  TextInput, 
-  TouchableOpacity, 
-  StyleSheet, 
-  KeyboardAvoidingView, 
-  Platform, 
-  ActivityIndicator, 
-  Alert, 
-  ScrollView 
-} from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import DropDownPicker from 'react-native-dropdown-picker';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator, Alert, ScrollView, Animated } from 'react-native';
 import { useRouter } from 'expo-router';
-import { FIREBASE_AUTH } from './firebaseConfig';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { Feather } from '@expo/vector-icons';
+
+// Change this to your computer's IP address
+const BACKEND_URL = 'http://localhost:5000';  // Using localhost for web app
+
+// Helper for cross-platform alert
+const showAlert = (title, message, buttons) => {
+  if (Platform.OS === 'web') {
+    window.alert(`${title}: ${message}`);
+    // If it's a success, redirect to login
+    if (title.includes('Success')) {
+      router.push('/RLogin');
+    }
+  } else {
+    Alert.alert(title, message, buttons);
+  }
+};
 
 const RegisterScreen = () => {
   const [formData, setFormData] = useState({
-    fullName: '',
-    address: '',
-    email: '',
+    firstName: '',
+    middleName: '',
+    lastName: '',
+    username: '',
+    contactNumber: '',
     password: '',
-    confirmPassword: ''
+    confirmPassword: '',
+    city: 'General Santos City',
+    barangay: '',
+    street: ''
   });
+
+  const [open, setOpen] = useState(false);
+  const [barangayItems, setBarangayItems] = useState([
+    { label: 'Apopong', value: 'Apopong' },
+    { label: 'Baluan', value: 'Baluan' },
+    { label: 'Batomelong', value: 'Batomelong' },
+    { label: 'Buayan', value: 'Buayan' },
+    { label: 'Calumpang', value: 'Calumpang' },
+    { label: 'City Heights', value: 'City Heights' },
+    { label: 'Conel', value: 'Conel' },
+    { label: 'Dadiangas East', value: 'Dadiangas East' },
+    { label: 'Dadiangas North', value: 'Dadiangas North' },
+    { label: 'Dadiangas South', value: 'Dadiangas South' },
+    { label: 'Dadiangas West', value: 'Dadiangas West' },
+    { label: 'Fatima', value: 'Fatima' },
+    { label: 'Katangawan', value: 'Katangawan' },
+    { label: 'Labangal', value: 'Labangal' },
+    { label: 'Lagao', value: 'Lagao' },
+    { label: 'Ligaya', value: 'Ligaya' },
+    { label: 'Mabuhay', value: 'Mabuhay' },
+    { label: 'San Isidro', value: 'San Isidro' },
+    { label: 'San Jose', value: 'San Jose' },
+    { label: 'Siguel', value: 'Siguel' },
+    { label: 'Sinawal', value: 'Sinawal' },
+    { label: 'Tambler', value: 'Tambler' },
+    { label: 'Tinagacan', value: 'Tinagacan' },
+    { label: 'Upper Labay', value: 'Upper Labay' }
+  ]);
+
   const [loading, setLoading] = useState(false);
-  const [registrationSuccess, setRegistrationSuccess] = useState(false);
+  const [fadeAnim] = useState(new Animated.Value(0));
+  const [scaleAnim] = useState(new Animated.Value(0.3));
   const router = useRouter();
+  const [registrationSuccess, setRegistrationSuccess] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
-  const handleChange = (name, value) => {
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 500,
+        useNativeDriver: true
+      }),
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        tension: 20,
+        friction: 4,
+        useNativeDriver: true
+      })
+    ]).start();
+  }, [fadeAnim, scaleAnim]);
+
+  const handleChange = useCallback((name, value) => {
     setFormData(prev => ({ ...prev, [name]: value }));
-  };
+  }, []);
 
-  const validateForm = () => {
-    if (!formData.fullName || formData.fullName.trim().length < 2) {
-      Alert.alert('Error', 'Please enter a valid full name (minimum 2 characters)');
+  const validateForm = useCallback(() => {
+    if (!formData.firstName || !/^[A-Za-z\s]{2,}$/.test(formData.firstName.trim())) {
+      showAlert('Error', 'First name must contain only letters and be at least 2 characters long');
       return false;
     }
-
-    if (!formData.address || formData.address.trim().length < 5) {
-      Alert.alert('Error', 'Please enter a complete address (minimum 5 characters)');
+    if (formData.middleName && !/^[A-Za-z\s]{1,}$/.test(formData.middleName.trim())) {
+      showAlert('Error', 'Middle name must contain only letters');
       return false;
     }
-
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!formData.email || !emailRegex.test(formData.email)) {
-      Alert.alert('Error', 'Please enter a valid email address');
+    if (!formData.lastName || !/^[A-Za-z\s]{2,}$/.test(formData.lastName.trim())) {
+      showAlert('Error', 'Last name must contain only letters and be at least 2 characters long');
       return false;
     }
-
-    const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{6,}$/;
-    if (!formData.password || !passwordRegex.test(formData.password)) {
-      Alert.alert(
-        'Invalid Password', 
-        'Password must:\n\n• Be at least 6 characters\n• Contain at least one letter\n• Contain at least one number'
-      );
+    if (!formData.username || formData.username.trim().length < 4) {
+      showAlert('Error', 'Username must be at least 4 characters long');
       return false;
     }
-
+    if (!formData.contactNumber || !/^\+?[\d\s-]{10,}$/.test(formData.contactNumber.trim())) {
+      showAlert('Error', 'Please enter a valid contact number (at least 10 digits)');
+      return false;
+    }
+    if (!formData.password || formData.password.length < 6) {
+      showAlert('Error', 'Password must be at least 6 characters long');
+      return false;
+    }
     if (formData.password !== formData.confirmPassword) {
-      Alert.alert('Error', 'Passwords do not match');
+      showAlert('Error', 'Passwords do not match');
       return false;
     }
-
+    if (!formData.street) {
+      showAlert('Error', 'Please enter your street address');
+      return false;
+    }
+    if (!formData.barangay) {
+      showAlert('Error', 'Please select your barangay');
+      return false;
+    }
     return true;
-  };
+  }, [formData]);
 
-  const handleRegister = async () => {
+  const handleRegister = useCallback(async () => {
     if (!validateForm()) return;
-
+  
     setLoading(true);
-
+  
     try {
-      // Create Firebase user
-      const userCredential = await createUserWithEmailAndPassword(
-        FIREBASE_AUTH,
-        formData.email,
-        formData.password
-      );
-
-      // Save additional user data to your backend
-      const response = await fetch('http://localhost:5000/api/users', {
+      const registrationData = {
+        firstName: formData.firstName.trim(),
+        middleName: formData.middleName.trim(),
+        lastName: formData.lastName.trim(),
+        username: formData.username.trim(),
+        contactNumber: formData.contactNumber.trim(),
+        password: formData.password,
+        confirmPassword: formData.confirmPassword,
+        city: formData.city,
+        barangay: formData.barangay,
+        street: formData.street.trim(),
+      };
+  
+      console.log('🚀 Attempting to register with data:', registrationData);
+      console.log('📍 Sending request to:', `${BACKEND_URL}/api/auth/register`);
+  
+      const response = await fetch(`${BACKEND_URL}/api/auth/register`, {
         method: 'POST',
         headers: {
+          'Accept': 'application/json',
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          firebase_uid: userCredential.user.uid,
-          email: formData.email,
-          full_name: formData.fullName,
-          address: formData.address,
-          role: 'resident'
-        }),
+        body: JSON.stringify(registrationData),
       });
-
-      if (!response.ok) {
-        await userCredential.user.delete();
-        throw new Error('Failed to save user data');
-      }
-
-      const userData = await response.json();
-      setRegistrationSuccess(true);
+  
+      console.log('📡 Response status:', response.status);
+      console.log('📡 Response headers:', Object.fromEntries(response.headers.entries()));
       
-      Alert.alert(
-        'Success!',
-        `Welcome ${formData.fullName}! Your account has been created.`,
-        [{ text: 'OK', onPress: () => {} }]
-      );
+      const data = await response.json();
+      console.log('📦 Response data:', data);
+  
+      if (!response.ok) {
+        throw new Error(data.message || 'Registration failed');
+      }
+  
+      console.log('✅ Registration successful!');
+      setRegistrationSuccess(true);
     } catch (error) {
-      Alert.alert('Registration Failed', error.message);
+      console.error('❌ Registration error:', error);
+      console.error('❌ Error details:', {
+        message: error.message,
+        stack: error.stack,
+      });
+  
+      showAlert(
+        'Registration Failed',
+        error.message || 'Unable to create your account. Please try again.',
+        [{ text: 'OK' }],
+        { cancelable: false }
+      );
     } finally {
       setLoading(false);
     }
-  };
+  }, [formData, router, validateForm]);
+  
 
   if (registrationSuccess) {
     return (
-      <View style={styles.successContainer}>
-        <View style={styles.successCard}>
-          <Text style={styles.successIcon}>✅</Text>
-          <Text style={styles.successTitle}>All Set!</Text>
-          <Text style={styles.successText}>
-            Your account has been successfully created. You can now log in to your account.
-          </Text>
-          
-          <TouchableOpacity 
-            style={styles.successButton}
-            onPress={() => router.push('/RLogin')}
-          >
-            <Text style={styles.successButtonText}>Go to Login</Text>
-          </TouchableOpacity>
-        </View>
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#fff', padding: 24 }}>
+        <Text style={{ fontSize: 24, color: 'green', marginBottom: 20 }}>🎉 Registration Successful!</Text>
+        <Text style={{ fontSize: 16, marginBottom: 30 }}>Your account has been created. You can now log in.</Text>
+        <TouchableOpacity
+          style={{ backgroundColor: '#2e7d32', padding: 12, borderRadius: 8 }}
+          onPress={() => router.push('/RLogin')}
+        >
+          <Text style={{ color: '#fff', fontSize: 18 }}>Go to Login</Text>
+        </TouchableOpacity>
       </View>
     );
   }
@@ -139,11 +211,19 @@ const RegisterScreen = () => {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={styles.container}
     >
-      <ScrollView
+      <ScrollView 
         contentContainerStyle={styles.scrollContainer}
-        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
       >
-        <View style={styles.formContainer}>
+        <Animated.View 
+          style={[
+            styles.formContainer, 
+            { 
+              opacity: fadeAnim, 
+              transform: [{ scale: scaleAnim }] 
+            }
+          ]}
+        >
           <TouchableOpacity 
             style={styles.backButton} 
             onPress={() => router.back()}
@@ -151,73 +231,158 @@ const RegisterScreen = () => {
             <Text style={styles.backButtonText}>← Back</Text>
           </TouchableOpacity>
 
-          <Text style={styles.header}>Create Account</Text>
+          <Text style={styles.title}>Create Account</Text>
+          <Text style={styles.subtitle}>Join our community today!</Text>
 
-          <Text style={styles.label}>Full Name</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="John Doe"
-            value={formData.fullName}
-            onChangeText={(text) => handleChange('fullName', text)}
-            autoCapitalize="words"
-          />
+          {/* Name Fields */}
+          <View style={styles.inputContainer}>
+            <Text style={styles.label}>First Name *</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Enter your first name"
+              value={formData.firstName}
+              onChangeText={(value) => handleChange('firstName', value)}
+              placeholderTextColor="#888"
+            />
+          </View>
 
-          <Text style={styles.label}>Address</Text>
-          <TextInput
-            style={[styles.input, styles.multilineInput]}
-            placeholder="123 Main St, City, Country"
-            value={formData.address}
-            onChangeText={(text) => handleChange('address', text)}
-            multiline
-          />
+          <View style={styles.inputContainer}>
+            <Text style={styles.label}>Middle Name</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Enter your middle name (optional)"
+              value={formData.middleName}
+              onChangeText={(value) => handleChange('middleName', value)}
+              placeholderTextColor="#888"
+            />
+          </View>
 
-          <Text style={styles.label}>Email</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="your@email.com"
-            value={formData.email}
-            onChangeText={(text) => handleChange('email', text)}
-            keyboardType="email-address"
-            autoCapitalize="none"
-          />
+          <View style={styles.inputContainer}>
+            <Text style={styles.label}>Last Name *</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Enter your last name"
+              value={formData.lastName}
+              onChangeText={(value) => handleChange('lastName', value)}
+              placeholderTextColor="#888"
+            />
+          </View>
 
-          <Text style={styles.label}>Password</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="••••••••"
-            value={formData.password}
-            onChangeText={(text) => handleChange('password', text)}
-            secureTextEntry
-          />
+          <View style={styles.inputContainer}>
+            <Text style={styles.label}>Username *</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Choose a username"
+              value={formData.username}
+              onChangeText={(value) => handleChange('username', value)}
+              placeholderTextColor="#888"
+              autoCapitalize="none"
+            />
+          </View>
 
-          <Text style={styles.label}>Confirm Password</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="••••••••"
-            value={formData.confirmPassword}
-            onChangeText={(text) => handleChange('confirmPassword', text)}
-            secureTextEntry
-          />
+          <View style={styles.inputContainer}>
+            <Text style={styles.label}>Contact Number *</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Enter 11-digit number"
+              value={formData.contactNumber}
+              onChangeText={(value) => handleChange('contactNumber', value)}
+              keyboardType="phone-pad"
+              maxLength={11}
+              placeholderTextColor="#888"
+            />
+          </View>
 
+          {/* Address Fields */}
+          <View style={styles.inputContainer}>
+            <Text style={styles.label}>Street Address *</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="e.g., 123 Purok Maligaya"
+              value={formData.street}
+              onChangeText={(value) => handleChange('street', value)}
+              placeholderTextColor="#888"
+            />
+          </View>
+
+          <View style={[styles.inputContainer, { zIndex: 1000 }]}>
+            <Text style={styles.label}>Barangay *</Text>
+            <DropDownPicker
+              open={open}
+              setOpen={setOpen}
+              value={formData.barangay}
+              setValue={(callback) =>
+                setFormData((prev) => ({ ...prev, barangay: callback(prev.barangay) }))
+              }
+              items={barangayItems}
+              setItems={setBarangayItems}
+              placeholder="Select Barangay"
+              style={styles.dropdown}
+              dropDownContainerStyle={styles.dropdownContainer}
+              placeholderStyle={styles.dropdownPlaceholder}
+              listItemLabelStyle={styles.dropdownItem}
+              selectedItemLabelStyle={styles.dropdownSelectedItem}
+            />
+          </View>
+
+          <View style={styles.inputContainer}>
+            <Text style={styles.label}>City</Text>
+            <TextInput
+              style={[styles.input, styles.disabledInput]}
+              value="General Santos City"
+              editable={false}
+            />
+          </View>
+
+          {/* Password Fields */}
+          <View style={styles.inputContainer}>
+            <Text style={styles.label}>Password *</Text>
+            <View style={styles.passwordContainer}>
+              <TextInput
+                style={styles.passwordInput}
+                placeholder="Enter your password"
+                value={formData.password}
+                onChangeText={(value) => handleChange('password', value)}
+                secureTextEntry={!showPassword}
+              />
+              <TouchableOpacity onPress={() => setShowPassword((prev) => !prev)} style={styles.showHideButton}>
+                <Feather name={showPassword ? 'eye-off' : 'eye'} size={24} color="#3498db" />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <View style={styles.inputContainer}>
+            <Text style={styles.label}>Confirm Password *</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Re-enter your password"
+              value={formData.confirmPassword}
+              onChangeText={(value) => handleChange('confirmPassword', value)}
+              placeholderTextColor="#888"
+            />
+          </View>
+
+          {/* Register Button */}
           <TouchableOpacity
-            style={[styles.button, loading && styles.buttonDisabled]}
+            style={[styles.registerButton, loading && styles.disabledButton]}
             onPress={handleRegister}
             disabled={loading}
           >
             {loading ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <Text style={styles.buttonText}>Register</Text>
+              <Text style={styles.registerButtonText}>Create Account</Text>
             )}
           </TouchableOpacity>
 
-          <View style={styles.loginPrompt}>
+          {/* Login Link */}
+          <View  style={styles.loginContainer}>
             <Text style={styles.loginText}>Already have an account? </Text>
             <TouchableOpacity onPress={() => router.push('/RLogin')}>
-              <Text style={styles.loginLink}>Login</Text>
+              <Text style={styles.loginLink}>Login here</Text>
             </TouchableOpacity>
           </View>
-        </View>
+        </Animated.View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -226,131 +391,143 @@ const RegisterScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#ffffff',
+    backgroundColor: '#f5f5f5',
   },
   scrollContainer: {
     flexGrow: 1,
+    paddingHorizontal: 20,
     paddingBottom: 40,
   },
   formContainer: {
+    backgroundColor: '#ffffff',
+    borderRadius: 15,
     padding: 20,
-    paddingTop: 60,
+    marginTop: 20,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
   backButton: {
+    alignSelf: 'flex-start',
     marginBottom: 20,
   },
   backButtonText: {
     fontSize: 16,
-    color: '#2ecc71',
-    fontWeight: '600',
+    color: '#007AFF',
   },
-  header: {
+  title: {
     fontSize: 28,
     fontWeight: 'bold',
-    marginBottom: 30,
-    color: '#2c3e50',
+    color: '#333',
+    marginBottom: 8,
     textAlign: 'center',
   },
-  label: {
+  subtitle: {
     fontSize: 16,
+    color: '#666',
+    marginBottom: 24,
+    textAlign: 'center',
+  },
+  inputContainer: {
+    marginBottom: 16,
+  },
+  label: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
     marginBottom: 8,
-    color: '#34495e',
-    fontWeight: '500',
   },
   input: {
-    height: 50,
+    backgroundColor: '#f8f8f8',
     borderWidth: 1,
     borderColor: '#ddd',
     borderRadius: 8,
-    paddingHorizontal: 15,
-    marginBottom: 20,
+    padding: 12,
     fontSize: 16,
-    backgroundColor: '#f9f9f9',
+    color: '#333',
   },
-  multilineInput: {
-    height: 80,
-    textAlignVertical: 'top',
-    paddingTop: 15,
+  disabledInput: {
+    backgroundColor: '#f0f0f0',
+    color: '#666',
   },
-  button: {
-    backgroundColor: '#2ecc71',
-    height: 50,
+  dropdown: {
+    backgroundColor: '#f8f8f8',
+    borderColor: '#ddd',
     borderRadius: 8,
-    justifyContent: 'center',
+  },
+  dropdownContainer: {
+    backgroundColor: '#fff',
+    borderColor: '#ddd',
+    borderRadius: 8,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  dropdownPlaceholder: {
+    color: '#888',
+  },
+  dropdownItem: {
+    color: '#333',
+  },
+  dropdownSelectedItem: {
+    color: '#007AFF',
+    fontWeight: '600',
+  },
+  registerButton: {
+    backgroundColor: '#007AFF',
+    borderRadius: 8,
+    padding: 16,
     alignItems: 'center',
-    marginTop: 10,
-    marginBottom: 20,
+    marginTop: 24,
   },
-  buttonDisabled: {
-    backgroundColor: '#95a5a6',
+  disabledButton: {
+    opacity: 0.7,
   },
-  buttonText: {
+  registerButtonText: {
     color: '#fff',
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: '600',
   },
-  loginPrompt: {
+  loginContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
-    marginTop: 10,
+    alignItems: 'center',
+    marginTop: 16,
   },
   loginText: {
-    color: '#7f8c8d',
+    color: '#666',
+    fontSize: 14,
   },
   loginLink: {
-    color: '#3498db',
-    fontWeight: 'bold',
+    color: '#007AFF',
+    fontSize: 14,
+    fontWeight: '600',
   },
-  successContainer: {
-    flex: 1,
-    justifyContent: 'center',
+  passwordContainer: {
+    flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#ffffff',
-    padding: 30,
-  },
-  successCard: {
-    width: '100%',
-    backgroundColor: '#f8f9fa',
-    borderRadius: 12,
-    padding: 30,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
-    elevation: 3,
-  },
-  successIcon: {
-    fontSize: 60,
-    marginBottom: 20,
-  },
-  successTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 10,
-    color: '#2ecc71',
-    textAlign: 'center',
-  },
-  successText: {
-    fontSize: 16,
-    color: '#7f8c8d',
-    textAlign: 'center',
-    marginBottom: 30,
-    lineHeight: 24,
-  },
-  successButton: {
-    backgroundColor: '#2ecc71',
-    width: '100%',
-    height: 50,
+    borderWidth: 1,
+    borderColor: '#ddd',
     borderRadius: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: 10,
+    padding: 12,
   },
-  successButtonText: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: 'bold',
+  passwordInput: {
+    flex: 1,
+    fontSize: 16,
+    color: '#333',
+  },
+  showHideButton: {
+    padding: 8,
   },
 });
 

@@ -1,12 +1,25 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import '../styles/ALogin.css';
-import logo from '../assets/images/LOGO.png';
 
+// Predefined admin credentials (in production these should be in a secure backend)
+const ADMIN_CREDENTIALS = {
+  email: 'admin@wsbs.com',
+  password: 'admin123'
+};
 
 const ALogin = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const navigate = useNavigate();
+
+  // Check if already logged in
+  useEffect(() => {
+    if (sessionStorage.getItem('adminAuth') === 'true') {
+      navigate('/admin/dashboard');
+    }
+  }, [navigate]);
 
   const handleLogin = (e) => {
     e.preventDefault();
@@ -17,21 +30,21 @@ const ALogin = () => {
       return;
     }
 
-    // OPTIONAL: Firebase or backend login logic goes here
-    console.log('Logging in with', email, password);
-    setError('');
-    alert('Login submitted!');
+    // Check admin credentials
+    if (email === ADMIN_CREDENTIALS.email && password === ADMIN_CREDENTIALS.password) {
+      // Store admin session
+      sessionStorage.setItem('adminAuth', 'true');
+      // Redirect to admin dashboard
+      navigate('/admin/dashboard');
+    } else {
+      setError('Invalid admin credentials');
+    }
   };
 
   return (
     <div className="login-container">
       <div className="login-box">
-        <div className="login-header">
-          <img src={logo} alt="Logo" className="login-logo" />
-          <h1>WSBS</h1>
-        </div>
-
-        <h2>Login</h2>
+        <h2>Admin Login</h2>
 
         {error && <div className="error-message">{error}</div>}
 

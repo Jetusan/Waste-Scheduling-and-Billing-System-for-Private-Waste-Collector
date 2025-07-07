@@ -9,6 +9,11 @@ export default function CollectorLayout() {
       }}
     >
       <Stack.Screen name="CLogin" />
+      <Stack.Screen name="CHome" />
+      <Stack.Screen name="LCO" />
+      <Stack.Screen name="CSchedule" />
+      <Stack.Screen name="CNotif" />
+      <Stack.Screen name="SpecialPickup" />
     </Stack>
   );
 }

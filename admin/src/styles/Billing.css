@@ -1,0 +1,470 @@
+/* Main Container Styles */
+.billing-content {
+  padding: 20px;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  color: #333;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+/* Header Styles */
+.billing-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.billing-header h2 {
+  font-size: 24px;
+  color: #333;
+  margin: 0;
+}
+
+/* Button Styles */
+.btn {
+  padding: 8px 16px;
+  border-radius: 4px;
+  border: none;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.3s ease;
+}
+
+.new-invoice {
+  background-color: #3498db;
+  color: white;
+}
+
+.new-invoice:hover {
+  background-color: #2980b9;
+}
+
+.auto-generate {
+  background-color: #2ecc71;
+  color: white;
+  margin-right: 10px;
+}
+
+.auto-generate:hover {
+  background-color: #27ae60;
+}
+
+.send-reminders {
+  background-color: #f39c12;
+  color: white;
+  margin-right: 10px;
+}
+
+.send-reminders:hover {
+  background-color: #d35400;
+}
+
+.apply-filters {
+  background-color: #9b59b6;
+  color: white;
+}
+
+.apply-filters:hover {
+  background-color: #8e44ad;
+}
+
+.view-controls {
+  display: flex;
+  gap: 12px;
+}
+
+.view-controls .btn {
+  padding: 8px 16px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background: #fff;
+  color: #666;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.view-controls .btn:hover {
+  background: #f5f5f5;
+}
+
+.view-controls .btn.active {
+  background: #1a73e8;
+  color: white;
+  border-color: #1a73e8;
+}
+
+.view-controls .btn.export {
+  background: #28a745;
+  color: white;
+  border-color: #28a745;
+}
+
+.view-controls .btn.export:hover {
+  background: #218838;
+}
+
+/* Filter Styles */
+.billing-filters {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.billing-filters select,
+.billing-filters input {
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  min-width: 150px;
+}
+
+/* Table Styles */
+.billing-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 16px;
+}
+
+.billing-table th,
+.billing-table td {
+  padding: 12px;
+  text-align: left;
+  border-bottom: 1px solid #eee;
+}
+
+.billing-table th {
+  background: #f8f9fa;
+  font-weight: 600;
+  color: #333;
+}
+
+/* Status Badges */
+.status-badge {
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.status-badge.paid {
+  background: #e6f4ea;
+  color: #1e7e34;
+}
+
+.status-badge.partially-paid {
+  background: #fff3cd;
+  color: #856404;
+}
+
+.status-badge.unpaid {
+  background: #f8d7da;
+  color: #721c24;
+}
+
+/* Late Fee Indicator */
+.late-fee {
+  color: #dc3545;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+/* Action Buttons */
+.action-buttons-group {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background-color: #f8f9fa;
+  color: #333;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.action-btn i {
+  font-size: 12px;
+}
+
+.action-btn:hover {
+  background-color: #e9ecef;
+  border-color: #adb5bd;
+}
+
+.action-btn:active {
+  background-color: #dee2e6;
+}
+
+/* Modal Styles */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.payment-modal {
+  background: white;
+  border-radius: 8px;
+  padding: 24px;
+  width: 90%;
+  max-width: 600px;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.payment-modal h3 {
+  margin: 0 0 16px;
+  color: #333;
+}
+
+.invoice-summary {
+  background: #f8f9fa;
+  padding: 16px;
+  border-radius: 4px;
+  margin-bottom: 24px;
+}
+
+.invoice-summary p {
+  margin: 8px 0;
+  color: #666;
+}
+
+.payment-history {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 16px 0 24px;
+}
+
+.payment-history th,
+.payment-history td {
+  padding: 8px;
+  text-align: left;
+  border-bottom: 1px solid #eee;
+}
+
+.payment-history th {
+  background: #f8f9fa;
+  font-weight: 500;
+}
+
+.form-group {
+  margin-bottom: 16px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 8px;
+  color: #333;
+  font-weight: 500;
+}
+
+.form-group input,
+.form-group select {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.form-group input:focus,
+.form-group select:focus {
+  border-color: #1a73e8;
+  outline: none;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.modal-actions button {
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.2s;
+}
+
+.modal-actions button[type="button"] {
+  background: #fff;
+  border: 1px solid #ddd;
+  color: #666;
+}
+
+.modal-actions button[type="submit"] {
+  background: #1a73e8;
+  border: none;
+  color: white;
+}
+
+.modal-actions button:hover {
+  opacity: 0.9;
+}
+
+/* Export Modal Styles */
+.export-modal {
+  background: white;
+  border-radius: 12px;
+  padding: 24px;
+  width: 90%;
+  max-width: 500px;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.export-modal h3 {
+  margin: 0 0 20px;
+  color: #333;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.export-options {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.export-type-buttons {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.export-type-btn {
+  padding: 12px;
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  background: white;
+  color: #666;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.export-type-btn:hover {
+  border-color: #1a73e8;
+  color: #1a73e8;
+}
+
+.export-type-btn.active {
+  background: #1a73e8;
+  border-color: #1a73e8;
+  color: white;
+}
+
+.date-range-picker {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  padding: 16px;
+  background: #f8f9fa;
+  border-radius: 8px;
+}
+
+.modal-actions {
+  margin-top: 24px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.cancel-btn,
+.export-btn {
+  padding: 10px 20px;
+  border-radius: 6px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.cancel-btn {
+  background: white;
+  border: 1px solid #ddd;
+  color: #666;
+}
+
+.cancel-btn:hover {
+  background: #f5f5f5;
+}
+
+.export-btn {
+  background: #1a73e8;
+  border: none;
+  color: white;
+}
+
+.export-btn:hover {
+  background: #1557b0;
+}
+
+/* Responsive styles */
+@media (max-width: 768px) {
+  .billing-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+  }
+
+  .view-controls {
+    width: 100%;
+  }
+
+  .billing-filters {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .billing-filters select,
+  .billing-filters input {
+    width: 100%;
+  }
+
+  .action-buttons-group {
+    flex-direction: column;
+  }
+
+  .action-btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .export-type-buttons {
+    grid-template-columns: 1fr;
+  }
+
+  .date-range-picker {
+    grid-template-columns: 1fr;
+  }
+
+  .payment-modal {
+    width: 95%;
+    padding: 16px;
+  }
+}
+
+/* Font Awesome */
+@import url('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css');

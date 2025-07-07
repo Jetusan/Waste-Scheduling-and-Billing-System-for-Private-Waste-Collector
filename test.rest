@@ -1,0 +1,33 @@
+### Get all residents
+GET http://localhost:5000/api/residents
+
+### Insert a new resident
+POST http://localhost:5000/api/residents
+
+Request Body:
+```json
+{
+    "user_id": 123,
+    "street_address": "123 Main St.",
+    "barangay": "San Isidro",
+    "city": "GenSan",
+    "subscription_status": "active"
+}
+```
+
+### Insert a new collector
+POST http://localhost:5000/api/collectors
+
+Request Body:
+```json
+{
+    "username": "collector1",
+    "password_hash": "bcrypt$2b$10$EXAMPLEHASH",
+    "contact_number": "09170000000",
+    "address_id": 1,
+    "name_id": 1,
+    "role_id": 2,
+    "created_at": "NOW()",
+    "updated_at": "NOW()"
+}
+```

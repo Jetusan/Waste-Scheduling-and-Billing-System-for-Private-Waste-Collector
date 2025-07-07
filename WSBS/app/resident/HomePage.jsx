@@ -1,13 +1,17 @@
 import React from 'react';
 import { View, Text, StyleSheet, Pressable, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 
 export default function HomePage() {
+
+  const router = useRouter();
+
   return (
     <View style={styles.container}>
       {/* Header Section */}
       <View style={styles.header}>
-        <Text style={styles.welcomeText}>Welcome, Jim</Text>
+        <Text style={styles.welcomeText}>Welcome, Jetusan</Text>
         <Image
           style={styles.profileImage}
           source={{ uri: 'https://via.placeholder.com/50' }} // Replace with actual image URL
@@ -18,17 +22,27 @@ export default function HomePage() {
       {/* Services Section */}
       <Text style={styles.servicesTitle}>Choose your services</Text>
       <View style={styles.servicesContainer}>
-        <Pressable style={styles.serviceButton}>
+        <Pressable 
+          style={styles.serviceButton}
+          onPress={() => router.push('Schedule')}
+        >
           <Ionicons name="calendar-outline" size={32} color="#4CD964" />
           <Text style={styles.serviceText}>Schedule</Text>
+          
         </Pressable>
-        <Pressable style={styles.serviceButton}>
+        <Pressable 
+          style={styles.serviceButton}
+          onPress={() => router.push('spickup')} // Add this onPress handler
+        >
           <Ionicons name="add-circle-outline" size={32} color="#4CD964" />
           <Text style={styles.serviceText}>Special Pickup</Text>
         </Pressable>
-        <Pressable style={styles.serviceButton}>
-          <Ionicons name="pricetag-outline" size={32} color="#4CD964" />
-          <Text style={styles.serviceText}>Subscriptions</Text>
+        <Pressable 
+            style={styles.serviceButton}
+            onPress={() => router.push('Subscription')} // Navigates to Subscription flow (Terms first)
+          >
+            <Ionicons name="pricetag-outline" size={32} color="#4CD964" />
+            <Text style={styles.serviceText}>Subscriptions</Text>
         </Pressable>
       </View>
 
@@ -95,12 +109,22 @@ const styles = StyleSheet.create({
   },
   serviceButton: {
     alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    padding: 15,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 5,
+    elevation: 5, // for Android
+    width: 100,
   },
   serviceText: {
-    marginTop: 5,
+    marginTop: 8,
     fontSize: 14,
     fontWeight: '600',
-    color: '#666',
+    color: '#333',
+    textAlign: 'center',
   },
   bottomNav: {
     flexDirection: 'row',

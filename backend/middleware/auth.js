@@ -1,33 +1,26 @@
-const admin = require('firebase-admin');
-const path = require('path');
+const jwt = require('jsonwebtoken');
 
-// Initialize Firebase Admin with your service account
-const serviceAccount = require('../firebase-credentials.json');
-
-try {
-  admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount)
-  });
-} catch (error) {
-  // Handle initialization error
-  console.error('Firebase Admin initialization error:', error);
-}
-
-const validateFirebaseToken = async (req, res, next) => {
+const authenticateJWT = (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ message: 'No token provided.' });
+  }
+  const token = authHeader.split(' ')[1];
   try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({ error: 'No token provided' });
-    }
-
-    const token = authHeader.split('Bearer ')[1];
-    const decodedToken = await admin.auth().verifyIdToken(token);
-    req.user = decodedToken;
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your_jwt_secret');
+    req.user = decoded;
     next();
-  } catch (error) {
-    console.error('Error validating Firebase token:', error);
-    res.status(401).json({ error: 'Invalid token' });
+  } catch (err) {
+    return res.status(401).json({ message: 'Invalid or expired token.' });
   }
 };
 
-module.exports = validateFirebaseToken;
+// Role-based authorization middleware
+const authorizeRoles = (...roles) => (req, res, next) => {
+  if (!roles.includes(req.user.role)) {
+    return res.status(403).json({ message: 'Forbidden: insufficient permissions.' });
+  }
+  next();
+};
+
+module.exports = { authenticateJWT, authorizeRoles };

@@ -1,0 +1,16 @@
+### Register a new user
+POST http://localhost:5000/api/auth/register
+Content-Type: application/json
+
+{
+  "firstName": "jetusan",
+  "middleName": "hahaha",
+  "lastName": "finally",
+  "username": "jetusaan",
+  "contactNumber": "09123456789",
+  "password": "asd45678",
+  "confirmPassword": "asd45678",
+  "city": "General Santos City",
+  "barangay": "Labangal",
+  "street": "123 Test St"
+}

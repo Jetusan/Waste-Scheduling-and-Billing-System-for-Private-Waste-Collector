@@ -1,119 +1,115 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator, Alert } from 'react-native';
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  KeyboardAvoidingView,
+  Platform,
+  ActivityIndicator,
+  Alert,
+} from 'react-native';
 import { useRouter } from 'expo-router';
-import { FIREBASE_AUTH } from './firebaseConfig';
-import { signInWithEmailAndPassword } from 'firebase/auth';
+import { saveAuth } from './auth'; // Import the auth utility
+import { Feather } from '@expo/vector-icons';
 
 const LoginScreen = () => {
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState(''); // this uses the email input field
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const router = useRouter();
 
   const handleLogin = async () => {
-    if (!email || !password) {
+    console.log('Login button pressed');
+    if (!username || !password) {
       Alert.alert('Error', 'Please fill in all fields');
       return;
     }
 
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      Alert.alert('Error', 'Please enter a valid email address');
-      return;
-    }
+    setLoading(true);
 
     try {
-      setLoading(true);
-      console.log('Attempting to sign in with:', email);
-      
-      // Step 1: Sign in with Firebase
-      const userCredential = await signInWithEmailAndPassword(
-        FIREBASE_AUTH,
-        email,
-        password
-      );
-      console.log('Firebase authentication successful');
-
-      // Step 2: Fetch user data from PostgreSQL
-      console.log('Fetching user data for:', userCredential.user.uid);
-      const response = await fetch(`http://localhost:5000/api/users/${userCredential.user.uid}`);
-      
-      if (!response.ok) {
-        if (response.status === 404) {
-          Alert.alert(
-            'Registration Required',
-            'Please complete your registration first.',
-            [
-              { text: 'Register Now', onPress: () => router.push('/RRegister') },
-              { text: 'Cancel', style: 'cancel' }
-            ]
-          );
-          await FIREBASE_AUTH.signOut(); // Sign out from Firebase
-          return;
+      // IMPORTANT: If testing on a mobile device or emulator, replace 'localhost' with your computer's local IP address (e.g., '192.168.x.x')
+      // For Android emulator, use '10.0.2.2' instead of 'localhost'.
+      const response = await fetch('http://localhost:5000/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+      });
+      const data = await response.json();
+      console.log('Login API response:', data);
+      if (data.success && data.token) {
+        console.log('Before saveAuth');
+        try {
+          await saveAuth(data.token, data.user.role);
+          console.log('After saveAuth');
+        } catch (e) {
+          console.error('Error in saveAuth:', e);
         }
-        throw new Error('Failed to fetch user data');
+        // Redirect based on role
+        console.log('User role:', data.user.role);
+        if (data.user.role === 'resident') {
+          console.log('Navigating to /resident');
+          router.replace('/resident'); // Go to the resident tab navigator, HomePage tab will show by default
+        } else {
+          Alert.alert('Error', 'Not a resident account');
+        }
+      } else {
+        Alert.alert('Login Failed', data.message || 'Invalid credentials');
       }
-
-      const userData = await response.json();
-      console.log('User data retrieved:', userData);
-      
-      // Check if user is a resident
-      if (userData.role !== 'resident') {
-        await FIREBASE_AUTH.signOut(); // Sign out from Firebase
-        throw new Error('Access denied. This login is for residents only.');
-      }
-
-      router.push('/resident/HomePage');
     } catch (err) {
-      console.error('Login error:', err);
-      Alert.alert('Error', err.message);
-      try {
-        await FIREBASE_AUTH.signOut(); // Sign out from Firebase on error
-      } catch (signOutError) {
-        console.error('Error signing out:', signOutError);
-      }
+      Alert.alert('Error', err?.message || 'An unexpected error occurred');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <KeyboardAvoidingView 
+    <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={styles.container}
     >
       <View style={styles.innerContainer}>
-        {/* Back Button */}
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.backButton}
           onPress={() => router.push('/role')}
         >
           <Text style={styles.backButtonText}>← Back</Text>
         </TouchableOpacity>
 
-        <Text style={styles.title}>Login</Text>
-        
-        <Text style={styles.label}>Email Address</Text>
+        <Text style={styles.title}>Resident Login</Text>
+
+        <Text style={styles.label}>Username</Text>
         <TextInput
           style={styles.input}
-          placeholder="Enter your email address"
-          value={email}
-          onChangeText={setEmail}
-          keyboardType="email-address"
+          placeholder="Enter your username"
+          value={username}
+          onChangeText={setUsername}
           autoCapitalize="none"
-          autoComplete="email"
         />
 
         <Text style={styles.label}>Password</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Enter your password"
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry
-        />
+        <View style={styles.passwordContainer}>
+          <TextInput
+            style={styles.passwordInput}
+            placeholder="Enter your password"
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry={!showPassword}
+            type={showPassword ? 'text' : 'password'}
+          />
+          <TouchableOpacity onPress={() => setShowPassword((prev) => !prev)} style={styles.showHideButton}>
+            <Feather name={showPassword ? 'eye-off' : 'eye'} size={24} color="#3498db" />
+          </TouchableOpacity>
+        </View>
 
-        <TouchableOpacity 
+        <TouchableOpacity>
+          <Text style={styles.forgotPassword}>Forgot password?</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
           style={[styles.loginButton, loading && styles.disabledButton]}
           onPress={handleLogin}
           disabled={loading}
@@ -125,10 +121,10 @@ const LoginScreen = () => {
           )}
         </TouchableOpacity>
 
-        <View style={styles.registerContainer}>
-          <Text style={styles.registerText}>Don&apos;t have an account? </Text>
+        <View style={styles.noteContainer}>
+          <Text style={styles.noteText}>Don&apos;t have an account? </Text>
           <TouchableOpacity onPress={() => router.push('/RRegister')}>
-            <Text style={styles.registerLink}>REGISTER</Text>
+            <Text style={styles.noteHighlight}>Register here</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -145,6 +141,17 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 20,
     justifyContent: 'center',
+  },
+  backButton: {
+    position: 'absolute',
+    top: 40,
+    left: 20,
+    zIndex: 1,
+  },
+  backButtonText: {
+    fontSize: 16,
+    color: '#3498db',
+    fontWeight: '600',
   },
   title: {
     fontSize: 24,
@@ -169,6 +176,7 @@ const styles = StyleSheet.create({
   forgotPassword: {
     color: '#3498db',
     textAlign: 'right',
+    marginTop: -10,
     marginBottom: 20,
   },
   loginButton: {
@@ -187,27 +195,41 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
   },
-  registerContainer: {
+  noteContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 20,
   },
-  registerText: {
+  noteText: {
     color: '#555',
+    fontSize: 16,
   },
-  registerLink: {
+  noteHighlight: {
     color: '#3498db',
     fontWeight: 'bold',
-  },
-  backButton: {
-    position: 'absolute',
-    top: 40,
-    left: 20,
-    zIndex: 1,
-  },
-  backButtonText: {
     fontSize: 16,
-    color: '#3498db',
-    fontWeight: '600',
+  },
+  passwordContainer: {
+    position: 'relative',
+    justifyContent: 'center',
+  },
+  passwordInput: {
+    height: 50,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    paddingHorizontal: 15,
+    fontSize: 16,
+    paddingRight: 70, // space for the show/hide button
+    marginBottom: 20,
+  },
+  showHideButton: {
+    position: 'absolute',
+    right: 15,
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });
 

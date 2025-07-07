@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
+import { saveAuth } from '../auth'; // Import the auth utility
 
 const CollectorLoginScreen = () => {
   const [mobileNumber, setMobileNumber] = useState('');
@@ -19,12 +20,26 @@ const CollectorLoginScreen = () => {
       return;
     }
 
+    setLoading(true);
     try {
-      setLoading(true);
-      // Here you'll add your Firebase authentication logic
-      // For now, just simulate a delay
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      router.push('/collector/HomePage');
+      // Use mobileNumber as username for backend login
+      const response = await fetch('http://<YOUR_BACKEND_URL>/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: mobileNumber, password }),
+      });
+      const data = await response.json();
+      if (data.success && data.token) {
+        await saveAuth(data.token, data.user.role);
+        // Redirect based on role
+        if (data.user.role === 'collector') {
+          router.replace('/collector/CHome');
+        } else {
+          Alert.alert('Error', 'Not a collector account');
+        }
+      } else {
+        Alert.alert('Login Failed', data.message || 'Invalid credentials');
+      }
     } catch (err) {
       Alert.alert('Error', err.message);
     } finally {

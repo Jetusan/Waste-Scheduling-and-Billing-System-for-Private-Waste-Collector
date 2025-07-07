@@ -1,136 +1,232 @@
-/* Layout */
-.dashboard {
-  display: flex;
-  height: 100vh;
-  font-family: Arial, sans-serif;
-  background-color: #f4f4f4;
-}
+/* CollectionSchedule.css */
 
-.sidebar {
-  width: 240px;
-  background-color: #1e1e2f;
-  color: white;
-  display: flex;
-  flex-direction: column;
-  padding: 20px;
-}
-
-.logo {
-  font-size: 24px;
-  font-weight: bold;
-  margin-bottom: 30px;
-  text-align: center;
-  letter-spacing: 1px;
-}
-
-.nav-menu {
-  display: flex;
-  flex-direction: column;
-  gap: 15px;
-}
-
-.nav-menu a {
-  color: white;
-  text-decoration: none;
-  padding: 10px 15px;
-  border-radius: 8px;
-  transition: background-color 0.2s;
-}
-
-.nav-menu a:hover {
-  background-color: #33334d;
-}
-
-/* Top Bar */
-.topbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  background-color: #ffffff;
-  padding: 20px;
-  border-bottom: 1px solid #ccc;
-}
-
-.topbar .title {
-  font-size: 22px;
-  font-weight: bold;
-}
-
-.topbar .icons {
-  display: flex;
-  align-items: center;
-  gap: 15px;
-}
-
-.topbar button {
-  background: none;
-  border: none;
-  font-size: 20px;
-  cursor: pointer;
-}
-
-.avatar {
-  width: 35px;
-  height: 35px;
-  background-color: #888;
-  border-radius: 50%;
-}
-
-/* Main Content */
-.main-content {
-  flex-grow: 1;
-  display: flex;
-  flex-direction: column;
-}
-
-/* Collection Schedule Section */
+/* ── Base Styles ── */
 .collection-schedule {
-  padding: 20px;
-  background-color: #f9f9f9;
-  flex-grow: 1;
+  background: #ffffff;
+  padding: 24px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  color: #1e293b;
+  margin: 16px auto;
+  max-width: 1000px;
 }
 
+/* ── Header ── */
 .schedule-header {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 20px;
+  gap: 12px;
 }
-
 .schedule-header h3 {
   margin: 0;
-  font-size: 20px;
+  font-size: 1.5rem;
+  font-weight: 600;
 }
-
+.header-left {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
 .schedule-header input {
   padding: 8px 12px;
-  border: 1px solid #ccc;
-  border-radius: 8px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  width: 200px;
+  transition: border-color 0.2s;
+}
+.schedule-header input:focus {
+  border-color: #3b82f6;
+  outline: none;
+}
+.add-schedule-btn {
+  background: #4ade80;
+  color: #ffffff;
+  border: none;
+  padding: 8px 16px;
+  font-size: 0.9rem;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: background 0.2s;
+}
+.add-schedule-btn:hover {
+  background: #22c55e;
 }
 
-/* Table Styles */
+/* ── Table Container ── */
+.table-wrapper {
+  overflow-x: auto;
+}
 .schedule-table {
   width: 100%;
   border-collapse: collapse;
-  background-color: white;
-  border-radius: 8px;
-  overflow: hidden;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+  min-width: 600px;
 }
-
 .schedule-table th,
 .schedule-table td {
-  padding: 12px 15px;
+  padding: 12px 10px;
   text-align: left;
-  border-bottom: 1px solid #eee;
+  font-size: 0. nine rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+.schedule-table thead {
+  background: #f3f4f6;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+.schedule-table tbody tr:nth-child(even) {
+  background: #fafafb;
+}
+.schedule-table tbody tr:hover {
+  background: #f1f5f9;
 }
 
-.schedule-table th {
-  background-color: #e5e5f7;
-  color: #333;
+/* ── Action Buttons ── */
+.action-btn {
+  padding: 5px 10px;
+  margin: 0 5px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+.action-btn.edit {
+  background-color: #4CAF50;
+  color: white;
+}
+.action-btn.edit:hover {
+  background-color: #45a049;
+}
+.action-btn.delete {
+  background-color: #f44336;
+  color: white;
+}
+.action-btn.delete:hover {
+  background-color: #da190b;
+}
+
+/* ── Modal Overlay ── */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  z-index: 1000;
+}
+
+/* ── Modal Window ── */
+.modal {
+  background: #ffffff;
+  border-radius: 8px;
+  padding: 24px;
+  width: 100%;
+  max-width: 500px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  position: relative;
+}
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+.modal-header h3 {
+  margin: 0;
+  font-size: 1.25rem;
   font-weight: 600;
 }
+.close-btn {
+  background: none;
+  border: none;
+  font-size: 1.2rem;
+  cursor: pointer;
+  color: #64748b;
+}
+.close-btn:hover {
+  color: #1e293b;
+}
 
-.schedule-table tbody tr:hover {
-  background-color: #f1f1f1;
+/* ── Form Groups ── */
+.form-group {
+  margin-bottom: 16px;
+}
+.form-group label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 0. nine rem;
+  font-weight: 500;
+  color: #374151;
+}
+.form-group input,
+.form-group select {
+  width: 100%;
+  padding: 8px 12px;
+  font-size: 0. nine rem;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  transition: border-color 0.2s;
+}
+.form-group input:focus,
+.form-group select:focus {
+  outline: none;
+  border-color: #3b82f6;
+}
+
+/* ── Modal Footer ── */
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 20px;
+}
+.cancel-btn,
+.submit-btn {
+  padding: 8px 16px;
+  font-size: 0. nine rem;
+  border-radius: 6px;
+  cursor: pointer;
+  border: none;
+}
+.cancel-btn {
+  background: #e5e7eb;
+  color: #374151;
+}
+.cancel-btn:hover {
+  background: #d1d5db;
+}
+.submit-btn {
+  background: #4ade80;
+  color: #ffffff;
+}
+.submit-btn:hover {
+  background: #22c55e;
+}
+
+/* ── Responsive Adjustments ── */
+@media (max-width: 640px) {
+  .schedule-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .schedule-header input {
+    width: 100%;
+  }
+  .add-schedule-btn {
+    width: 100%;
+    justify-content: center;
+  }
+  .table-wrapper {
+    margin-top: 16px;
+  }
 }
