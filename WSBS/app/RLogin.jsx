@@ -13,6 +13,7 @@ import {
 import { useRouter } from 'expo-router';
 import { saveAuth } from './auth'; // Import the auth utility
 import { Feather } from '@expo/vector-icons';
+import { API_BASE_URL } from './config';
 
 const LoginScreen = () => {
   const [username, setUsername] = useState(''); // this uses the email input field
@@ -31,36 +32,55 @@ const LoginScreen = () => {
     setLoading(true);
 
     try {
-      // IMPORTANT: If testing on a mobile device or emulator, replace 'localhost' with your computer's local IP address (e.g., '192.168.x.x')
-      // For Android emulator, use '10.0.2.2' instead of 'localhost'.
-      const response = await fetch('http://localhost:5000/api/auth/login', {
+      // Use optimized login endpoint for cleaned database structure
+      const response = await fetch(`${API_BASE_URL}/api/auth/login-enhanced`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ 
+          username, 
+          password, 
+          source: 'mobile_app' 
+        }),
       });
       const data = await response.json();
-      console.log('Login API response:', data);
-      if (data.success && data.token) {
+      console.log('Enhanced login API response:', data);
+      
+      if (data.success && data.user) {
         console.log('Before saveAuth');
         try {
-          await saveAuth(data.token, data.user.role);
+          // Use the real JWT token from the API response
+          const authToken = data.token;
+          // Since our API doesn't return role, we'll default to 'resident'
+          const userRole = data.user.role || 'resident';
+          await saveAuth(authToken, userRole);
           console.log('After saveAuth');
         } catch (e) {
           console.error('Error in saveAuth:', e);
         }
-        // Redirect based on role
-        console.log('User role:', data.user.role);
-        if (data.user.role === 'resident') {
-          console.log('Navigating to /resident');
-          router.replace('/resident'); // Go to the resident tab navigator, HomePage tab will show by default
-        } else {
-          Alert.alert('Error', 'Not a resident account');
-        }
+        
+        // Show welcome message with user details  
+        const welcomeMessage = `Welcome back, ${data.user.username}!`;
+        Alert.alert('Login Successful! 🎉', welcomeMessage, [
+          {
+            text: 'Continue',
+            onPress: () => {
+              // Redirect based on role
+              console.log('User role:', data.user.role);
+              if (data.user.role === 'resident') {
+                console.log('Navigating to /resident');
+                router.replace('/resident');
+              } else {
+                Alert.alert('Error', 'Not a resident account');
+              }
+            }
+          }
+        ]);
       } else {
         Alert.alert('Login Failed', data.message || 'Invalid credentials');
       }
     } catch (err) {
-      Alert.alert('Error', err?.message || 'An unexpected error occurred');
+      console.error('Login error:', err);
+      Alert.alert('Network Error', 'Unable to connect to server. Please check your connection and try again.');
     } finally {
       setLoading(false);
     }
@@ -105,7 +125,7 @@ const LoginScreen = () => {
           </TouchableOpacity>
         </View>
 
-        <TouchableOpacity>
+        <TouchableOpacity onPress={() => router.push('/forgotPassword')}>
           <Text style={styles.forgotPassword}>Forgot password?</Text>
         </TouchableOpacity>
 

@@ -1,28 +1,93 @@
-import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
+import { getToken } from '../auth';
+import { API_BASE_URL } from '../config';
 
 const AccountPage = () => {
   const router = useRouter();
 
-  const [name, setName] = useState('Melissa Peters');
-  const [email, setEmail] = useState('melpeters@gmail.com');
-  const [password, setPassword] = useState('********');
-  const [dob, setDob] = useState('23/05/1995');
-  const [country, setCountry] = useState('Nigeria');
+  const [profile, setProfile] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  const saveChanges = () => {
-    console.log('Name:', name);
-    console.log('Email:', email);
-    console.log('Password:', password);
-    console.log('Date of Birth:', dob);
-    console.log('Country/Region:', country);
-    // API logic here
+  useEffect(() => {
+    const fetchProfile = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const token = await getToken();
+        console.log('Retrieved token:', token ? 'Token exists' : 'No token found');
+        
+        if (!token) {
+          setError('No authentication token found. Please log in again.');
+          setLoading(false);
+          return;
+        }
+        
+        console.log('Using JWT token for profile fetch');
+        
+        // Use the standard profile endpoint with JWT token
+        const response = await fetch(`${API_BASE_URL}/api/auth/profile`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        });
+        
+        if (!response.ok) {
+          console.error('HTTP error:', response.status);
+          setError(`Failed to fetch profile (HTTP ${response.status})`);
+          setLoading(false);
+          return;
+        }
+        
+        const data = await response.json();
+        console.log('Profile data received:', data);
+        
+        if (!data.success) {
+          setError(data.message || 'Failed to fetch profile');
+        } else {
+          setProfile(data.user);
+        }
+      } catch (err) {
+        console.error('Profile fetch error:', err);
+        setError(err.message || 'An error occurred while fetching profile');
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchProfile();
+  }, []);
+
+  const handleLogout = async () => {
+    try {
+      // Clear the token from secure storage
+      const { logout } = require('../auth');
+      await logout();
+      router.replace('/RLogin');
+    } catch (error) {
+      console.error('Logout error:', error);
+      // Force navigation even if logout fails
+      router.replace('/RLogin');
+    }
   };
 
-  const handleLogout = () => {
-    router.replace('/RLogin');
-  };
+  if (loading) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" />
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <Text style={{ color: 'red' }}>{error}</Text>
+      </View>
+    );
+  }
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
@@ -31,47 +96,50 @@ const AccountPage = () => {
 
         <View style={styles.profilePictureContainer}>
           <View style={styles.profilePicture} />
-          <TouchableOpacity style={styles.editPictureButton}>
-            <Text style={styles.editPictureText}>Change Photo</Text>
-          </TouchableOpacity>
+          <Text style={styles.profileText}>Profile Picture</Text>
         </View>
 
-        <TextInput
-          style={styles.input}
-          placeholder="Full Name"
-          value={name}
-          onChangeText={setName}
-        />
-        <TextInput
-          style={styles.input}
-          placeholder="Email"
-          value={email}
-          onChangeText={setEmail}
-          keyboardType="email-address"
-        />
-        <TextInput
-          style={styles.input}
-          placeholder="Password"
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry
-        />
-        <TextInput
-          style={styles.input}
-          placeholder="Date of Birth"
-          value={dob}
-          onChangeText={setDob}
-        />
-        <TextInput
-          style={styles.input}
-          placeholder="Country / Region"
-          value={country}
-          onChangeText={setCountry}
-        />
+        <View style={styles.infoContainer}>
+          <Text style={styles.label}>Full Name</Text>
+          <Text style={styles.infoText}>
+            {profile ? profile.name || `${profile.firstName || ''} ${profile.middleName || ''} ${profile.lastName || ''}`.replace(/\s+/g, ' ').trim() : 'Loading...'}
+          </Text>
+        </View>
 
-        <TouchableOpacity style={styles.saveButton} onPress={saveChanges}>
-          <Text style={styles.saveButtonText}>Save Changes</Text>
-        </TouchableOpacity>
+        <View style={styles.infoContainer}>
+          <Text style={styles.label}>Username</Text>
+          <Text style={styles.infoText}>
+            {profile ? profile.username || 'N/A' : 'Loading...'}
+          </Text>
+        </View>
+
+        <View style={styles.infoContainer}>
+          <Text style={styles.label}>Contact Number</Text>
+          <Text style={styles.infoText}>
+            {profile ? profile.phone || 'N/A' : 'Loading...'}
+          </Text>
+        </View>
+
+        <View style={styles.infoContainer}>
+          <Text style={styles.label}>Street</Text>
+          <Text style={styles.infoText}>
+            {profile ? profile.address?.street || 'N/A' : 'Loading...'}
+          </Text>
+        </View>
+
+        <View style={styles.infoContainer}>
+          <Text style={styles.label}>Barangay</Text>
+          <Text style={styles.infoText}>
+            {profile ? profile.address?.barangay || 'N/A' : 'Loading...'}
+          </Text>
+        </View>
+
+        <View style={styles.infoContainer}>
+          <Text style={styles.label}>City</Text>
+          <Text style={styles.infoText}>
+            {profile ? profile.address?.city || 'N/A' : 'Loading...'}
+          </Text>
+        </View>
 
         <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
           <Text style={styles.logoutButtonText}>Log Out</Text>
@@ -91,11 +159,14 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: '#FFFFFF',
     borderRadius: 20,
-    padding: 25,
+    padding: 30,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
     elevation: 5,
   },
   title: {
@@ -107,49 +178,51 @@ const styles = StyleSheet.create({
   },
   profilePictureContainer: {
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 30,
   },
   profilePicture: {
     width: 110,
     height: 110,
     borderRadius: 55,
     backgroundColor: '#C0C0C0',
+    marginBottom: 10,
   },
-  editPictureButton: {
-    marginTop: 12,
-  },
-  editPictureText: {
-    color: '#4CD964',
-    fontWeight: '600',
+  profileText: {
+    color: '#666',
     fontSize: 14,
+    fontWeight: '500',
   },
-  input: {
-    height: 50,
-    borderWidth: 1,
-    borderColor: '#DDDDDD',
-    borderRadius: 12,
+  infoContainer: {
+    marginBottom: 20,
+    paddingVertical: 10,
     paddingHorizontal: 15,
-    backgroundColor: '#FDFDFD',
-    fontSize: 16,
-    marginBottom: 16,
-  },
-  saveButton: {
-    backgroundColor: '#4CD964',
-    paddingVertical: 14,
+    backgroundColor: '#F8F9FA',
     borderRadius: 12,
-    alignItems: 'center',
-    marginBottom: 14,
+    borderLeftWidth: 4,
+    borderLeftColor: '#4CD964',
   },
-  saveButtonText: {
-    color: '#FFFFFF',
-    fontWeight: '700',
+  label: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#666',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 5,
+  },
+  infoText: {
     fontSize: 16,
+    fontWeight: '500',
+    color: '#333',
+    minHeight: 20,
   },
   logoutButton: {
     backgroundColor: '#FF3B30',
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: 'center',
+    marginTop: 20,
+    width: 180,
+    alignSelf: 'center',
   },
   logoutButtonText: {
     color: '#FFFFFF',

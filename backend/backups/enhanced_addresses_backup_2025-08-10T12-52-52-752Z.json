@@ -1,0 +1,45 @@
+{
+  "tableName": "enhanced_addresses",
+  "rowCount": 2,
+  "timestamp": "2025-08-10T12:52:53.055Z",
+  "data": [
+    {
+      "address_id": 1,
+      "full_address": "123 Test Street, Purok 1, Sample Barangay, General Santos City, 9500",
+      "house_number": "123",
+      "street": "Test Street",
+      "purok": "Purok 1",
+      "barangay_name": "Sample Barangay",
+      "city_name": "General Santos City",
+      "postal_code": "9500",
+      "latitude": null,
+      "longitude": null,
+      "is_validated": false,
+      "validated_at": null,
+      "address_type": "residential",
+      "landmark": "Near Test Landmark",
+      "delivery_notes": null,
+      "created_at": "2025-08-10T11:59:48.700Z",
+      "updated_at": "2025-08-10T11:59:48.700Z"
+    },
+    {
+      "address_id": 2,
+      "full_address": "block 1 street 1, none, Apopong, General Santos City, 9500",
+      "house_number": "block 1",
+      "street": "street 1",
+      "purok": "none",
+      "barangay_name": "Apopong",
+      "city_name": "General Santos City",
+      "postal_code": "9500",
+      "latitude": null,
+      "longitude": null,
+      "is_validated": false,
+      "validated_at": null,
+      "address_type": "residential",
+      "landmark": "nsnsns",
+      "delivery_notes": null,
+      "created_at": "2025-08-10T12:39:39.857Z",
+      "updated_at": "2025-08-10T12:39:39.857Z"
+    }
+  ]
+}

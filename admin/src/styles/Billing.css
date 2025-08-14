@@ -177,30 +177,30 @@
 /* Action Buttons */
 .action-buttons-group {
   display: flex;
-  gap: 6px;
+  gap: 4px;
   flex-wrap: wrap;
 }
 
 .action-btn {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 6px 10px;
+  gap: 3px;
+  padding: 4px 8px;
   border: 1px solid #ddd;
-  border-radius: 4px;
-  background-color: #f8f9fa;
-  color: #333;
-  font-size: 12px;
+  border-radius: 3px;
+  background-color: transparent;
+  color: #6b7280;
+  font-size: 11px;
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
 .action-btn i {
-  font-size: 12px;
+  font-size: 11px;
 }
 
 .action-btn:hover {
-  background-color: #e9ecef;
+  background-color: #f3f4f6;
   border-color: #adb5bd;
 }
 

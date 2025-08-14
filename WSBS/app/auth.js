@@ -4,8 +4,15 @@ const TOKEN_KEY = 'userToken';
 const ROLE_KEY = 'userRole';
 
 export async function saveAuth(token, role) {
-  await SecureStore.setItemAsync(TOKEN_KEY, token);
-  await SecureStore.setItemAsync(ROLE_KEY, role);
+  console.log('Saving auth - token:', token ? 'present' : 'missing', 'role:', role);
+  
+  if (token) {
+    await SecureStore.setItemAsync(TOKEN_KEY, token);
+  }
+  
+  // Only save role if it's defined, otherwise save empty string
+  const roleToSave = role ? String(role) : '';
+  await SecureStore.setItemAsync(ROLE_KEY, roleToSave);
 }
 
 export async function getToken() {

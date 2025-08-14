@@ -40,7 +40,9 @@ const CHome = () => {
             style={styles.mapPlaceholder}
             imageStyle={{ borderRadius: 8 }}
             resizeMode="cover"
-              ></ImageBackground>
+              >
+                <View style={{ flex: 1 }} />
+              </ImageBackground>
         </View>
 
 
@@ -73,11 +75,13 @@ const CHome = () => {
           <Text style={styles.buttonText}>Schedules</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.buttonGreen}>
+        <TouchableOpacity style={styles.buttonGreen}
+        onPress={() => router.push('/collector/specialpickup')}>
           <Text style={styles.buttonText}>Special Pick Up</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.buttonDarkGreen}>
+        <TouchableOpacity style={styles.buttonDarkGreen}
+        onPress={() => router.push('/collector/CStartCollection')}>
           <Text style={styles.buttonText}>Start Collections</Text>
         </TouchableOpacity>
       </ScrollView>

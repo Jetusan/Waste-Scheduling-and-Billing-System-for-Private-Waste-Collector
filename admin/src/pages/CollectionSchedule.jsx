@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import '../styles/CollectionSchedule.css';
 import axios from 'axios';
-import Calendar from 'react-calendar';
-import 'react-calendar/dist/Calendar.css';
+import SpecialPickup from './SpecialPickup'; // Add this import at the top
 
 const API_URL = 'http://localhost:5000/api';
 
@@ -12,24 +11,60 @@ const CollectionSchedule = () => {
   const [schedules, setSchedules] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [barangays, setBarangays] = useState([]);
-  const [trucks, setTrucks] = useState([]);
-  const [selectedDate, setSelectedDate] = useState(new Date());
   const [editSchedule, setEditSchedule] = useState({
     schedule_id: '',
-    barangay_id: '',
-    truck_id: '',
+    barangay_ids: [],
     schedule_date: '',
-    schedule_time: '',
-    created_at: ''
+    created_at: '',
+    waste_type: 'Residual', // Add default waste type
+    time_range: '', // Single time range field
+    start_time: '', // Helper field for UI
+    end_time: '', // Helper field for UI
   });
   const [newSchedule, setNewSchedule] = useState({
-    barangay_id: '',
-    truck_id: '',
+    barangay_ids: [],
     schedule_date: '',
-    schedule_time: '',
-    created_at: ''
+    created_at: '',
+    waste_type: 'Residual', // Add default waste type
+    time_range: '', // Single time range field
+    start_time: '', // Helper field for UI
+    end_time: '', // Helper field for UI
   });
-  const [missedPickups, setMissedPickups] = useState([]);
+  const wasteTypes = [
+    'Residual',
+    'Biodegradable',
+    'Bottle',
+    'Binakbak',
+  ];
+  const [barangayToAdd, setBarangayToAdd] = useState('');
+  const [editBarangayToAdd, setEditBarangayToAdd] = useState('');
+  const [viewType, setViewType] = useState('regular'); // Add this state after other useState hooks
+
+  // Helper function to format time to 12-hour format
+  const formatTime = (time24) => {
+    if (!time24) return '';
+    const [hours, minutes] = time24.split(':');
+    const hour = parseInt(hours);
+    const period = hour >= 12 ? 'pm' : 'am';
+    const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
+    return `${displayHour}${period}`;
+  };
+
+  // Helper function to build time range string
+  const buildTimeRange = (startTime, endTime) => {
+    if (!startTime && !endTime) return '';
+    if (!startTime) return '';
+    
+    const formattedStart = formatTime(startTime);
+    const formattedEnd = endTime ? formatTime(endTime) : '';
+    
+    if (formattedStart && formattedEnd) {
+      return `${formattedStart} to ${formattedEnd}`;
+    } else {
+      return formattedStart;
+    }
+  };
+ 
 
   // Fetch schedules
   const fetchSchedules = async () => {
@@ -53,53 +88,37 @@ const CollectionSchedule = () => {
     }
   };
 
-  // Fetch trucks
-  const fetchTrucks = async () => {
-    try {
-      const { data } = await axios.get(`${API_URL}/trucks`);
-      setTrucks(data);
-    } catch (err) {
-      console.error('Error fetching trucks:', err);
-    }
-  };
-
-  // Fetch missed pickups
-  const fetchMissedPickups = async () => {
-    try {
-      const { data } = await axios.get(`${API_URL}/collection-schedules/missed`);
-      setMissedPickups(data);
-    } catch (err) {
-      console.error('Error fetching missed pickups:', err);
-    }
-  };
 
   useEffect(() => {
     console.log('Component mounted, fetching data...');
     fetchSchedules();
     fetchBarangays();
-    fetchTrucks();
-    fetchMissedPickups();
   }, []);
 
   const handleSubmit = async e => {
     e.preventDefault();
     try {
-      // Validate form data
-      if (!newSchedule.barangay_id || !newSchedule.truck_id || !newSchedule.schedule_date || !newSchedule.schedule_time) {
-        alert('Please fill in all required fields');
+      if (!newSchedule.barangay_ids.length || !newSchedule.schedule_date) {
+        alert('Please select at least one barangay and fill in the day.');
         return;
       }
-
-      const response = await axios.post(`${API_URL}/collection-schedules`, newSchedule);
+      const response = await axios.post(`${API_URL}/collection-schedules`, {
+        barangay_ids: newSchedule.barangay_ids.map(id => parseInt(id, 10)),
+        schedule_date: newSchedule.schedule_date,
+        waste_type: newSchedule.waste_type, // Include waste type
+        time_range: newSchedule.time_range, // Include time range
+      });
       if (response.data) {
         fetchSchedules();
         setIsModalOpen(false);
         setNewSchedule({
-          barangay_id: '',
-          truck_id: '',
+          barangay_ids: [],
           schedule_date: '',
-          schedule_time: '',
-          created_at: ''
+          created_at: '',
+          waste_type: 'Residual', // Reset to default
+          time_range: '', // Reset time range
+          start_time: '', // Reset helper fields
+          end_time: '',
         });
       }
     } catch (err) {
@@ -124,30 +143,27 @@ const CollectionSchedule = () => {
   const handleEdit = async (e) => {
     e.preventDefault();
     try {
-      console.log('Sending update request with data:', editSchedule);
-      
       const response = await axios.put(
         `${API_URL}/collection-schedules/${editSchedule.schedule_id}`,
         {
-          barangay_id: editSchedule.barangay_id,
-          truck_id: editSchedule.truck_id,
+          barangay_ids: editSchedule.barangay_ids.map(id => parseInt(id, 10)),
           schedule_date: editSchedule.schedule_date,
-          schedule_time: editSchedule.schedule_time
+          waste_type: editSchedule.waste_type, // Include waste type
+          time_range: editSchedule.time_range, // Include time range
         }
       );
-
-      console.log('Update response:', response.data);
-      
       if (response.data) {
-        await fetchSchedules(); // Refresh the schedules list
+        await fetchSchedules();
         setIsEditModalOpen(false);
         setEditSchedule({
           schedule_id: '',
-          barangay_id: '',
-          truck_id: '',
+          barangay_ids: [],
           schedule_date: '',
-          schedule_time: '',
-          created_at: ''
+          created_at: '',
+          waste_type: 'Residual',
+          time_range: '', // Reset time range
+          start_time: '', // Reset helper fields
+          end_time: '',
         });
       }
     } catch (err) {
@@ -158,442 +174,419 @@ const CollectionSchedule = () => {
   };
 
   const openEditModal = (schedule) => {
-    // Format the date to YYYY-MM-DD for the input
-    const formattedDate = new Date(schedule.schedule_date).toISOString().split('T')[0];
+    // Parse existing time_range back to start_time and end_time
+    let startTime = '';
+    let endTime = '';
+    
+    if (schedule.time_range) {
+      const timeRange = schedule.time_range.toLowerCase();
+      
+      // Parse formats like "9am to 10am" or just "9am"
+      if (timeRange.includes(' to ')) {
+        const [start, end] = timeRange.split(' to ');
+        startTime = convertTo24Hour(start.trim());
+        endTime = convertTo24Hour(end.trim());
+      } else {
+        startTime = convertTo24Hour(timeRange.trim());
+      }
+    }
+
     setEditSchedule({
       schedule_id: schedule.schedule_id,
-      barangay_id: schedule.barangay_id,
-      truck_id: schedule.truck_id,
-      schedule_date: formattedDate,
-      schedule_time: schedule.schedule_time,
-      created_at: schedule.created_at
+      barangay_ids: schedule.barangays ? schedule.barangays.map(b => String(b.barangay_id)) : [],
+      schedule_date: schedule.schedule_date,
+      created_at: schedule.created_at,
+      waste_type: schedule.waste_type || 'Residual', // Prefill waste type
+      time_range: schedule.time_range || '', // Prefill time range
+      start_time: startTime,
+      end_time: endTime,
     });
     setIsEditModalOpen(true);
   };
 
-  const filteredSchedules = schedules.filter(s =>
-    s.barangay_name?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  // Helper: get schedules for selected date
-  const schedulesForSelectedDate = schedules.filter(s => {
-    const schedDate = new Date(s.schedule_date);
-    return schedDate.toDateString() === selectedDate.toDateString();
-  });
-
-  // Helper: highlight days with schedules
-  const tileClassName = ({ date, view }) => {
-    if (view === 'month') {
-      return schedules.some(s => 
-        new Date(s.schedule_date).toDateString() === date.toDateString()
-      ) ? 'has-schedule' : null;
+  // Helper function to convert 12-hour format to 24-hour format
+  const convertTo24Hour = (time12) => {
+    if (!time12) return '';
+    
+    const timeStr = time12.toLowerCase().replace(/\s/g, '');
+    const isPM = timeStr.includes('pm');
+    const isAM = timeStr.includes('am');
+    
+    if (!isPM && !isAM) return '';
+    
+    let hour = parseInt(timeStr.replace(/[ap]m/, ''));
+    
+    if (isPM && hour !== 12) {
+      hour += 12;
+    } else if (isAM && hour === 12) {
+      hour = 0;
     }
+    
+    return `${hour.toString().padStart(2, '0')}:00`;
   };
+
+  const filteredSchedules = searchTerm
+    ? schedules.filter(s =>
+        s.barangays && s.barangays.some(b =>
+          b.barangay_name.toLowerCase().includes(searchTerm.toLowerCase())
+        )
+      )
+    : schedules;
+
+  const DAYS_OF_WEEK = [
+    'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'
+  ];
 
   return (
     <section className="collection-schedule">
-      {/* Header */}
-      <div className="schedule-header" style={{ 
-        display: 'flex', 
-        justifyContent: 'flex-end', 
-        padding: '20px',
-        marginBottom: '10px'
-      }}>
-        <button 
-          className="add-schedule-btn" 
-          onClick={() => setIsModalOpen(true)}
-          style={{
-            backgroundColor: '#4CAF50',
-            color: 'white',
-            padding: '12px 24px',
-            border: 'none',
-            borderRadius: '8px',
-            fontSize: '16px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            cursor: 'pointer',
-            boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-            transition: 'all 0.3s ease',
-            ':hover': {
-              backgroundColor: '#45a049',
-              transform: 'translateY(-1px)',
-              boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
-            }
-          }}
-        >
-          <i className="fa fa-plus" style={{ fontSize: '18px' }} /> Add Schedule
-        </button>
+      {/* Tab Switcher */}
+      <div className="schedule-header" style={{ display: 'flex', justifyContent: 'flex-start', alignItems: 'center', padding: '20px', marginBottom: '10px', gap: '10px' }}>
+        <button onClick={() => setViewType('regular')} className={viewType === 'regular' ? 'active' : ''}>Regular</button>
+        <button onClick={() => setViewType('special')} className={viewType === 'special' ? 'active' : ''}>Special Pickup</button>
       </div>
+      {viewType === 'regular' ? (
+        <>
+          {/* Header */}
+          <div className="schedule-header" style={{ 
+            display: 'flex', 
+            justifyContent: 'flex-end', 
+            padding: '20px',
+            marginBottom: '10px'
+          }}>
+            <button 
+              className="add-schedule-btn" 
+              onClick={() => setIsModalOpen(true)}
+              style={{
+                backgroundColor: '#4CAF50',
+                color: 'white',
+                padding: '12px 24px',
+                border: 'none',
+                borderRadius: '8px',
+                fontSize: '16px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                cursor: 'pointer',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                transition: 'all 0.3s ease',
+              }}
+            >
+              <i className="fa fa-plus" style={{ fontSize: '18px' }} /> Add Schedule
+            </button>
+          </div>
 
-      {/* Calendar View */}
-      <div className="calendar-view">
-        <Calendar
-          onChange={setSelectedDate}
-          value={selectedDate}
-          tileClassName={tileClassName}
-          className="react-calendar"
-        />
-        <style>{`
-          .calendar-view {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 20px;
-            padding: 20px;
-          }
-          .react-calendar {
-            width: 100%;
-            max-width: 600px;
-            background: white;
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            padding: 16px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-          }
-          .react-calendar__tile.has-schedule {
-            background: #4ade80;
-            color: white;
-            border-radius: 8px;
-          }
-          .react-calendar__tile:enabled:hover,
-          .react-calendar__tile:enabled:focus {
-            background-color: #e6e6e6;
-            border-radius: 8px;
-          }
-          .react-calendar__tile--active {
-            background: #006edc !important;
-            border-radius: 8px;
-          }
-          .add-schedule-btn:hover {
-            background-color: #45a049 !important;
-            transform: translateY(-1px);
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-          }
-        `}</style>
+          {/* Search Bar */}
+          <div style={{ 
+            display: 'flex', 
+            justifyContent: 'center', 
+            padding: '20px',
+            marginBottom: '20px'
+          }}>
+            <input
+              type="text"
+              placeholder="Search by barangay..."
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              style={{
+                width: '100%',
+                maxWidth: '600px',
+                padding: '10px 15px',
+                borderRadius: '8px',
+                border: '1px solid #ddd',
+                fontSize: '16px'
+              }}
+            />
+          </div>
 
-        <div className="schedule-list">
-          <h4>Schedules for {selectedDate.toLocaleDateString()}:</h4>
-          {schedulesForSelectedDate.length === 0 ? (
-            <p style={{ color: '#888' }}>No schedules for this day.</p>
-          ) : (
-            <ul style={{ listStyle: 'none', padding: 0 }}>
-              {schedulesForSelectedDate.map(s => (
-                <li 
-                  key={s.schedule_id}
-                  style={{
-                    background: '#f3f4f6',
-                    marginBottom: '8px',
-                    padding: '10px 14px',
-                    borderRadius: '6px',
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center'
-                  }}
-                >
-                  <span><b>{s.barangay_name}</b> ({s.truck_number})</span>
-                  <span>{s.schedule_time}</span>
-                </li>
-              ))}
-            </ul>
+          {/* Table */}
+          <div className="table-wrapper">
+            <table className="schedule-table">
+              <thead>
+                <tr>
+                  <th>Barangays</th>
+                  <th>Collection Date</th>
+                  <th>Pickup Time</th>
+                  <th>Type of Waste</th> {/* New column */}
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredSchedules.map(s => (
+                  <tr key={s.schedule_id}>
+                    <td>{s.barangays && s.barangays.length > 0 ? s.barangays.map(b => b.barangay_name).join(', ') : ''}</td>
+                    <td>{s.schedule_date}</td>
+                    <td>{s.time_range || 'Not set'}</td>
+                    <td>{s.waste_type || ''}</td> {/* Show waste type */}
+                    <td>
+                      <button
+                        className="action-btn"
+                        onClick={() => openEditModal(s)}
+                      >
+                        <i className="fa fa-edit" />
+                      </button>
+                      <button
+                        className="action-btn"
+                        onClick={() => handleDelete(s.schedule_id)}
+                      >
+                        <i className="fa fa-trash" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Modal */}
+          {isModalOpen && (
+            <div className="modal-overlay">
+              <div className="modal">
+                <div className="modal-header">
+                  <h3>Add New Schedule</h3>
+                  <button className="close-btn" onClick={() => setIsModalOpen(false)}>
+                    <i className="fa fa-times" />
+                  </button>
+                </div>
+                <form onSubmit={handleSubmit}>
+                  <div className="form-group">
+                    <label>Barangay(s):</label>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <select
+                        value={barangayToAdd}
+                        onChange={e => setBarangayToAdd(e.target.value)}
+                      >
+                        <option value="">Select Barangay</option>
+                        {barangays.filter(b => !newSchedule.barangay_ids.includes(String(b.barangay_id))).map(b => (
+                          <option key={b.barangay_id} value={b.barangay_id}>{b.barangay_name}</option>
+                        ))}
+                      </select>
+                      <button type="button" onClick={() => {
+                        if (barangayToAdd && !newSchedule.barangay_ids.includes(barangayToAdd)) {
+                          setNewSchedule({
+                            ...newSchedule,
+                            barangay_ids: [...newSchedule.barangay_ids, barangayToAdd]
+                          });
+                          setBarangayToAdd('');
+                        }
+                      }} disabled={!barangayToAdd}>Add</button>
+                    </div>
+                    <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                      {newSchedule.barangay_ids.map(id => {
+                        const barangay = barangays.find(b => String(b.barangay_id) === String(id));
+                        return (
+                          <span key={id} style={{ background: '#e0e7ff', padding: '4px 10px', borderRadius: 12, display: 'inline-flex', alignItems: 'center' }}>
+                            {barangay ? barangay.barangay_name : id}
+                            <button type="button" style={{ marginLeft: 4, background: 'none', border: 'none', cursor: 'pointer' }} onClick={() => setNewSchedule({ ...newSchedule, barangay_ids: newSchedule.barangay_ids.filter(bid => bid !== id) })}>&times;</button>
+                          </span>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  <div className="form-group">
+                    <label>Day:</label>
+                    <select
+                      value={newSchedule.schedule_date}
+                      onChange={e => setNewSchedule({ ...newSchedule, schedule_date: e.target.value })}
+                      required
+                    >
+                      <option value="">Select Day</option>
+                      {DAYS_OF_WEEK.map(day => (
+                        <option key={day} value={day}>{day}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label>Type of Waste:</label>
+                    <select
+                      value={newSchedule.waste_type}
+                      onChange={e => setNewSchedule({ ...newSchedule, waste_type: e.target.value })}
+                      required
+                    >
+                      {wasteTypes.map(type => (
+                        <option key={type} value={type}>{type}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label>Collection Time:</label>
+                    <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                      <div>
+                        <label style={{ fontSize: '12px', display: 'block' }}>Start Time:</label>
+                        <input
+                          type="time"
+                          value={newSchedule.start_time}
+                          onChange={e => {
+                            const startTime = e.target.value;
+                            const timeRange = buildTimeRange(startTime, newSchedule.end_time);
+                            setNewSchedule({ 
+                              ...newSchedule, 
+                              start_time: startTime,
+                              time_range: timeRange
+                            });
+                          }}
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: '12px', display: 'block' }}>End Time (Optional):</label>
+                        <input
+                          type="time"
+                          value={newSchedule.end_time}
+                          onChange={e => {
+                            const endTime = e.target.value;
+                            const timeRange = buildTimeRange(newSchedule.start_time, endTime);
+                            setNewSchedule({ 
+                              ...newSchedule, 
+                              end_time: endTime,
+                              time_range: timeRange
+                            });
+                          }}
+                        />
+                      </div>
+                    </div>
+                    <div style={{ marginTop: '8px', fontSize: '14px', color: '#666' }}>
+                      Preview: {newSchedule.time_range || 'Select start time'}
+                    </div>
+                  </div>
+                  <div className="modal-footer">
+                    <button type="button" className="cancel-btn" onClick={() => setIsModalOpen(false)}>
+                      Cancel
+                    </button>
+                    <button type="submit" className="submit-btn">
+                      Add Schedule
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
           )}
-        </div>
-      </div>
 
-      {/* Search Bar */}
-      <div style={{ 
-        display: 'flex', 
-        justifyContent: 'center', 
-        padding: '20px',
-        marginBottom: '20px'
-      }}>
-        <input
-          type="text"
-          placeholder="Search by barangay..."
-          value={searchTerm}
-          onChange={e => setSearchTerm(e.target.value)}
-          style={{
-            width: '100%',
-            maxWidth: '600px',
-            padding: '10px 15px',
-            borderRadius: '8px',
-            border: '1px solid #ddd',
-            fontSize: '16px'
-          }}
-        />
-      </div>
-
-      {/* Table */}
-      <div className="table-wrapper">
-        <table className="schedule-table">
-          <thead>
-            <tr>
-              <th>Barangay</th>
-              <th>Truck Number</th>
-              <th>Driver</th>
-              <th>Collection Date</th>
-              <th>Start Time</th>
-              <th>Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredSchedules.map(s => (
-              <tr key={s.schedule_id}>
-                <td>{s.barangay_name}</td>
-                <td>{s.truck_number}</td>
-                <td>{s.driver_name}</td>
-                <td>{new Date(s.schedule_date).toLocaleDateString()}</td>
-                <td>{s.schedule_time}</td>
-                <td>
-                  <button
-                    className="action-btn edit"
-                    onClick={() => openEditModal(s)}
-                  >
-                    <i className="fa fa-edit" />
+          {/* Edit Modal */}
+          {isEditModalOpen && (
+            <div className="modal-overlay">
+              <div className="modal">
+                <div className="modal-header">
+                  <h3>Edit Schedule</h3>
+                  <button className="close-btn" onClick={() => setIsEditModalOpen(false)}>
+                    <i className="fa fa-times" />
                   </button>
-                  <button
-                    className="action-btn delete"
-                    onClick={() => handleDelete(s.schedule_id)}
-                  >
-                    <i className="fa fa-trash" />
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Missed/Rescheduled Pickups Section */}
-      <div style={{
-        marginTop: '40px',
-        padding: '20px',
-        backgroundColor: '#fff',
-        borderRadius: '8px',
-        boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-        maxWidth: '1200px',
-        margin: '40px auto'
-      }}>
-        <h3 style={{ 
-          marginBottom: '20px',
-          color: '#333',
-          borderBottom: '2px solid #f0f0f0',
-          paddingBottom: '10px'
-        }}>Missed or Rescheduled Pickups</h3>
-
-        <table style={{
-          width: '100%',
-          borderCollapse: 'collapse',
-          marginTop: '20px'
-        }}>
-          <thead>
-            <tr style={{ backgroundColor: '#f3f4f6' }}>
-              <th style={{ padding: '12px', textAlign: 'left', borderBottom: '1px solid #e5e7eb' }}>Date</th>
-              <th style={{ padding: '12px', textAlign: 'left', borderBottom: '1px solid #e5e7eb' }}>Barangay</th>
-              <th style={{ padding: '12px', textAlign: 'left', borderBottom: '1px solid #e5e7eb' }}>Status</th>
-              <th style={{ padding: '12px', textAlign: 'left', borderBottom: '1px solid #e5e7eb' }}>Reason</th>
-              <th style={{ padding: '12px', textAlign: 'left', borderBottom: '1px solid #e5e7eb' }}>New Schedule</th>
-              <th style={{ padding: '12px', textAlign: 'left', borderBottom: '1px solid #e5e7eb' }}>Collector</th>
-            </tr>
-          </thead>
-          <tbody>
-            {/* Static data for demonstration */}
-            <tr>
-              <td style={{ padding: '12px', borderBottom: '1px solid #e5e7eb' }}>2024-03-15</td>
-              <td style={{ padding: '12px', borderBottom: '1px solid #e5e7eb' }}>Barangay 1</td>
-              <td style={{ padding: '12px', borderBottom: '1px solid #e5e7eb' }}>
-                <span style={{ 
-                  backgroundColor: '#fee2e2',
-                  color: '#dc2626',
-                  padding: '4px 8px',
-                  borderRadius: '4px',
-                  fontSize: '14px'
-                }}>
-                  Missed
-                </span>
-              </td>
-              <td style={{ padding: '12px', borderBottom: '1px solid #e5e7eb' }}>Truck breakdown</td>
-              <td style={{ padding: '12px', borderBottom: '1px solid #e5e7eb' }}>2024-03-16</td>
-              <td style={{ padding: '12px', borderBottom: '1px solid #e5e7eb' }}>John Doe</td>
-            </tr>
-            <tr>
-              <td style={{ padding: '12px', borderBottom: '1px solid #e5e7eb' }}>2024-03-14</td>
-              <td style={{ padding: '12px', borderBottom: '1px solid #e5e7eb' }}>Barangay 2</td>
-              <td style={{ padding: '12px', borderBottom: '1px solid #e5e7eb' }}>
-                <span style={{ 
-                  backgroundColor: '#dbeafe',
-                  color: '#2563eb',
-                  padding: '4px 8px',
-                  borderRadius: '4px',
-                  fontSize: '14px'
-                }}>
-                  Rescheduled
-                </span>
-              </td>
-              <td style={{ padding: '12px', borderBottom: '1px solid #e5e7eb' }}>Heavy traffic</td>
-              <td style={{ padding: '12px', borderBottom: '1px solid #e5e7eb' }}>2024-03-15</td>
-              <td style={{ padding: '12px', borderBottom: '1px solid #e5e7eb' }}>Jane Smith</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      {/* Modal */}
-      {isModalOpen && (
-        <div className="modal-overlay">
-          <div className="modal">
-            <div className="modal-header">
-              <h3>Add New Schedule</h3>
-              <button className="close-btn" onClick={() => setIsModalOpen(false)}>
-                <i className="fa fa-times" />
-              </button>
+                </div>
+                <form onSubmit={handleEdit}>
+                  <div className="form-group">
+                    <label>Barangay(s):</label>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <select
+                        value={editBarangayToAdd}
+                        onChange={e => setEditBarangayToAdd(e.target.value)}
+                      >
+                        <option value="">Select Barangay</option>
+                        {barangays.filter(b => !editSchedule.barangay_ids.includes(String(b.barangay_id))).map(b => (
+                          <option key={b.barangay_id} value={b.barangay_id}>{b.barangay_name}</option>
+                        ))}
+                      </select>
+                      <button type="button" onClick={() => {
+                        if (editBarangayToAdd && !editSchedule.barangay_ids.includes(editBarangayToAdd)) {
+                          setEditSchedule({
+                            ...editSchedule,
+                            barangay_ids: [...editSchedule.barangay_ids, editBarangayToAdd]
+                          });
+                          setEditBarangayToAdd('');
+                        }
+                      }} disabled={!editBarangayToAdd}>Add</button>
+                    </div>
+                    <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                      {editSchedule.barangay_ids.map(id => {
+                        const barangay = barangays.find(b => String(b.barangay_id) === String(id));
+                        return (
+                          <span key={id} style={{ background: '#e0e7ff', padding: '4px 10px', borderRadius: 12, display: 'inline-flex', alignItems: 'center' }}>
+                            {barangay ? barangay.barangay_name : id}
+                            <button type="button" style={{ marginLeft: 4, background: 'none', border: 'none', cursor: 'pointer' }} onClick={() => setEditSchedule({ ...editSchedule, barangay_ids: editSchedule.barangay_ids.filter(bid => bid !== id) })}>&times;</button>
+                          </span>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  <div className="form-group">
+                    <label>Day:</label>
+                    <select
+                      value={editSchedule.schedule_date}
+                      onChange={e => setEditSchedule({ ...editSchedule, schedule_date: e.target.value })}
+                      required
+                    >
+                      <option value="">Select Day</option>
+                      {DAYS_OF_WEEK.map(day => (
+                        <option key={day} value={day}>{day}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label>Type of Waste:</label>
+                    <select
+                      value={editSchedule.waste_type || 'Residual'}
+                      onChange={e => setEditSchedule({ ...editSchedule, waste_type: e.target.value })}
+                      required
+                    >
+                      {wasteTypes.map(type => (
+                        <option key={type} value={type}>{type}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label>Collection Time:</label>
+                    <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                      <div>
+                        <label style={{ fontSize: '12px', display: 'block' }}>Start Time:</label>
+                        <input
+                          type="time"
+                          value={editSchedule.start_time}
+                          onChange={e => {
+                            const startTime = e.target.value;
+                            const timeRange = buildTimeRange(startTime, editSchedule.end_time);
+                            setEditSchedule({ 
+                              ...editSchedule, 
+                              start_time: startTime,
+                              time_range: timeRange
+                            });
+                          }}
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: '12px', display: 'block' }}>End Time (Optional):</label>
+                        <input
+                          type="time"
+                          value={editSchedule.end_time}
+                          onChange={e => {
+                            const endTime = e.target.value;
+                            const timeRange = buildTimeRange(editSchedule.start_time, endTime);
+                            setEditSchedule({ 
+                              ...editSchedule, 
+                              end_time: endTime,
+                              time_range: timeRange
+                            });
+                          }}
+                        />
+                      </div>
+                    </div>
+                    <div style={{ marginTop: '8px', fontSize: '14px', color: '#666' }}>
+                      Preview: {editSchedule.time_range || 'Select start time'}
+                    </div>
+                  </div>
+                  <div className="modal-footer">
+                    <button type="button" className="cancel-btn" onClick={() => setIsEditModalOpen(false)}>
+                      Cancel
+                    </button>
+                    <button type="submit" className="submit-btn">
+                      Update Schedule
+                    </button>
+                  </div>
+                </form>
+              </div>
             </div>
-            <form onSubmit={handleSubmit}>
-              <div className="form-group">
-                <label>Barangay:</label>
-                <select
-                  value={newSchedule.barangay_id}
-                  onChange={e => {
-                    console.log('Selected barangay:', e.target.value);
-                    setNewSchedule({ ...newSchedule, barangay_id: e.target.value });
-                  }}
-                  required
-                >
-                  <option value="">Select Barangay</option>
-                  {barangays.map(b => {
-                    console.log('Rendering barangay option:', b);
-                    return (
-                      <option key={b.barangay_id} value={b.barangay_id}>
-                        {b.barangay_name}
-                      </option>
-                    );
-                  })}
-                </select>
-              </div>
-
-              <div className="form-group">
-                <label>Date:</label>
-                <input
-                  type="date"
-                  value={newSchedule.schedule_date}
-                  onChange={e => setNewSchedule({ ...newSchedule, schedule_date: e.target.value })}
-                  required
-                />
-              </div>
-
-              <div className="form-group">
-                <label>Time:</label>
-                <input
-                  type="time"
-                  value={newSchedule.schedule_time}
-                  onChange={e => setNewSchedule({ ...newSchedule, schedule_time: e.target.value })}
-                  required
-                />
-              </div>
-
-              <div className="form-group">
-                <label>Truck/Collector:</label>
-                <select
-                  value={newSchedule.truck_id}
-                  onChange={e => setNewSchedule({ ...newSchedule, truck_id: e.target.value })}
-                  required
-                >
-                  <option value="">Select Truck</option>
-                  {trucks.map(truck => (
-                    <option key={truck.truck_id} value={truck.truck_id}>
-                      {truck.truck_number} - {truck.driver_name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="modal-footer">
-                <button type="button" className="cancel-btn" onClick={() => setIsModalOpen(false)}>
-                  Cancel
-                </button>
-                <button type="submit" className="submit-btn">
-                  Add Schedule
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Edit Modal */}
-      {isEditModalOpen && (
-        <div className="modal-overlay">
-          <div className="modal">
-            <div className="modal-header">
-              <h3>Edit Schedule</h3>
-              <button className="close-btn" onClick={() => setIsEditModalOpen(false)}>
-                <i className="fa fa-times" />
-              </button>
-            </div>
-            <form onSubmit={handleEdit}>
-              <div className="form-group">
-                <label>Barangay:</label>
-                <select
-                  value={editSchedule.barangay_id}
-                  onChange={e => setEditSchedule({ ...editSchedule, barangay_id: e.target.value })}
-                  required
-                >
-                  <option value="">Select Barangay</option>
-                  {barangays.map(b => (
-                    <option key={b.barangay_id} value={b.barangay_id}>
-                      {b.barangay_name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="form-group">
-                <label>Date:</label>
-                <input
-                  type="date"
-                  value={editSchedule.schedule_date}
-                  onChange={e => setEditSchedule({ ...editSchedule, schedule_date: e.target.value })}
-                  required
-                />
-              </div>
-
-              <div className="form-group">
-                <label>Time:</label>
-                <input
-                  type="time"
-                  value={editSchedule.schedule_time}
-                  onChange={e => setEditSchedule({ ...editSchedule, schedule_time: e.target.value })}
-                  required
-                />
-              </div>
-
-              <div className="form-group">
-                <label>Truck/Collector:</label>
-                <select
-                  value={editSchedule.truck_id}
-                  onChange={e => setEditSchedule({ ...editSchedule, truck_id: e.target.value })}
-                  required
-                >
-                  <option value="">Select Truck</option>
-                  {trucks.map(truck => (
-                    <option key={truck.truck_id} value={truck.truck_id}>
-                      {truck.truck_number} - {truck.driver_name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="modal-footer">
-                <button type="button" className="cancel-btn" onClick={() => setIsEditModalOpen(false)}>
-                  Cancel
-                </button>
-                <button type="submit" className="submit-btn">
-                  Update Schedule
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+          )}
+        </>
+      ) : (
+        <SpecialPickup />
       )}
     </section>
   );

@@ -1,0 +1,217 @@
+{
+  "tableName": "addresses",
+  "rowCount": 30,
+  "timestamp": "2025-08-10T12:52:16.966Z",
+  "data": [
+    {
+      "address_id": 6,
+      "street": "123 Test St",
+      "barangay_id": 17,
+      "subdivision_id": null,
+      "city_id": 1
+    },
+    {
+      "address_id": 7,
+      "street": "123 Test St",
+      "barangay_id": 17,
+      "subdivision_id": null,
+      "city_id": 1
+    },
+    {
+      "address_id": 8,
+      "street": "123 Test Street",
+      "barangay_id": 1,
+      "subdivision_id": null,
+      "city_id": 1
+    },
+    {
+      "address_id": 10,
+      "street": "123asdfgh",
+      "barangay_id": 16,
+      "subdivision_id": null,
+      "city_id": 1
+    },
+    {
+      "address_id": 11,
+      "street": "123ghjasd",
+      "barangay_id": 1,
+      "subdivision_id": null,
+      "city_id": 1
+    },
+    {
+      "address_id": 13,
+      "street": "123ghjasd",
+      "barangay_id": 7,
+      "subdivision_id": null,
+      "city_id": 1
+    },
+    {
+      "address_id": 14,
+      "street": "123ghjasd",
+      "barangay_id": 7,
+      "subdivision_id": null,
+      "city_id": 1
+    },
+    {
+      "address_id": 15,
+      "street": "123asdf",
+      "barangay_id": 1,
+      "subdivision_id": null,
+      "city_id": 1
+    },
+    {
+      "address_id": 18,
+      "street": "123asdfgh",
+      "barangay_id": 1,
+      "subdivision_id": null,
+      "city_id": 1
+    },
+    {
+      "address_id": 19,
+      "street": "123asdasd",
+      "barangay_id": 10,
+      "subdivision_id": null,
+      "city_id": 1
+    },
+    {
+      "address_id": 20,
+      "street": "123asdfgh",
+      "barangay_id": 22,
+      "subdivision_id": null,
+      "city_id": 1
+    },
+    {
+      "address_id": 21,
+      "street": "123asdasd",
+      "barangay_id": 16,
+      "subdivision_id": null,
+      "city_id": 1
+    },
+    {
+      "address_id": 23,
+      "street": "123asdasd",
+      "barangay_id": 10,
+      "subdivision_id": null,
+      "city_id": 1
+    },
+    {
+      "address_id": 24,
+      "street": "123asdasd",
+      "barangay_id": 9,
+      "subdivision_id": null,
+      "city_id": 1
+    },
+    {
+      "address_id": 25,
+      "street": "123asdasdasd",
+      "barangay_id": 10,
+      "subdivision_id": null,
+      "city_id": 1
+    },
+    {
+      "address_id": 26,
+      "street": "123asdasd",
+      "barangay_id": 15,
+      "subdivision_id": null,
+      "city_id": 1
+    },
+    {
+      "address_id": 27,
+      "street": "123asdasd",
+      "barangay_id": 25,
+      "subdivision_id": null,
+      "city_id": 1
+    },
+    {
+      "address_id": 28,
+      "street": "123 Collector St.",
+      "barangay_id": 1,
+      "subdivision_id": null,
+      "city_id": 1
+    },
+    {
+      "address_id": 29,
+      "street": "123 Collector St.",
+      "barangay_id": 1,
+      "subdivision_id": null,
+      "city_id": 1
+    },
+    {
+      "address_id": 30,
+      "street": "123 Collector St.",
+      "barangay_id": 1,
+      "subdivision_id": null,
+      "city_id": 1
+    },
+    {
+      "address_id": 31,
+      "street": "123asdfasdf",
+      "barangay_id": 8,
+      "subdivision_id": null,
+      "city_id": 1
+    },
+    {
+      "address_id": 32,
+      "street": "Sample Street",
+      "barangay_id": 1,
+      "subdivision_id": null,
+      "city_id": 1
+    },
+    {
+      "address_id": 35,
+      "street": "Sample Street",
+      "barangay_id": 1,
+      "subdivision_id": null,
+      "city_id": 1
+    },
+    {
+      "address_id": 36,
+      "street": "asdf123",
+      "barangay_id": 7,
+      "subdivision_id": null,
+      "city_id": 1
+    },
+    {
+      "address_id": 37,
+      "street": "aaaaaaaa",
+      "barangay_id": 7,
+      "subdivision_id": null,
+      "city_id": 1
+    },
+    {
+      "address_id": 38,
+      "street": "najajaja",
+      "barangay_id": 4,
+      "subdivision_id": null,
+      "city_id": 1
+    },
+    {
+      "address_id": 39,
+      "street": "purok hillside",
+      "barangay_id": 4,
+      "subdivision_id": null,
+      "city_id": 1
+    },
+    {
+      "address_id": 40,
+      "street": "balagtas",
+      "barangay_id": 7,
+      "subdivision_id": null,
+      "city_id": 1
+    },
+    {
+      "address_id": 41,
+      "street": "Admin Office",
+      "barangay_id": 1,
+      "subdivision_id": null,
+      "city_id": 1
+    },
+    {
+      "address_id": 42,
+      "street": "jajajaj",
+      "barangay_id": 4,
+      "subdivision_id": null,
+      "city_id": 1
+    }
+  ]
+}

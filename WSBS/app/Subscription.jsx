@@ -1,11 +1,13 @@
-import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, SafeAreaView, Alert } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, SafeAreaView, Alert, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import TermsAndConditions from './TermsAndConditions';
-
-// API Configuration
-const API_BASE_URL = 'http://localhost:5000/api';
+import { getToken } from './auth';
+import Invoice from './Invoice';
+import * as Linking from 'expo-linking';
+import PaymentPage from './PaymentPage';
+import { API_BASE_URL } from './config';
 
 const plans = [
   {
@@ -82,27 +84,49 @@ const Subscription = () => {
   const [showPlanSelection, setShowPlanSelection] = useState(false);
   const [showInvoice, setShowInvoice] = useState(false);
   const [showPaymentPage, setShowPaymentPage] = useState(false);
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState(null);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [termsAccepted, setTermsAccepted] = useState(false);
   const router = useRouter();
+  const [userProfile, setUserProfile] = useState(null);
+  const [profileLoading, setProfileLoading] = useState(true);
+  const [profileError, setProfileError] = useState(null);
+
+  useEffect(() => {
+    const fetchProfile = async () => {
+      setProfileLoading(true);
+      setProfileError(null);
+      try {
+        const token = await getToken();
+        if (!token) {
+          setProfileError('No authentication token found.');
+          setProfileLoading(false);
+          return;
+        }
+        const response = await fetch(`${API_BASE_URL}/api/auth/profile`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        });
+        const data = await response.json();
+        if (!response.ok || !data.success) {
+          setProfileError(data.message || 'Failed to fetch profile');
+        } else {
+          setUserProfile(data.user);
+        }
+      } catch (err) {
+        setProfileError(err.message || 'An error occurred');
+      } finally {
+        setProfileLoading(false);
+      }
+    };
+    fetchProfile();
+  }, []);
 
   const selectedPlanData = plans.find(plan => plan.id === selectedPlan);
 
-  const generateInvoice = () => {
-    setShowInvoice(true);
-  };
-
-  const handleNext = () => {
-    if (!selectedPlan) {
-      Alert.alert('Error', 'Please select a plan first');
-      return;
-    }
-    generateInvoice();
-  };
+  // Remove payment-related state and functions
+  // Remove: selectedPaymentMethod, isProcessing, handlePaymentMethodSelect, handleConfirmPayment, handleGcashPayment
 
   const handleTermsAccept = () => {
-    setTermsAccepted(true);
+    setShowTerms(true);
     setShowTerms(false);
     setShowPlanSelection(true);
   };
@@ -112,171 +136,21 @@ const Subscription = () => {
     router.push('/resident/HomePage');
   };
 
-  const handlePaymentMethodSelect = (method) => {
-    setSelectedPaymentMethod(method);
-  };
-
   const handleProceedToPayment = () => {
     setShowInvoice(false);
     setShowPaymentPage(true);
   };
 
-  const handleConfirmPayment = async () => {
-    if (!selectedPaymentMethod) {
-      Alert.alert('Error', 'Please select a payment method');
-      return;
-    }
-
-    setIsProcessing(true);
-    
-    try {
-      // Map plan IDs to backend plan IDs (you may need to adjust these based on your database)
-      const planIdMap = {
-        'lite': 1,
-        'essential': 2,
-        'full': 3
-      };
-
-      // Prepare subscription data
-      const subscriptionData = {
-        resident_id: 1, // This should come from user authentication
-        plan_id: planIdMap[selectedPlan],
-        payment_method: selectedPaymentMethod.name
-      };
-
-      // Make API call to create subscription and invoice
-      const response = await fetch(`${API_BASE_URL}/billing/mobile-subscription`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(subscriptionData)
-      });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to create subscription');
-      }
-
-      // Show success message
-      const paymentStatus = selectedPaymentMethod.id === 'gcash' ? 'Paid' : 'Pending';
-      const message = selectedPaymentMethod.id === 'gcash' 
-        ? `Your ${selectedPlanData.name} subscription has been created and payment processed successfully!\n\nPayment Method: ${selectedPaymentMethod.name}\nAmount: ${selectedPlanData.price}/month\nStatus: ${paymentStatus}`
-        : `Your ${selectedPlanData.name} subscription has been created successfully!\n\nPayment Method: ${selectedPaymentMethod.name}\nAmount: ${selectedPlanData.price}/month\nStatus: ${paymentStatus}\n\nPlease pay the collector when they arrive.`;
-
-      Alert.alert(
-        'Success!',
-        message,
-        [
-          {
-            text: 'OK',
-            onPress: () => {
-              setShowInvoice(false);
-              setShowPaymentPage(false);
-              setSelectedPaymentMethod(null);
-              setIsProcessing(false);
-              router.push('/resident/HomePage');
-            }
-          }
-        ]
-      );
-    } catch (error) {
-      console.error('Subscription creation error:', error);
-      Alert.alert('Error', 'Failed to process payment. Please try again.');
-      setIsProcessing(false);
-    }
+  // PaymentPage navigation handlers
+  const handlePaymentBack = () => {
+    setShowPaymentPage(false);
+    setShowInvoice(true);
   };
-
-  const PaymentPage = () => (
-    <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => router.push('/resident/HomePage')}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        >
-          <Ionicons name="arrow-back" size={24} color="#fff" />
-        </TouchableOpacity>
-        <Text style={styles.logo}>PAYMENT</Text>
-      </View>
-      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 90 }]}>  
-        {/* Payment Summary */}
-        <View style={styles.paymentSummaryCard}>
-          <Text style={styles.paymentSummaryTitle}>Payment Summary</Text>
-          <View style={styles.paymentSummaryRow}>
-            <Text style={styles.paymentSummaryLabel}>Plan:</Text>
-            <Text style={styles.paymentSummaryValue}>{selectedPlanData.name}</Text>
-          </View>
-          <View style={styles.paymentSummaryRow}>
-            <Text style={styles.paymentSummaryLabel}>Amount:</Text>
-            <Text style={styles.paymentSummaryValue}>{selectedPlanData.price}</Text>
-          </View>
-          <View style={styles.paymentSummaryRow}>
-            <Text style={styles.paymentSummaryLabel}>Billing Cycle:</Text>
-            <Text style={styles.paymentSummaryValue}>Monthly</Text>
-          </View>
-        </View>
-        {/* Payment Methods */}
-        <View style={styles.paymentMethodsSection}>
-          <Text style={styles.sectionTitle}>Choose Payment Method</Text>
-          <View style={styles.paymentMethodsContainer}>
-            {paymentMethods.map((method) => (
-              <TouchableOpacity
-                key={method.id}
-                style={[
-                  styles.paymentMethodCard,
-                  selectedPaymentMethod?.id === method.id && styles.selectedPaymentMethod
-                ]}
-                onPress={() => handlePaymentMethodSelect(method)}
-              >
-                <View style={styles.paymentMethodIcon}>
-                  <Ionicons 
-                    name={method.icon} 
-                    size={24} 
-                    color={selectedPaymentMethod?.id === method.id ? '#fff' : method.color} 
-                  />
-                </View>
-                <View style={styles.paymentMethodInfo}>
-                  <Text style={[
-                    styles.paymentMethodName,
-                    selectedPaymentMethod?.id === method.id && styles.selectedPaymentText
-                  ]}>
-                    {method.name}
-                  </Text>
-                  <Text style={[
-                    styles.paymentMethodDescription,
-                    selectedPaymentMethod?.id === method.id && styles.selectedPaymentText
-                  ]}>
-                    {method.description}
-                  </Text>
-                </View>
-                {selectedPaymentMethod?.id === method.id && (
-                  <View style={styles.checkmark}>
-                    <Ionicons name="checkmark-circle" size={24} color="#fff" />
-                  </View>
-                )}
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-      </ScrollView>
-      {/* Confirm Payment Button */}
-      <TouchableOpacity 
-        style={[
-          styles.confirmButton,
-          !selectedPaymentMethod && styles.confirmButtonDisabled
-        ]}
-        onPress={handleConfirmPayment}
-        disabled={!selectedPaymentMethod || isProcessing}
-      >
-        <Text style={styles.confirmButtonText}>
-          {isProcessing ? 'Processing...' : `Pay ${selectedPlanData.price}`}
-        </Text>
-      </TouchableOpacity>
-    </SafeAreaView>
-  );
+  const handlePaymentSuccess = () => {
+    setShowPaymentPage(false);
+    setShowPlanSelection(true);
+    router.push('/resident/HomePage');
+  };
 
   if (showTerms) {
     return (
@@ -287,105 +161,28 @@ const Subscription = () => {
     );
   }
   if (showPaymentPage) {
-    return <PaymentPage />;
+    return (
+      <PaymentPage
+        selectedPlanData={selectedPlanData}
+        paymentMethods={paymentMethods}
+        onBack={handlePaymentBack}
+        onSuccess={handlePaymentSuccess}
+      />
+    );
   }
   if (showInvoice) {
     return (
-      <SafeAreaView style={styles.container}>
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => router.push('/resident/HomePage')}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            <Ionicons name="arrow-back" size={24} color="#fff" />
-          </TouchableOpacity>
-          <Text style={styles.logo}>INVOICE</Text>
-        </View>
-        <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 90 }]}>  
-          {/* Invoice Content */}
-          <View style={styles.invoiceContent}>
-            {/* Invoice Header */}
-            <View style={styles.invoiceInfo}>
-              <View style={styles.invoiceRow}>
-                <Text style={styles.invoiceLabel}>Invoice #:</Text>
-                <Text style={styles.invoiceValue}>INV-{Date.now().toString().slice(-6)}</Text>
-              </View>
-              <View style={styles.invoiceRow}>
-                <Text style={styles.invoiceLabel}>Date:</Text>
-                <Text style={styles.invoiceValue}>{new Date().toLocaleDateString()}</Text>
-              </View>
-              <View style={styles.invoiceRow}>
-                <Text style={styles.invoiceLabel}>Due Date:</Text>
-                <Text style={styles.invoiceValue}>{new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString()}</Text>
-              </View>
-            </View>
-            {/* Customer Info */}
-            <View style={styles.customerSection}>
-              <Text style={styles.sectionTitle}>Customer Information</Text>
-              <View style={styles.customerInfo}>
-                <Text style={styles.customerName}>John Doe</Text>
-                <Text style={styles.customerAddress}>123 Main Street, City</Text>
-                <Text style={styles.customerPhone}>+63 912 345 6789</Text>
-              </View>
-            </View>
-            {/* Service Details */}
-            <View style={styles.serviceSection}>
-              <Text style={styles.sectionTitle}>Service Details</Text>
-              <View style={styles.serviceItem}>
-                <View style={styles.serviceHeader}>
-                  <Text style={styles.serviceName}>{selectedPlanData.name}</Text>
-                  <Text style={styles.servicePrice}>{selectedPlanData.price}</Text>
-                </View>
-                <Text style={styles.serviceDescription}>
-                  Monthly subscription for waste collection services
-                </Text>
-                <View style={styles.serviceDetails}>
-                  <Text style={styles.serviceDetail}>• {selectedPlanData.bagsPerWeek} included per week</Text>
-                  <Text style={styles.serviceDetail}>• {selectedPlanData.bagsPerMonth} included per month</Text>
-                  <Text style={styles.serviceDetail}>• {selectedPlanData.pickup}</Text>
-                  <Text style={styles.serviceDetail}>• {selectedPlanData.contract}</Text>
-                </View>
-              </View>
-            </View>
-            {/* Payment Summary */}
-            <View style={styles.paymentSection}>
-              <Text style={styles.sectionTitle}>Payment Summary</Text>
-              <View style={styles.paymentRow}>
-                <Text style={styles.paymentLabel}>Subtotal:</Text>
-                <Text style={styles.paymentValue}>{selectedPlanData.price}</Text>
-              </View>
-              <View style={styles.paymentRow}>
-                <Text style={styles.paymentLabel}>Tax:</Text>
-                <Text style={styles.paymentValue}>₱0.00</Text>
-              </View>
-              <View style={styles.paymentRow}>
-                <Text style={styles.paymentLabel}>Processing Fee:</Text>
-                <Text style={styles.paymentValue}>₱0.00</Text>
-              </View>
-              <View style={[styles.paymentRow, styles.totalRow]}>
-                <Text style={styles.totalLabel}>Total Amount:</Text>
-                <Text style={styles.totalValue}>{selectedPlanData.price}</Text>
-              </View>
-            </View>
-            {/* Terms */}
-            <View style={styles.termsSection}>
-              <Text style={styles.termsText}>
-                ✓ Terms and conditions have been accepted{'\n'}
-                By proceeding with this payment, you agree to our terms of service and billing policies.
-                This subscription will automatically renew monthly unless cancelled.
-              </Text>
-            </View>
-          </View>
-        </ScrollView>
-        <TouchableOpacity 
-          style={styles.proceedButton}
-          onPress={handleProceedToPayment}
-        >
-          <Text style={styles.proceedButtonText}>Proceed to Payment</Text>
-        </TouchableOpacity>
-      </SafeAreaView>
+      <Invoice
+        selectedPlanData={selectedPlanData}
+        userProfile={userProfile}
+        profileLoading={profileLoading}
+        profileError={profileError}
+        onProceed={handleProceedToPayment}
+        onBack={() => {
+          setShowInvoice(false);
+          setShowPlanSelection(true);
+        }}
+      />
     );
   }
   if (showPlanSelection) {
@@ -459,7 +256,7 @@ const Subscription = () => {
           <Text style={styles.termsNote}>
             By clicking &quot;Next&quot;, you agree to review and accept our Terms and Conditions
           </Text>
-          <TouchableOpacity style={styles.nextButton} onPress={handleNext}>
+          <TouchableOpacity style={styles.nextButton} onPress={handleProceedToPayment}>
             <Text style={styles.nextButtonText}>Next</Text>
           </TouchableOpacity>
         </View>
@@ -949,4 +746,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
   },
+  gcashButton: { backgroundColor: '#34c759', padding: 12, borderRadius: 8, alignItems: 'center', marginVertical: 10 },
+  gcashButtonText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
 });

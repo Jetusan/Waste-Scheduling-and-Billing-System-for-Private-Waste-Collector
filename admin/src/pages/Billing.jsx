@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import '../styles/Billing.css';
 
-const API_BASE_URL = 'http://localhost:5000/api';
+const API_BASE_URL = 'http://localhost:5000/api'; // Use /api for correct backend route
 
 const Billing = () => {
   // Data states
@@ -281,6 +281,41 @@ const Billing = () => {
     );
   }
 
+  const handleGcashPayment = async () => {
+    try {
+      setError(null);
+      const response = await fetch(`${API_BASE_URL}/billing/create-gcash-source`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          amount: 10000, // 100 PHP in centavos
+          description: 'Test payment from admin panel',
+          isAdmin: true
+        })
+      });
+      
+      let data;
+      try {
+        data = await response.json();
+      } catch (jsonErr) {
+        setError('Invalid JSON response from server.');
+        alert('GCash Error', 'Invalid JSON response from server.');
+        return;
+      }
+      
+      if (data.checkout_url) {
+        window.location.href = data.checkout_url; // Redirect to GCash
+      } else {
+        const errMsg = data.error ? JSON.stringify(data.error) : 'Failed to initiate GCash payment.';
+        setError(errMsg);
+        alert('GCash Error', errMsg);
+      }
+    } catch (error) {
+      setError(error.message);
+      alert('Network Error', error.message);
+    }
+  };
+
   return (
     <section className="billing-content">
       <div className="billing-header">
@@ -394,7 +429,7 @@ const Billing = () => {
               <td className="actions">
                 <div className="action-buttons-group">
                   <button 
-                    className="action-btn view"
+                    className="action-btn"
                     onClick={() => {
                       setSelectedInvoice(invoice);
                       setIsPaymentModalOpen(true);
@@ -405,7 +440,7 @@ const Billing = () => {
                     <span>Record Payment</span>
                   </button>
                   <button 
-                    className="action-btn download"
+                    className="action-btn"
                     onClick={() => handleDownload(invoice)}
                     title="Download Invoice"
                   >
@@ -413,7 +448,7 @@ const Billing = () => {
                     <span>Download</span>
                   </button>
                   <button 
-                    className="action-btn print"
+                    className="action-btn"
                     onClick={() => handlePrint(invoice)}
                     title="Print Invoice"
                   >
@@ -422,7 +457,7 @@ const Billing = () => {
                   </button>
                   {invoice.status !== 'Paid' && (
                     <button 
-                      className="action-btn remind"
+                      className="action-btn"
                       onClick={() => calculateLateFees(invoice.id)}
                       title="Add Late Fee"
                     >
@@ -606,6 +641,7 @@ const Billing = () => {
           </div>
         </div>
       )}
+      {error && <p style={{ color: 'red' }}>{error}</p>}
     </section>
   );
 };

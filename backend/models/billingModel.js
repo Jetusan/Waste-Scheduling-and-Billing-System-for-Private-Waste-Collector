@@ -81,7 +81,7 @@ const getAllInvoices = async (filters = {}) => {
   const query = `
     SELECT i.*, u.username
     FROM invoices i
-    LEFT JOIN users u ON i.resident_id = u.user_id
+    LEFT JOIN users u ON i.user_id = u.user_id
   `;
   const result = await pool.query(query);
   return result.rows;
@@ -335,4 +335,120 @@ module.exports = {
   
   // Auto-generation
   generateMonthlyInvoices
+};
+
+// Payment Source Tracking for GCash/PayMongo
+const createPaymentSource = async (sourceData) => {
+  const { 
+    source_id, 
+    invoice_id, 
+    amount, 
+    currency = 'PHP', 
+    payment_method = 'gcash', 
+    checkout_url,
+    redirect_success,
+    redirect_failed 
+  } = sourceData;
+  
+  const query = `
+    INSERT INTO payment_sources (
+      source_id, invoice_id, amount, currency, payment_method, 
+      checkout_url, redirect_success, redirect_failed, status
+    )
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+    RETURNING *
+  `;
+  
+  const result = await pool.query(query, [
+    source_id, invoice_id, amount, currency, payment_method,
+    checkout_url, redirect_success, redirect_failed, 'pending'
+  ]);
+  
+  return result.rows[0];
+};
+
+const updatePaymentStatus = async (sourceId, status, webhookData = null) => {
+  const query = `
+    UPDATE payment_sources 
+    SET status = $1, webhook_data = $2, updated_at = CURRENT_TIMESTAMP
+    WHERE source_id = $3
+    RETURNING *
+  `;
+  
+  const result = await pool.query(query, [status, webhookData, sourceId]);
+  
+  // If payment completed, also create a payment record
+  if (status === 'completed' && result.rows.length > 0) {
+    const paymentSource = result.rows[0];
+    const paymentData = {
+      invoice_id: paymentSource.invoice_id,
+      amount: paymentSource.amount / 100, // Convert from centavos to pesos
+      payment_method: 'GCash',
+      payment_date: new Date().toISOString().split('T')[0],
+      reference_number: sourceId,
+      notes: 'Payment via GCash/PayMongo'
+    };
+    
+    await createPayment(paymentData);
+    
+    // Update invoice status to paid
+    await pool.query(
+      'UPDATE invoices SET status = $1 WHERE invoice_id = $2',
+      ['paid', paymentSource.invoice_id]
+    );
+  }
+  
+  return result.rows[0];
+};
+
+const getPaymentStatus = async (sourceId) => {
+  const query = 'SELECT status FROM payment_sources WHERE source_id = $1';
+  const result = await pool.query(query, [sourceId]);
+  
+  if (result.rows.length === 0) {
+    return 'not_found';
+  }
+  
+  return result.rows[0].status;
+};
+
+const getPaymentSourceById = async (sourceId) => {
+  const query = 'SELECT * FROM payment_sources WHERE source_id = $1';
+  const result = await pool.query(query, [sourceId]);
+  return result.rows[0];
+};
+
+module.exports = {
+  // Subscription Plans
+  getAllSubscriptionPlans,
+  getSubscriptionPlanById,
+  createSubscriptionPlan,
+  
+  // Customer Subscriptions  
+  getAllCustomerSubscriptions,
+  getCustomerSubscriptionById,
+  createCustomerSubscription,
+  
+  // Invoices
+  getAllInvoices,
+  getInvoiceById,
+  createInvoice,
+  updateInvoiceStatus,
+  addLateFees,
+  
+  // Payments
+  getPaymentsByInvoiceId,
+  createPayment,
+  
+  // Billing History
+  getBillingHistory,
+  
+  // Auto-generation
+  generateMonthlyInvoices,
+  
+  // Payment Source Tracking
+  createPaymentSource,
+  updatePaymentStatus,
+  getPaymentStatus,
+  getPaymentSourceById
 }; 

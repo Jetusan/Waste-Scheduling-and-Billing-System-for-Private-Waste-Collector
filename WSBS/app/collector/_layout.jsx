@@ -14,6 +14,8 @@ export default function CollectorLayout() {
       <Stack.Screen name="CSchedule" />
       <Stack.Screen name="CNotif" />
       <Stack.Screen name="SpecialPickup" />
+      <Stack.Screen name="CStartCollection" />
+      <Stack.Screen name="AgentPage" />
     </Stack>
   );
 }

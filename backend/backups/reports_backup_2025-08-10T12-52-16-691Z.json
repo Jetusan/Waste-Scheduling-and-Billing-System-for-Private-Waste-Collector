@@ -1,0 +1,24 @@
+{
+  "tableName": "reports",
+  "rowCount": 1,
+  "timestamp": "2025-08-10T12:52:16.992Z",
+  "data": [
+    {
+      "report_id": 66,
+      "type": "waste-collection",
+      "period": "weekly",
+      "generated_by": "Admin User",
+      "date": "2025-07-27T15:17:35.531Z",
+      "status": "Completed",
+      "schedule": null,
+      "format": "pdf",
+      "recipients": null,
+      "message": "{\"type\":\"waste-collection\",\"totalCollections\":0,\"completedCollections\":0,\"completionRate\":0,\"collections\":[],\"summary\":{\"byBarangay\":{},\"byWasteType\":{}},\"warning\":\"No collection data found between 2025-07-01 and 2025-07-01\",\"fileUrl\":\"/api/reports/66/download\",\"generatedAt\":\"2025-07-27T15:17:35.540Z\"}",
+      "start_date": "2025-06-30T16:00:00.000Z",
+      "end_date": "2025-06-30T16:00:00.000Z",
+      "user_id": null,
+      "schedule_id": null,
+      "invoice_id": null
+    }
+  ]
+}

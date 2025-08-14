@@ -44,7 +44,7 @@ const Reports = () => {
     format: 'pdf'
   });
 
-  // Remove users, schedules, invoices state and dropdowns
+  // Enhanced report form with more specific options
   const [reportForm, setReportForm] = useState({
     type: 'waste-collection',
     period: 'weekly',
@@ -52,8 +52,28 @@ const Reports = () => {
     endDate: '',
     generatedBy: 'Admin User',
     format: 'pdf',
-    schedule: null
+    schedule: null,
+    // New specific filters
+    barangay: '',
+    collector: '',
+    truck: '',
+    status: 'all',
+    includeCharts: true,
+    includeDetails: true,
+    // Additional filters for new report types
+    customerType: '',
+    billingCycle: '',
+    complaintType: '',
+    feedbackStatus: '',
+    priority: '',
+    missedReason: ''
   });
+
+  // Additional state for dropdowns
+  const [barangays, setBarangays] = useState([]);
+  const [collectors, setCollectors] = useState([]);
+  const [trucks, setTrucks] = useState([]);
+
 
   const [shareForm, setShareForm] = useState({
     emails: '',
@@ -66,6 +86,117 @@ const Reports = () => {
   const [error, setError] = useState(null);
   const [showViewModal, setShowViewModal] = useState(false);
   const [viewReport, setViewReport] = useState(null);
+  const [selectedWeekdays, setSelectedWeekdays] = useState([]);
+  const weekdaysList = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+  // Add new state for report focus, waste type, scheduling, and selected report output
+  // Map reportFocus to backend type
+  const [reportFocus, setReportFocus] = useState('waste-collection');
+  // Map frontend reportFocus to backend type
+  const reportFocusToType = {
+    'waste-collection': 'waste-collection',
+    'billing': 'financial-summary',
+    'customer-feedback': 'customer-feedback',
+    'user-activity': 'user-activity',
+    'notifications': 'notifications',
+  };
+  const [wasteType, setWasteType] = useState('');
+  const [scheduleReport, setScheduleReport] = useState(false);
+  const [scheduleFrequency, setScheduleFrequency] = useState('weekly');
+  const [selectedReportOutput, setSelectedReportOutput] = useState(null);
+
+  // Add new state for invoice status and plan type
+  const [invoiceStatus, setInvoiceStatus] = useState('all');
+  const [planType, setPlanType] = useState('');
+  const [isGenerating, setIsGenerating] = useState(false);
+
+  // Handle form input changes
+  const handleFormChange = (e) => {
+    const { name, value } = e.target;
+    setReportForm(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  // Handle form submission for report generation
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setIsGenerating(true);
+    setError(null);
+
+    try {
+      // Prepare the request data
+      const requestData = {
+        type: reportFocusToType[reportFocus] || reportFocus,
+        period: reportForm.period,
+        generated_by: reportForm.generatedBy,
+        format: reportForm.format,
+        start_date: reportForm.startDate,
+        end_date: reportForm.endDate,
+        filters: {
+          barangay: reportForm.barangay,
+          subdivision: reportForm.subdivision,
+          collector: reportForm.collector,
+          truck: reportForm.truck,
+          status: reportForm.status,
+          wasteType: wasteType,
+          customerType: reportForm.customerType,
+          billingCycle: reportForm.billingCycle,
+          complaintType: reportForm.complaintType,
+          feedbackStatus: reportForm.feedbackStatus,
+          priority: reportForm.priority,
+          missedReason: reportForm.missedReason
+        }
+      };
+
+      console.log('Generating report with data:', requestData);
+
+      // Call the backend API to generate the report
+      const response = await axios.post(`${API_URL}/reports/generate`, requestData);
+      
+      console.log('Report generation response:', response.data);
+
+      // Close the modal and refresh the reports list
+      setShowModal(false);
+      
+      // Reset form
+      setReportForm({
+        type: 'waste-collection',
+        period: 'weekly',
+        startDate: '',
+        endDate: '',
+        generatedBy: 'Admin User',
+        format: 'pdf',
+        schedule: null,
+        barangay: '',
+        collector: '',
+        truck: '',
+        status: 'all',
+        includeCharts: true,
+        includeDetails: true,
+        customerType: '',
+        billingCycle: '',
+        complaintType: '',
+        feedbackStatus: '',
+        priority: '',
+        missedReason: ''
+      });
+      setReportFocus('waste-collection');
+      setWasteType('');
+
+      // Refresh the reports list
+      const { data } = await axios.get(`${API_URL}/reports`);
+      setReports(data);
+
+      alert('Report generated successfully!');
+    } catch (err) {
+      console.error('Error generating report:', err);
+      setError('Failed to generate report: ' + (err.response?.data?.error || err.message));
+    } finally {
+      setIsGenerating(false);
+    }
+  };
 
   useEffect(() => {
     const fetchReports = async () => {
@@ -83,7 +214,28 @@ const Reports = () => {
     fetchReports();
   }, []);
 
-  // Remove useEffect for fetching users, schedules, invoices
+  useEffect(() => {
+    if (showModal) {
+      const fetchDropdownData = async () => {
+        try {
+          // Fetch barangays
+          const barangaysRes = await axios.get(`${API_URL}/barangays`);
+          setBarangays(barangaysRes.data);
+
+          // Fetch collectors
+          const collectorsRes = await axios.get(`${API_URL}/collectors`);
+          setCollectors(collectorsRes.data);
+
+          // Fetch trucks
+          const trucksRes = await axios.get(`${API_URL}/trucks`);
+          setTrucks(trucksRes.data);
+        } catch (err) {
+          console.error('Error fetching dropdown data:', err);
+        }
+      };
+      fetchDropdownData();
+    }
+  }, [showModal]);
 
 
   // Quick KPI calculations
@@ -94,10 +246,14 @@ const Reports = () => {
     draft: reports.filter(r => r.status.toLowerCase().includes('draft')).length
   };
 
-  const handleFormChange = e => {
-    const { name, value } = e.target;
-    setReportForm(prev => ({ ...prev, [name]: value }));
-  };
+
+  // When reportFocus changes, update reportForm.type accordingly
+  useEffect(() => {
+    setReportForm(prev => ({
+      ...prev,
+      type: reportFocusToType[reportFocus] || 'waste-collection',
+    }));
+  }, [reportFocus]);
 
   const handleScheduleFormChange = e => {
     const { name, value } = e.target;
@@ -108,41 +264,48 @@ const Reports = () => {
     const { name, value } = e.target;
     setShareForm(prev => ({ ...prev, [name]: value }));
   };
-
-  // Add this function to handle report creation
-  const handleSubmit = async e => {
-    e.preventDefault();
+  
+  const handleGenerateReport = async () => {
+    setLoading(true);
+  
     try {
       const payload = {
         type: reportForm.type,
         period: reportForm.period,
         generated_by: reportForm.generatedBy,
-        status: 'Pending',
+        status: 'Generating',
         schedule: null,
         format: reportForm.format,
         recipients: '',
         message: '',
-        start_date: reportForm.startDate || null,
-        end_date: reportForm.endDate || null
+        start_date: reportForm.startDate,
+        end_date: reportForm.endDate,
       };
-      await axios.post(`${API_URL}/reports`, payload);
-      setShowModal(false);
-      // Refresh reports
-      setLoading(true);
-      setError(null);
-      try {
-        const { data } = await axios.get(`${API_URL}/reports`);
-        setReports(data);
-      } catch (err) {
-        setError('Failed to fetch reports');
-      } finally {
-        setLoading(false);
+  
+      console.log('Generating report with payload:', payload);
+  
+      const response = await axios.post(`${API_URL}/reports/generate`, payload);
+  
+      if (response.data.status === 'Completed') {
+        alert('Report generated successfully! You can now download it.');
       }
+  
+      setShowModal(false);
+  
+      // Refresh reports
+      setError(null);
+      const { data } = await axios.get(`${API_URL}/reports`);
+      setReports(data);
+  
     } catch (err) {
-      alert('Failed to create report');
+      console.error('Error generating report:', err);
+      alert('Failed to generate report: ' + (err.response?.data?.error || err.message));
+      setError('Failed to generate report');
+    } finally {
+      setLoading(false);
     }
   };
-
+  
   const handleScheduleSubmit = e => {
     e.preventDefault();
     const schedule = `${scheduleForm.frequency} - ${scheduleForm.day} ${scheduleForm.time}`;
@@ -186,11 +349,95 @@ const Reports = () => {
     setShowViewModal(true);
   };
 
-  const handleExport = (format, report) => {
-    if (format === 'pdf' && report.file_url) {
-      window.open(report.file_url, '_blank');
-    } else {
-      alert('Exporting as ' + format + ' is not implemented yet.');
+  const handleExport = async (format, report) => {
+    try {
+      if (report.status !== 'Completed') {
+        alert('Report is not ready for download. Status: ' + report.status);
+        return;
+      }
+      
+      // Download the report data
+      const response = await axios.get(`${API_URL}/reports/${report.report_id}/download`);
+      const reportData = response.data;
+      
+      if (format === 'pdf') {
+        // Render the report data as a table in a new window for better appearance
+        const newWindow = window.open('', '_blank');
+
+        // Recursive function to render any value as HTML
+        function renderValue(val) {
+          if (Array.isArray(val)) {
+            if (val.length === 0) return '<em>None</em>';
+            let arr = val;
+            // If array of objects and has a date/timestamp, sort chronologically (oldest to newest)
+            if (typeof arr[0] === 'object' && arr[0] !== null) {
+              const dateKeys = ['date', 'created_at', 'collected_at', 'generated_date', 'timestamp', 'time'];
+              const sortKey = dateKeys.find(k => k in arr[0]);
+              if (sortKey) {
+                arr = [...arr].sort((a, b) => new Date(a[sortKey]) - new Date(b[sortKey]));
+              }
+              const headers = Object.keys(arr[0]);
+              let html = '<table border="1" cellpadding="6" cellspacing="0" style="border-collapse:collapse;width:100%">';
+              html += '<thead><tr>' + headers.map(h => `<th>${h}</th>`).join('') + '</tr></thead>';
+              html += '<tbody>' + arr.map(row => '<tr>' + headers.map(h => `<td>${renderValue(row[h])}</td>`).join('') + '</tr>').join('') + '</tbody>';
+              html += '</table>';
+              return html;
+            } else {
+              // Array of primitives
+              return arr.map(v => renderValue(v)).join(', ');
+            }
+          } else if (val && typeof val === 'object') {
+            // Object: render as key-value table
+            const entries = Object.entries(val);
+            let html = '<table border="1" cellpadding="6" cellspacing="0" style="border-collapse:collapse;width:auto">';
+            html += '<tbody>' + entries.map(([k, v]) => `<tr><th>${k}</th><td>${renderValue(v)}</td></tr>`).join('') + '</tbody>';
+            html += '</table>';
+            return html;
+          } else if (val === null || val === undefined) {
+            return '&ndash;';
+          } else {
+            // Always show the value as string, including 'missed' status
+            return String(val);
+          }
+        }
+
+        let tableHtml = '';
+        if (reportData.data && typeof reportData.data === 'object') {
+          tableHtml = renderValue(reportData.data);
+        } else if (Array.isArray(reportData.data)) {
+          tableHtml = renderValue(reportData.data);
+        } else {
+          tableHtml = `<pre>${JSON.stringify(reportData.data, null, 2)}</pre>`;
+        }
+
+        newWindow.document.write(`
+          <html>
+            <head><title>${reportData.type} Report</title></head>
+            <body>
+              <h1>${reportData.type} Report</h1>
+              <p><strong>Generated by:</strong> ${reportData.generated_by}</p>
+              <p><strong>Date:</strong> ${reportData.date}</p>
+              <p><strong>Period:</strong> ${reportData.period}</p>
+              <hr>
+              ${tableHtml}
+            </body>
+          </html>
+        `);
+        newWindow.document.close();
+      } else {
+        // For Excel/CSV, create a downloadable file
+        const dataStr = JSON.stringify(reportData.data, null, 2);
+        const dataBlob = new Blob([dataStr], { type: 'text/plain' });
+        const url = URL.createObjectURL(dataBlob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `${reportData.type}_report_${reportData.report_id}.${format}`;
+        link.click();
+        URL.revokeObjectURL(url);
+      }
+    } catch (err) {
+      console.error('Error downloading report:', err);
+      alert('Failed to download report: ' + (err.response?.data?.error || err.message));
     }
   };
 
@@ -268,16 +515,21 @@ const Reports = () => {
                       <span className={`status-badge ${r.status?.toLowerCase().replace(' ', '-')}`}>{r.status}</span>
                     </td>
                     <td className="actions-cell">
-                      <button className="action-btn view" onClick={() => handleView(r)}>
+                      <button className="action-btn" onClick={() => handleView(r)}>
                         <i className="fas fa-eye"></i>
                       </button>
-                      <button className="action-btn export" onClick={() => handleExport('pdf', r)} disabled={!r.file_url} title={r.file_url ? 'Download PDF' : 'No PDF available'}>
+                      <button 
+                        className="action-btn" 
+                        onClick={() => handleExport('pdf', r)} 
+                        disabled={r.status !== 'Completed'} 
+                        title={r.status === 'Completed' ? 'Download PDF' : `Status: ${r.status}`}
+                      >
                         <i className="fas fa-download"></i>
                       </button>
-                      <button className="action-btn share" onClick={() => { setSelectedReport(r); setShowShareModal(true); }}>
+                      <button className="action-btn" onClick={() => { setSelectedReport(r); setShowShareModal(true); }}>
                         <i className="fas fa-share-alt"></i>
                       </button>
-                      <button className="action-btn delete" onClick={() => handleDelete(r.report_id || r.id)}>
+                      <button className="action-btn" onClick={() => handleDelete(r.report_id || r.id)}>
                         <i className="fas fa-trash"></i>
                       </button>
                     </td>
@@ -299,53 +551,320 @@ const Reports = () => {
         </div>
       </section>
 
-      {/* === NEW REPORT MODAL === */}
+      {/* === ENHANCED NEW REPORT MODAL === */}
       {showModal && (
         <div className="modal-overlay">
-          <div className="modal-content">
+          <div className="modal-content enhanced-modal">
             <form className="generate-report-form" onSubmit={handleSubmit}>
-              <h3>New Report</h3>
-              <label>Report Type</label>
-              <select name="type" value={reportForm.type} onChange={handleFormChange}>
-                <option value="waste-collection">Waste Collection</option>
-                <option value="financial-summary">Financial Summary</option>
-                <option value="user-activity">User Activity</option>
-                <option value="route-efficiency">Route Efficiency</option>
-                <option value="partner-performance">Partner Performance</option>
-                <option value="waste-composition">Waste Composition</option>
-              </select>
+              <h3>Generate New Report</h3>
+              <div className="form-section">
+                <h4>Report Scope</h4>
+                <label>Report Focus</label>
+                <select value={reportFocus} onChange={e => setReportFocus(e.target.value)}>
+                  <option value="waste-collection">Waste Collection</option>
+                  <option value="billing">Billing/Financial Summary</option>
+                  <option value="customer-feedback">Customer Feedback/Complaints</option>
+                  <option value="user-activity">User Activity</option>
+                  <option value="notifications">Notifications/Communication</option>
+                </select>
+                <div className="form-group">
+              </div>
+                {reportFocus === 'waste-collection' && (
+                  <>
+                    {/* Date Range Filter */}
+                    <div className="form-group">
+                      <label>Collection Date Range</label>
+                      <div className="date-range-inputs">
+                        <input
+                          type="date"
+                          name="startDate"
+                          value={reportForm.startDate}
+                          onChange={handleFormChange}
+                          placeholder="Start date"
+                        />
+                        <span>to</span>
+                        <input
+                          type="date"
+                          name="endDate"
+                          value={reportForm.endDate}
+                          onChange={handleFormChange}
+                          placeholder="End date"
+                        />
+                      </div>
+                    </div>
 
-              <label>Period</label>
-              <select name="period" value={reportForm.period} onChange={handleFormChange}>
-                <option value="weekly">Weekly</option>
-                <option value="monthly">Monthly</option>
-                <option value="quarterly">Quarterly</option>
-                <option value="annual">Annual</option>
-                <option value="custom">Custom</option>
-              </select>
+                    {/* Weekday Filter */}
+                    <div className="form-group">
+                      <label>Scheduled Weekdays</label>
+                      <div className="weekday-filters">
+                        {["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"].map(day => (
+                          <label key={day} className="weekday-filter-option">
+                            <input
+                              type="checkbox"
+                              checked={selectedWeekdays.includes(day)}
+                              onChange={() => setSelectedWeekdays(prev => 
+                                prev.includes(day) 
+                                  ? prev.filter(d => d !== day) 
+                                  : [...prev, day]
+                              )}
+                            />
+                            <span>{day.substring(0, 3)}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
 
-              {reportForm.period === 'custom' && (
-                <div className="date-range">
-                  <input type="date" name="startDate" value={reportForm.startDate} onChange={handleFormChange}/>
-                  <input type="date" name="endDate" value={reportForm.endDate} onChange={handleFormChange}/>
+                    {/* Area/Barangay Filter */}
+                    <div className="form-group">
+                      <label>Area/Barangay</label>
+                      <select 
+                        name="barangay" 
+                        value={reportForm.barangay} 
+                        onChange={handleFormChange}
+                        className="form-select"
+                      >
+                        <option value="">All Barangays</option>
+                        {barangays.map(barangay => (
+                          <option key={barangay.barangay_id} value={barangay.barangay_id}>
+                            {barangay.barangay_name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Waste Type Filter */}
+                    <div className="form-group">
+                      <label>Waste Type</label>
+                      <select 
+                        value={wasteType} 
+                        onChange={e => setWasteType(e.target.value)}
+                        className="form-select"
+                      >
+                        <option value="">All Types</option>
+                        <option value="residual">Residual</option>
+                        <option value="biodegradable">Biodegradable</option>
+                        <option value="bottle">Bottle</option>
+                        <option value="binakbak">Binakbak</option>
+                      </select>
+                    </div>
+
+                    {/* Collection Status Filter */}
+                    <div className="form-group">
+                      <label>Collection Status</label>
+                      <select 
+                        name="status" 
+                        value={reportForm.status} 
+                        onChange={handleFormChange}
+                        className="form-select"
+                      >
+                        <option value="all">All Status</option>
+                        <option value="completed">Completed</option>
+                        <option value="missed">Missed</option>
+                        <option value="partial">Partial</option>
+                      </select>
+                    </div>
+
+                    {/* Collector/Team Filter */}
+                    <div className="form-group">
+                      <label>Collector/Team</label>
+                      <select 
+                        name="collector" 
+                        value={reportForm.collector} 
+                        onChange={handleFormChange}
+                        className="form-select"
+                      >
+                        <option value="">All Collectors</option>
+                        {collectors.map(collector => (
+                          <option key={collector.collector_id} value={collector.collector_id}>
+                            {collector.username}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Truck/Route Filter */}
+                    <div className="form-group">
+                      <label>Truck/Route</label>
+                      <select 
+                        name="truck" 
+                        value={reportForm.truck} 
+                        onChange={handleFormChange}
+                        className="form-select"
+                      >
+                        <option value="">All Trucks</option>
+                        {trucks.map(truck => (
+                          <option key={truck.truck_id} value={truck.truck_id}>
+                            {truck.truck_number}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Conditional Missed Reason Filter */}
+                    {reportForm.status === 'missed' && (
+                      <div className="form-group">
+                        <label>Reason for Missed Pickup</label>
+                        <select 
+                          name="missedReason" 
+                          value={reportForm.missedReason} 
+                          onChange={handleFormChange}
+                          className="form-select"
+                        >
+                          <option value="">All Reasons</option>
+                          <option value="customer-not-home">Customer Not Home</option>
+                          <option value="road-blocked">Road Blocked</option>
+                          <option value="vehicle-breakdown">Vehicle Breakdown</option>
+                          <option value="weather">Weather Conditions</option>
+                          <option value="other">Other</option>
+                        </select>
+                      </div>
+                    )}
+                  </>
+                )}
+                {reportFocus === 'special-pickup' && (
+                  <>
+                    <label>Area/Barangay</label>
+                    <select name="barangay" value={reportForm.barangay} onChange={handleFormChange}>
+                      <option value="">All Barangays</option>
+                      {barangays.map(barangay => (
+                        <option key={barangay.barangay_id} value={barangay.barangay_id}>{barangay.barangay_name}</option>
+                      ))}
+                    </select>
+                    <label>Status</label>
+                    <select name="status" value={reportForm.status} onChange={handleFormChange}>
+                      <option value="all">All Status</option>
+                      <option value="pending">Pending</option>
+                      <option value="completed">Completed</option>
+                      <option value="cancelled">Cancelled</option>
+                    </select>
+                  </>
+                )}
+                {reportFocus === 'user-activity' && (
+                  <>
+                    <label>User</label>
+                    <select name="user" value={reportForm.user || ''} onChange={handleFormChange}>
+                      <option value="">All Users</option>
+                      {/* You may want to fetch and map users here */}
+                    </select>
+                    <label>Role</label>
+                    <select name="role" value={reportForm.role || ''} onChange={handleFormChange}>
+                      <option value="">All Roles</option>
+                      {/* You may want to fetch and map roles here */}
+                    </select>
+                    <label>Activity Type</label>
+                    <select name="activityType" value={reportForm.activityType || ''} onChange={handleFormChange}>
+                      <option value="">All Types</option>
+                      <option value="login">Login</option>
+                      <option value="logout">Logout</option>
+                      <option value="update">Update</option>
+                      <option value="delete">Delete</option>
+                      <option value="other">Other</option>
+                    </select>
+                  </>
+                )}
+                {reportFocus === 'notifications' && (
+                  <>
+                    <label>Notification Type</label>
+                    <select name="notificationType" value={reportForm.notificationType || ''} onChange={handleFormChange}>
+                      <option value="">All Types</option>
+                      <option value="reminder">Reminder</option>
+                      <option value="announcement">Announcement</option>
+                      <option value="alert">Alert</option>
+                    </select>
+                    <label>Status</label>
+                    <select name="notificationStatus" value={reportForm.notificationStatus || ''} onChange={handleFormChange}>
+                      <option value="">All Status</option>
+                      <option value="sent">Sent</option>
+                      <option value="delivered">Delivered</option>
+                      <option value="read">Read</option>
+                    </select>
+                  </>
+                )}
+                {reportFocus === 'billing' && (
+                  <>
+                    <label>Area/Barangay</label>
+                    <select name="barangay" value={reportForm.barangay} onChange={handleFormChange}>
+                      <option value="">All Barangays</option>
+                      {barangays.map(barangay => (
+                        <option key={barangay.barangay_id} value={barangay.barangay_id}>{barangay.barangay_name}</option>
+                      ))}
+                    </select>
+                    <label>Customer Type</label>
+                    <select name="customerType" value={reportForm.customerType} onChange={handleFormChange}>
+                      <option value="">All Types</option>
+                      <option value="residential">Residential</option>
+                      <option value="commercial">Commercial</option>
+                      <option value="industrial">Industrial</option>
+                    </select>
+                    <label>Payment Status</label>
+                    <select value={invoiceStatus} onChange={e => setInvoiceStatus(e.target.value)}>
+                      <option value="all">All</option>
+                      <option value="paid">Paid</option>
+                      <option value="unpaid">Unpaid</option>
+                      <option value="overdue">Overdue</option>
+                      <option value="partial">Partial</option>
+                    </select>
+                    <label>Billing Cycle</label>
+                    <select name="billingCycle" value={reportForm.billingCycle} onChange={handleFormChange}>
+                      <option value="">All Cycles</option>
+                      <option value="monthly">Monthly</option>
+                      <option value="quarterly">Quarterly</option>
+                      <option value="annually">Annually</option>
+                    </select>
+                  </>
+                )}
+                {reportFocus === 'customer-feedback' && (
+                  <>
+                    <label>Area/Barangay</label>
+                    <select name="barangay" value={reportForm.barangay} onChange={handleFormChange}>
+                      <option value="">All Barangays</option>
+                      {barangays.map(barangay => (
+                        <option key={barangay.barangay_id} value={barangay.barangay_id}>{barangay.barangay_name}</option>
+                      ))}
+                    </select>
+                    <label>Complaint Type</label>
+                    <select name="complaintType" value={reportForm.complaintType} onChange={handleFormChange}>
+                      <option value="">All Types</option>
+                      <option value="missed-pickup">Missed Pickup</option>
+                      <option value="billing-issue">Billing Issue</option>
+                      <option value="service-quality">Service Quality</option>
+                      <option value="schedule-change">Schedule Change</option>
+                      <option value="other">Other</option>
+                    </select>
+                    <label>Status</label>
+                    <select name="feedbackStatus" value={reportForm.feedbackStatus} onChange={handleFormChange}>
+                      <option value="">All Status</option>
+                      <option value="resolved">Resolved</option>
+                      <option value="unresolved">Unresolved</option>
+                      <option value="in-progress">In Progress</option>
+                    </select>
+                    <label>Priority</label>
+                    <select name="priority" value={reportForm.priority} onChange={handleFormChange}>
+                      <option value="">All Priorities</option>
+                      <option value="high">High</option>
+                      <option value="medium">Medium</option>
+                      <option value="low">Low</option>
+                    </select>
+                  </>
+                )}
+                <div style={{marginTop:8}}>
+                  <label><input type="checkbox" checked={scheduleReport} onChange={e => setScheduleReport(e.target.checked)} /> Schedule this report</label>
+                  {scheduleReport && (
+                    <select value={scheduleFrequency} onChange={e => setScheduleFrequency(e.target.value)}>
+                      <option value="weekly">Weekly</option>
+                      <option value="monthly">Monthly</option>
+                    </select>
+                  )}
                 </div>
-              )}
-
-              <label>Export Format</label>
-              <select name="format" value={reportForm.format} onChange={handleFormChange}>
-                <option value="pdf">PDF</option>
-                <option value="excel">Excel</option>
-                <option value="csv">CSV</option>
-              </select>
-
-              <label>Generated By</label>
-              <input type="text" name="generatedBy" value={reportForm.generatedBy} disabled />
-
-              {/* Remove User, Schedule, Invoice dropdowns */}
-
+              </div>
+              <div className="form-section">
+                <h4>Options</h4>
+                <label><input type="checkbox" name="includeCharts" checked={reportForm.includeCharts} onChange={e => setReportForm(prev => ({ ...prev, includeCharts: e.target.checked }))}/> Include Charts</label>
+                <label><input type="checkbox" name="includeDetails" checked={reportForm.includeDetails} onChange={e => setReportForm(prev => ({ ...prev, includeDetails: e.target.checked }))}/> Include Detailed Data</label>
+              </div>
               <div className="form-actions">
-                <button type="submit">Generate</button>
-                <button type="button" className="cancel" onClick={() => setShowModal(false)}>Cancel</button>
+                <button type="submit" disabled={loading}>{loading ? 'Generating...' : 'Generate Report'}</button>
+                <button type="button" className="cancel" onClick={() => setShowModal(false)} disabled={loading}>Cancel</button>
               </div>
             </form>
           </div>
@@ -483,6 +1002,87 @@ const Reports = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Add a new section below the table for report output */}
+      {selectedReportOutput && (
+        <section className="report-output-section">
+          <h2>Report: {selectedReportOutput.title || 'Generated Report'}</h2>
+          {reportFocus === 'billing' ? (
+            <>
+              {/* Billing Executive Summary Cards */}
+              <div className="report-summary-cards">
+                <div className="summary-card">Total Invoices<br/><b>80</b></div>
+                <div className="summary-card">Total Revenue<br/><b>₱120,000</b></div>
+                <div className="summary-card">Paid<br/><b>60</b></div>
+                <div className="summary-card">Unpaid<br/><b>15</b></div>
+                <div className="summary-card">Overdue<br/><b>5</b></div>
+                <div className="summary-card">Avg Invoice<br/><b>₱1,500</b></div>
+              </div>
+              {/* Billing Trend Insights (Charts) */}
+              <div className="report-charts">
+                <div className="chart-card"><b>Revenue by Month</b><div style={{height:180,background:'#f3f4f6',marginTop:8}}>Line Chart Placeholder</div></div>
+                <div className="chart-card"><b>Invoice Status</b><div style={{height:180,background:'#f3f4f6',marginTop:8}}>Pie Chart Placeholder</div></div>
+                <div className="chart-card"><b>Top Customers</b><div style={{height:180,background:'#f3f4f6',marginTop:8}}>Bar Chart Placeholder</div></div>
+              </div>
+              {/* Billing Data Overview (Tables) */}
+              <div className="report-tables">
+                <div className="table-card"><b>Invoice Details</b><div style={{height:120,background:'#f9fafb',marginTop:8}}>Table Placeholder</div></div>
+                <div className="table-card"><b>Payments</b><div style={{height:120,background:'#f9fafb',marginTop:8}}>Table Placeholder</div></div>
+              </div>
+              {/* Billing Recommendations */}
+              <div className="report-recommendations">
+                <h4>Recommendations</h4>
+                <ul>
+                  <li>Follow up on overdue invoices</li>
+                  <li>Offer early payment discounts</li>
+                </ul>
+              </div>
+              {/* Download/Share */}
+              <div className="report-actions" style={{marginTop:16}}>
+                <button>Download PDF</button>
+                <button>Download Excel</button>
+                <button>Share via Email</button>
+              </div>
+            </>
+          ) : (
+            <>
+              {/* Executive Summary Cards for other report types */}
+              <div className="report-summary-cards">
+                <div className="summary-card">Total Pickups<br/><b>120</b></div>
+                <div className="summary-card">Total Waste<br/><b>3,200 kg</b></div>
+                <div className="summary-card">Total Cost<br/><b>₱45,000</b></div>
+                <div className="summary-card">Compliance<br/><b>100%</b></div>
+                <div className="summary-card">Missed Pickups<br/><b>2</b></div>
+              </div>
+              {/* Trend Insights (Charts) */}
+              <div className="report-charts">
+                <div className="chart-card"><b>Pickups Over Time</b><div style={{height:180,background:'#f3f4f6',marginTop:8}}>Line Chart Placeholder</div></div>
+                <div className="chart-card"><b>Waste Type Breakdown</b><div style={{height:180,background:'#f3f4f6',marginTop:8}}>Pie Chart Placeholder</div></div>
+                <div className="chart-card"><b>Route Performance</b><div style={{height:180,background:'#f3f4f6',marginTop:8}}>Bar Chart Placeholder</div></div>
+              </div>
+              {/* Data Overview (Tables) */}
+              <div className="report-tables">
+                <div className="table-card"><b>Pickup Details</b><div style={{height:120,background:'#f9fafb',marginTop:8}}>Table Placeholder</div></div>
+                <div className="table-card"><b>Compliance Events</b><div style={{height:120,background:'#f9fafb',marginTop:8}}>Table Placeholder</div></div>
+              </div>
+              {/* Recommendations */}
+              <div className="report-recommendations">
+                <h4>Recommendations</h4>
+                <ul>
+                  <li>Optimize Route 3 (low fill rate)</li>
+                  <li>Educate Barangay Lagao on segregation</li>
+                </ul>
+              </div>
+              {/* Download/Share */}
+              <div className="report-actions" style={{marginTop:16}}>
+                <button>Download PDF</button>
+                <button>Download Excel</button>
+                <button>Share via Email</button>
+              </div>
+            </>
+          )}
+        </section>
       )}
     </>
   );

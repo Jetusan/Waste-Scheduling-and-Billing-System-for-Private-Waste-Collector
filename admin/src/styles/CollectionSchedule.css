@@ -60,6 +60,31 @@
   background: #22c55e;
 }
 
+/* ── Tab Switcher Buttons (Regular/Special Pickup) ── */
+.schedule-header button {
+  background: #f3f4f6;
+  color: #222;
+  border: none;
+  padding: 10px 24px;
+  border-radius: 6px 6px 0 0;
+  font-size: 1rem;
+  font-weight: 500;
+  margin-right: 4px;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.03);
+}
+.schedule-header button.active {
+  background: #4ade80;
+  color: #fff;
+  font-weight: 600;
+  box-shadow: 0 4px 8px rgba(76,222,128,0.08);
+}
+.schedule-header button:hover:not(.active) {
+  background: #e0e7ff;
+  color: #388e3c;
+}
+
 /* ── Table Container ── */
 .table-wrapper {
   overflow-x: auto;
@@ -91,26 +116,19 @@
 
 /* ── Action Buttons ── */
 .action-btn {
-  padding: 5px 10px;
-  margin: 0 5px;
-  border: none;
-  border-radius: 4px;
+  padding: 4px 8px;
+  margin: 0 2px;
+  border: 1px solid #ddd;
+  background: transparent;
+  border-radius: 3px;
+  color: #6b7280;
   cursor: pointer;
-  transition: background-color 0.3s;
+  transition: all 0.2s ease;
+  font-size: 12px;
 }
-.action-btn.edit {
-  background-color: #4CAF50;
-  color: white;
-}
-.action-btn.edit:hover {
-  background-color: #45a049;
-}
-.action-btn.delete {
-  background-color: #f44336;
-  color: white;
-}
-.action-btn.delete:hover {
-  background-color: #da190b;
+.action-btn:hover {
+  background: #f3f4f6;
+  border-color: #adb5bd;
 }
 
 /* ── Modal Overlay ── */
@@ -229,4 +247,99 @@
   .table-wrapper {
     margin-top: 16px;
   }
+}
+
+/* ── Special Pickup Admin Styles ── */
+.special-pickup-container {
+  padding: 24px;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+  margin: 16px auto;
+  max-width: 1000px;
+}
+.special-pickup-container h2 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+.special-pickup-container p {
+  color: #64748b;
+  margin-bottom: 20px;
+}
+.special-pickup-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 24px;
+  background: #fafbfc;
+  border-radius: 8px;
+  overflow: hidden;
+}
+.special-pickup-table th, .special-pickup-table td {
+  padding: 12px 10px;
+  text-align: left;
+  font-size: 1rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+.special-pickup-table th {
+  background: #f3f4f6;
+  font-weight: 600;
+}
+.special-pickup-table tbody tr:hover {
+  background: #f1f5f9;
+}
+.special-pickup-table td button {
+  background: #4ade80;
+  color: #fff;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: background 0.2s;
+}
+.special-pickup-table td button:hover {
+  background: #22c55e;
+}
+
+/* ── Special Pickup Modal Styles ── */
+.special-pickup-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0,0,0,0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+.special-pickup-modal {
+  background: #fff;
+  border-radius: 12px;
+  padding: 32px 28px 24px 28px;
+  min-width: 340px;
+  max-width: 420px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.15);
+  position: relative;
+  animation: modalPopIn 0.22s cubic-bezier(.4,1.4,.6,1) both;
+}
+@keyframes modalPopIn {
+  0% { transform: scale(0.92) translateY(30px); opacity: 0; }
+  100% { transform: scale(1) translateY(0); opacity: 1; }
+}
+.special-pickup-modal .close-btn {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  background: none;
+  border: none;
+  font-size: 22px;
+  cursor: pointer;
+  color: #888;
+  transition: color 0.2s;
+}
+.special-pickup-modal .close-btn:hover {
+  color: #222;
 }

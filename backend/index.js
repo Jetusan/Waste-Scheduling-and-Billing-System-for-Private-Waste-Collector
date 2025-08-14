@@ -1,21 +1,51 @@
 const dotenv = require('dotenv');
+
+// Add error handling for uncaught exceptions
+process.on('uncaughtException', (err) => {
+  console.error('❌ Uncaught Exception:', err);
+  console.error('Stack:', err.stack);
+  // Don't exit immediately, give time to see the error
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('❌ Unhandled Rejection at:', promise);
+  console.error('Reason:', reason);
+  // Don't exit immediately, give time to see the error
+});
+
 const app = require('./app');
-const pool = require('./config/db');
+const { pool } = require('./config/db'); // Destructure the pool from exports
 
 dotenv.config();
 const PORT = process.env.PORT || 5000;
 
-// Test database connection
-pool.connect()
-    .then(() => {
-        console.log('✅ Database connected successfully!');
-    })
-    .catch(err => {
-        console.error('❌ Database connection error:', err);
-    });
+// Test database connection using pool.query() instead of pool.connect()
+pool.query('SELECT NOW()')
+  .then(() => {
+    console.log('✅ Database connected successfully!');
+  })
+  .catch(err => {
+    console.error('❌ Database connection error:', err);
+  });
 
-// Start server
-app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server running on port ${PORT}`);
-    console.log(`API URL: http://localhost:${PORT}`);
+// Start server with error handling
+const server = app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Server running on port ${PORT}`);
+  console.log(`API URL: http://localhost:${PORT}`);
+  console.log(`🎯 Server is now ready to handle requests!`);
 });
+
+server.on('error', (err) => {
+  console.error('❌ Server error:', err);
+  if (err.code === 'EADDRINUSE') {
+    console.error(`Port ${PORT} is already in use. Try a different port.`);
+  }
+});
+
+// Keep the process alive
+console.log('� Backend server is running. Press Ctrl+C to stop.');
+
+// Optional: Add a heartbeat to keep the process active
+setInterval(() => {
+  console.log(`� Heartbeat: ${new Date().toLocaleTimeString()} - Server is alive`);
+}, 60000); // Every 60 seconds

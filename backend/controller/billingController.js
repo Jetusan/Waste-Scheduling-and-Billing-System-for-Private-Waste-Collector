@@ -488,6 +488,134 @@ const createMobileSubscription = async (req, res) => {
   }
 };
 
+// Payment Status Methods for GCash Integration
+const updatePaymentStatus = async (sourceId, status) => {
+  try {
+    return await billingModel.updatePaymentStatus(sourceId, status);
+  } catch (error) {
+    console.error('Error updating payment status:', error);
+    throw error;
+  }
+};
+
+const getPaymentStatus = async (sourceId) => {
+  try {
+    return await billingModel.getPaymentStatus(sourceId);
+  } catch (error) {
+    console.error('Error getting payment status:', error);
+    throw error;
+  }
+};
+
+// GCash Payment Source Creation
+const createGcashSource = async (req, res) => {
+  try {
+    console.log('📥 Creating GCash payment source:', req.body);
+    
+    const { amount, description, isAdmin } = req.body;
+    
+    // Validate required fields
+    if (!amount || !description) {
+      return res.status(400).json({
+        error: 'Missing required fields: amount and description'
+      });
+    }
+
+    // Get PayMongo credentials from environment
+    const paymongoSecretKey = process.env.PAYMONGO_SECRET_KEY;
+    if (!paymongoSecretKey) {
+      return res.status(500).json({
+        error: 'PayMongo configuration not found'
+      });
+    }
+
+    // Determine redirect URLs based on isAdmin flag
+    const successUrl = isAdmin 
+      ? process.env.ADMIN_SUCCESS_URL 
+      : process.env.FRONTEND_SUCCESS_URL;
+    const failedUrl = isAdmin 
+      ? process.env.ADMIN_FAILED_URL 
+      : process.env.FRONTEND_FAILED_URL;
+
+    // Create PayMongo GCash Source
+    const paymongoData = {
+      data: {
+        attributes: {
+          amount: parseInt(amount), // Amount in centavos
+          redirect: {
+            success: successUrl,
+            failed: failedUrl
+          },
+          type: 'gcash',
+          currency: 'PHP',
+          description: description
+        }
+      }
+    };
+
+    console.log('🔄 Creating PayMongo source with data:', JSON.stringify(paymongoData, null, 2));
+
+    // Make request to PayMongo API
+    const response = await fetch('https://api.paymongo.com/v1/sources', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Basic ${Buffer.from(paymongoSecretKey + ':').toString('base64')}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(paymongoData)
+    });
+
+    const paymongoResult = await response.json();
+    console.log('🔥 PayMongo response:', JSON.stringify(paymongoResult, null, 2));
+
+    if (!response.ok) {
+      console.error('❌ PayMongo API error:', paymongoResult);
+      return res.status(400).json({
+        error: 'PayMongo API error',
+        details: paymongoResult.errors || paymongoResult
+      });
+    }
+
+    const source = paymongoResult.data;
+    
+    // Store payment source in database for tracking
+    try {
+      const paymentData = {
+        source_id: source.id,
+        amount: amount / 100, // Convert from centavos to pesos for storage
+        description: description,
+        status: 'pending',
+        payment_method: 'GCash',
+        created_at: new Date().toISOString()
+      };
+      
+      await billingModel.createPaymentSource(paymentData);
+      console.log('✅ Payment source stored in database:', source.id);
+    } catch (dbError) {
+      console.error('⚠️ Database error while creating payment source:', dbError);
+      // Continue anyway, as the main functionality should work
+    }
+    
+    console.log('✅ GCash payment source created successfully:', source.id);
+    
+    res.json({
+      success: true,
+      source_id: source.id,
+      checkout_url: source.attributes.redirect.checkout_url,
+      amount: source.attributes.amount,
+      description: source.attributes.description,
+      status: source.attributes.status
+    });
+    
+  } catch (error) {
+    console.error('❌ Error creating GCash payment source:', error);
+    res.status(500).json({
+      error: 'Failed to create GCash payment source',
+      details: error.message
+    });
+  }
+};
+
 module.exports = {
   // Subscription Plans
   getAllSubscriptionPlans,
@@ -518,5 +646,12 @@ module.exports = {
   generateMonthlyInvoices,
   
   // Dashboard
-  getBillingStats
+  getBillingStats,
+  
+  // Payment Status
+  updatePaymentStatus,
+  getPaymentStatus,
+  
+  // GCash Integration
+  createGcashSource
 }; 

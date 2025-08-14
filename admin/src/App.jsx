@@ -12,8 +12,31 @@ import Billing from './pages/Billing';
 import BillingHistory from './pages/BillingHistory';
 import Profile from './pages/Profile';
 import ProtectedRoute from './components/ProtectedRoute';
+import { useEffect, useRef } from "react";
 
 const App = () => {
+  const mapRef = useRef(null);
+
+  useEffect(() => {
+    // Only initialize if not already initialized
+    if (window.L && !mapRef.current) {
+      mapRef.current = window.L.map('map').setView([51.505, -0.09], 13);
+      window.L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+      }).addTo(mapRef.current);
+      window.L.marker([51.5, -0.09]).addTo(mapRef.current)
+        .bindPopup('A pretty CSS popup.<br> Easily customizable.')
+        .openPopup();
+    }
+    // Cleanup function to remove the map instance
+    return () => {
+      if (mapRef.current) {
+        mapRef.current.remove();
+        mapRef.current = null;
+      }
+    };
+  }, []);
+
   return (
     <Router>
       <Routes>
@@ -66,6 +89,7 @@ const App = () => {
         {/* Catch all unknown routes and redirect to login */}
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
+      <div id="map" style={{ height: "400px", width: "100%" }}></div>
     </Router>
   );
 };

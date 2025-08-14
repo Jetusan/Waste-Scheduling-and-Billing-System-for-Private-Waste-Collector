@@ -1,0 +1,45 @@
+{
+  "tableName": "user_registrations",
+  "rowCount": 2,
+  "timestamp": "2025-08-10T12:52:53.050Z",
+  "data": [
+    {
+      "registration_id": 1,
+      "first_name": "Test",
+      "middle_name": null,
+      "last_name": "User",
+      "full_name": "Test User",
+      "username": "testuser123",
+      "password_hash": "$2b$12$xaqIXxFRbWcfbS.bKvnJKu1o4ALkClZN2EnspLMn8qaOidDT8KDTq",
+      "address_id": 1,
+      "contact_id": 1,
+      "role_id": 3,
+      "registration_date": "2025-08-09T16:00:00.000Z",
+      "registration_status": "active",
+      "last_login": "2025-08-10T11:59:49.261Z",
+      "customer_segment": "standard",
+      "acquisition_source": "mobile_app",
+      "created_at": "2025-08-10T11:59:48.700Z",
+      "updated_at": "2025-08-10T11:59:49.261Z"
+    },
+    {
+      "registration_id": 2,
+      "first_name": "jytt ivann",
+      "middle_name": "none",
+      "last_name": "delapena",
+      "full_name": "jytt ivann none delapena",
+      "username": "jetusan",
+      "password_hash": "$2b$12$ceExthVtegIBqk2OjoY1n.INpPknNfHpCZ2962XEdLhRm3Ix5zaK6",
+      "address_id": 2,
+      "contact_id": 2,
+      "role_id": 3,
+      "registration_date": "2025-08-09T16:00:00.000Z",
+      "registration_status": "active",
+      "last_login": "2025-08-10T12:40:10.642Z",
+      "customer_segment": "standard",
+      "acquisition_source": "mobile_app",
+      "created_at": "2025-08-10T12:39:39.857Z",
+      "updated_at": "2025-08-10T12:40:10.642Z"
+    }
+  ]
+}

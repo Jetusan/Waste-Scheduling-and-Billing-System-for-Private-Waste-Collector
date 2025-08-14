@@ -1,0 +1,24 @@
+{
+  "timestamp": "2025-08-10T12:52:53.216Z",
+  "cleanup_completed": true,
+  "tables_removed": [
+    "notifications",
+    "password_reset_tokens",
+    "collection_teams",
+    "subdivisions",
+    "reports",
+    "user_names",
+    "addresses",
+    "contact_info",
+    "enhanced_addresses"
+  ],
+  "data_consolidated": true,
+  "indexes_created": true,
+  "final_table_count": 18,
+  "user_data_integrity": {
+    "total_users": "40",
+    "users_with_names": "30",
+    "users_with_addresses": "40",
+    "users_with_phones": "40"
+  }
+}

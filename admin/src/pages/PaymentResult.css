@@ -1,0 +1,153 @@
+.payment-result-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  font-family: 'Arial', sans-serif;
+}
+
+.payment-result-card {
+  background: white;
+  padding: 3rem;
+  border-radius: 15px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+  text-align: center;
+  max-width: 500px;
+  width: 90%;
+  animation: slideIn 0.5s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.icon-container {
+  margin-bottom: 2rem;
+}
+
+.success-icon {
+  font-size: 4rem;
+  color: #28a745;
+  animation: pulse 2s infinite;
+}
+
+.failed-icon {
+  font-size: 4rem;
+  color: #dc3545;
+  animation: shake 0.5s ease-in-out;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+}
+
+@keyframes shake {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-10px);
+  }
+  75% {
+    transform: translateX(10px);
+  }
+}
+
+.payment-result-card h1 {
+  color: #333;
+  margin-bottom: 1rem;
+  font-size: 2rem;
+}
+
+.payment-result-card p {
+  color: #666;
+  margin-bottom: 1rem;
+  line-height: 1.5;
+}
+
+.redirect-text {
+  font-size: 0.9rem;
+  color: #888;
+  font-style: italic;
+  margin: 2rem 0 1rem 0;
+}
+
+.redirect-button {
+  padding: 12px 30px;
+  border: none;
+  border-radius: 25px;
+  font-size: 1rem;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-decoration: none;
+  display: inline-block;
+  margin: 0.5rem;
+}
+
+.success-button {
+  background: linear-gradient(45deg, #28a745, #20c997);
+  color: white;
+}
+
+.success-button:hover {
+  background: linear-gradient(45deg, #218838, #1ba085);
+  transform: translateY(-2px);
+}
+
+.retry-button {
+  background: linear-gradient(45deg, #007bff, #0056b3);
+  color: white;
+}
+
+.retry-button:hover {
+  background: linear-gradient(45deg, #0056b3, #004085);
+  transform: translateY(-2px);
+}
+
+.contact-button {
+  background: linear-gradient(45deg, #6c757d, #495057);
+  color: white;
+}
+
+.contact-button:hover {
+  background: linear-gradient(45deg, #5a6268, #343a40);
+  transform: translateY(-2px);
+}
+
+.button-group {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: 1rem;
+}
+
+@media (max-width: 768px) {
+  .payment-result-card {
+    padding: 2rem;
+    margin: 1rem;
+  }
+  
+  .payment-result-card h1 {
+    font-size: 1.5rem;
+  }
+  
+  .success-icon,
+  .failed-icon {
+    font-size: 3rem;
+  }
+}

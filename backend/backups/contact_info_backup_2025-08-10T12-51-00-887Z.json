@@ -1,0 +1,35 @@
+{
+  "tableName": "contact_info",
+  "rowCount": 2,
+  "timestamp": "2025-08-10T12:51:01.189Z",
+  "data": [
+    {
+      "contact_id": 1,
+      "primary_phone": "+639123456789",
+      "secondary_phone": null,
+      "email": "testuser@example.com",
+      "phone_verified": false,
+      "phone_verification_code": null,
+      "phone_verified_at": null,
+      "emergency_contact_name": null,
+      "emergency_contact_phone": null,
+      "emergency_relationship": null,
+      "created_at": "2025-08-10T11:59:48.700Z",
+      "updated_at": "2025-08-10T11:59:48.700Z"
+    },
+    {
+      "contact_id": 2,
+      "primary_phone": "+639916771885",
+      "secondary_phone": null,
+      "email": "jetusan0o0@gmail.com",
+      "phone_verified": false,
+      "phone_verification_code": null,
+      "phone_verified_at": null,
+      "emergency_contact_name": null,
+      "emergency_contact_phone": null,
+      "emergency_relationship": null,
+      "created_at": "2025-08-10T12:39:39.857Z",
+      "updated_at": "2025-08-10T12:39:39.857Z"
+    }
+  ]
+}

@@ -2,46 +2,65 @@ import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { saveAuth } from '../auth'; // Import the auth utility
+import { API_BASE_URL } from '../config';
 
 const CollectorLoginScreen = () => {
-  const [mobileNumber, setMobileNumber] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
   const handleLogin = async () => {
-    if (!mobileNumber || !password) {
+    console.log('Login button pressed');
+    if (!username || !password) {
       Alert.alert('Error', 'Please fill in all fields');
-      return;
-    }
-
-    if (mobileNumber.length !== 11) {
-      Alert.alert('Error', 'Please enter a valid mobile number');
       return;
     }
 
     setLoading(true);
     try {
-      // Use mobileNumber as username for backend login
-      const response = await fetch('http://<YOUR_BACKEND_URL>/api/auth/login', {
+      // Use API_BASE_URL for mobile compatibility
+      const response = await fetch(`${API_BASE_URL}/api/auth/login-enhanced`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: mobileNumber, password }),
+        body: JSON.stringify({ 
+          username, 
+          password, 
+          source: 'collector_app' 
+        }),
       });
       const data = await response.json();
-      if (data.success && data.token) {
-        await saveAuth(data.token, data.user.role);
-        // Redirect based on role
-        if (data.user.role === 'collector') {
-          router.replace('/collector/CHome');
+      console.log('Login API response:', data);
+      
+      if (data.success) {
+        // Check if we have a token (for mobile apps) or if we have user data
+        if (data.token || data.user) {
+          console.log('Before saveAuth');
+          try {
+            // Use token if available, otherwise create a session identifier
+            const authToken = data.token || `session_${data.user.id}_${Date.now()}`;
+            await saveAuth(authToken, data.user.role);
+            console.log('After saveAuth');
+          } catch (e) {
+            console.error('Error in saveAuth:', e);
+          }
+          
+          // Redirect based on role
+          console.log('User role:', data.user.role);
+          if (data.user.role === 'collector') {
+            console.log('Navigating to /collector/CHome');
+            router.replace('/collector/CHome');
+          } else {
+            Alert.alert('Access Denied', 'This account does not have collector access. Please use a collector account or contact your administrator.');
+          }
         } else {
-          Alert.alert('Error', 'Not a collector account');
+          Alert.alert('Login Failed', 'Authentication token missing');
         }
       } else {
         Alert.alert('Login Failed', data.message || 'Invalid credentials');
       }
     } catch (err) {
-      Alert.alert('Error', err.message);
+      Alert.alert('Error', err?.message || 'An unexpected error occurred');
     } finally {
       setLoading(false);
     }
@@ -53,7 +72,8 @@ const CollectorLoginScreen = () => {
       style={styles.container}
     >
       <View style={styles.innerContainer}>
-        {/* Back Button */}        <TouchableOpacity 
+        {/* Back Button */}
+        <TouchableOpacity 
           style={styles.backButton}
           onPress={() => router.push('/role')}
         >
@@ -62,14 +82,12 @@ const CollectorLoginScreen = () => {
 
         <Text style={styles.title}>Collector Login</Text>
 
-        <Text style={styles.label}>Mobile Number</Text>
+        <Text style={styles.label}>Username</Text>
         <TextInput
           style={styles.input}
-          placeholder="Enter your mobile number"
-          value={mobileNumber}
-          onChangeText={setMobileNumber}
-          keyboardType="phone-pad"
-          maxLength={11}
+          placeholder="Enter your username"
+          value={username}
+          onChangeText={setUsername}
         />
 
         <Text style={styles.label}>Password</Text>
@@ -82,7 +100,7 @@ const CollectorLoginScreen = () => {
         />
 
         {/* Forgot Password Link */}
-        <TouchableOpacity>
+        <TouchableOpacity onPress={() => router.push('/forgotPassword')}>
           <Text style={styles.forgotPassword}>Forgot password?</Text>
         </TouchableOpacity>
 

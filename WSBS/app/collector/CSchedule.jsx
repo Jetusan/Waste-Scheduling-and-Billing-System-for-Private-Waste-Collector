@@ -11,6 +11,8 @@ import {
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
+const BACKEND_URL = 'http://10.31.191.188:5000'; // <-- Use your local IP, not localhost, for mobile access
+
 const CSchedule = () => {
   const router = useRouter();
   const [searchText, setSearchText] = useState('');

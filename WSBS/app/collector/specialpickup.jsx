@@ -1,97 +1,103 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, StatusBar, ScrollView, Image } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, StatusBar, ScrollView, Image, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Feather, MaterialIcons } from '@expo/vector-icons';
 
+const BACKEND_URL = 'http://10.31.191.188:5000';
+
 const SpecialPickup = () => {
   const router = useRouter();
+  const [requests, setRequests] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const fetchRequests = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await fetch(`${BACKEND_URL}/api/special-pickup`);
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to fetch requests');
+        setRequests(data);
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchRequests();
+  }, []);
 
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" />
-      
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
+        <TouchableOpacity onPress={() => router.push('/collector/CHome')}>
           <Feather name="arrow-left" size={24} color="black" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Special Pickup Request</Text>
-        <View style={{ width: 24 }} /> {/* Spacer for alignment */}
+        <Text style={styles.headerTitle}>Special Pickup Requests</Text>
+        <View style={{ width: 24 }} />
       </View>
-
-      <ScrollView contentContainerStyle={styles.content}>
-        {/* User Info */}
-        <View style={styles.userSection}>
-          <Text style={styles.userName}>Jim Yosef</Text>
-          <Text style={styles.userId}>User ID: #123456</Text>
+      {loading ? (
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <ActivityIndicator size="large" color="#4CAF50" />
         </View>
-
-        {/* Details List */}
-        <View style={styles.detailsCard}>
-          <View style={styles.detailItem}>
-            <MaterialIcons 
-              name={false ? 'check-box' : 'check-box-outline-blank'} 
-              size={24} 
-              color="#4CAF50" 
-            />
-            <Text style={styles.detailText}>SARANGANI HOMES PHASE I SUBDIVISION</Text>
-          </View>
-
-          <View style={styles.detailItem}>
-            <MaterialIcons 
-              name={false ? 'check-box' : 'check-box-outline-blank'} 
-              size={24} 
-              color="#4CAF50" 
-            />
-            <Text style={styles.detailText}>Today, 4:00 PM</Text>
-          </View>
-
-          <View style={styles.detailItem}>
-            <MaterialIcons 
-              name={'check-box'} 
-              size={24} 
-              color="#4CAF50" 
-            />
-            <Text style={styles.detailText}>Household, Mixed</Text>
-          </View>
-
-          <View style={styles.detailItem}>
-            <MaterialIcons 
-              name={false ? 'check-box' : 'check-box-outline-blank'} 
-              size={24} 
-              color="#4CAF50" 
-            />
-            <Text style={styles.detailText}>5 large bags (~20 kg)</Text>
-          </View>
+      ) : error ? (
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <Text style={{ color: 'red' }}>{error}</Text>
         </View>
-
-        {/* Attached Photos */}
-        <Text style={styles.sectionTitle}>Attached Photos:</Text>
-        <View style={styles.photosContainer}>
-          {[1, 2, 3].map((item, index) => (
-            <View key={index} style={styles.photoPlaceholder}>
-              <Text style={styles.photoText}>100 + 100</Text>
-            </View>
-          ))}
-        </View>
-
-        {/* Message Input */}
-        <View style={styles.messageInput}>
-          <Text style={styles.inputPlaceholder}>Type a message...</Text>
-        </View>
-      </ScrollView>
-
-      {/* Footer Buttons */}
-      <View style={styles.footer}>
-        <TouchableOpacity style={styles.navigateButton}>
-          <Feather name="navigation" size={20} color="white" />
-          <Text style={styles.buttonText}>Navigate to Pickup</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity style={styles.collectedButton}>
-          <Text style={[styles.buttonText, { color: '#4CAF50' }]}>Mark as Collected</Text>
-        </TouchableOpacity>
-      </View>
+      ) : (
+        <ScrollView contentContainerStyle={styles.content}>
+          {requests.length === 0 ? (
+            <Text style={{ textAlign: 'center', color: '#888' }}>No special pickup requests found.</Text>
+          ) : (
+            requests.map((req) => (
+              <View key={req.request_id} style={styles.detailsCard}>
+                <View style={styles.userSection}>
+                  <Text style={styles.userName}>User ID: {req.user_id}</Text>
+                  <Text style={styles.userId}>Status: {req.status}</Text>
+                </View>
+                <View style={styles.detailItem}>
+                  <MaterialIcons name={'check-box'} size={24} color="#4CAF50" />
+                  <Text style={styles.detailText}>{req.address}</Text>
+                </View>
+                <View style={styles.detailItem}>
+                  <MaterialIcons name={'check-box'} size={24} color="#4CAF50" />
+                  <Text style={styles.detailText}>{req.pickup_date} {req.pickup_time}</Text>
+                </View>
+                <View style={styles.detailItem}>
+                  <MaterialIcons name={'check-box'} size={24} color="#4CAF50" />
+                  <Text style={styles.detailText}>{req.waste_type} - {req.description}</Text>
+                </View>
+                {req.notes ? (
+                  <View style={styles.detailItem}>
+                    <MaterialIcons name={'check-box'} size={24} color="#4CAF50" />
+                    <Text style={styles.detailText}>Notes: {req.notes}</Text>
+                  </View>
+                ) : null}
+                {req.image_url ? (
+                  <View style={styles.photosContainer}>
+                    <Image source={{ uri: req.image_url }} style={styles.photoPlaceholder} />
+                  </View>
+                ) : null}
+                {req.message ? (
+                  <View style={styles.messageInput}>
+                    <Text style={styles.inputPlaceholder}>Message: {req.message}</Text>
+                  </View>
+                ) : null}
+                {/* Mark as Collected button (future: PATCH status) */}
+                <View style={styles.footer}>
+                  <TouchableOpacity style={styles.collectedButton}>
+                    <Text style={[styles.buttonText, { color: '#4CAF50' }]}>Mark as Collected</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ))
+          )}
+        </ScrollView>
+      )}
     </View>
   );
 };

@@ -98,7 +98,6 @@ export default function NotifPage() {
       {/* Header Section */}
       <View style={styles.header}>
         <Text style={styles.title}>Notifications</Text>
-        <Ionicons name="settings-outline" size={24} color="#fff" />
       </View>
 
       {/* Notification List */}
@@ -120,10 +119,10 @@ const styles = StyleSheet.create({
   },
   header: {
     backgroundColor: '#4CD964',
-    padding: 20,
+    padding: 28,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
     borderBottomLeftRadius: 20,
     borderBottomRightRadius: 20,
     elevation: 4,
@@ -132,6 +131,8 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: 'bold',
     color: '#FFFFFF',
+    textAlign: 'center',
+    marginTop: 12,
   },
   notificationList: {
     padding: 20,

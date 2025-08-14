@@ -57,6 +57,53 @@
   box-shadow: 0 2px 6px rgba(0,0,0,0.05);
   font-family: 'Segoe UI', sans-serif;
 }
+/* Date Range Styling */
+.date-range-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.date-input {
+  padding: 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.date-range-separator {
+  color: #666;
+}
+
+/* Weekday Selector Styling */
+.weekday-selector {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.weekday-pill {
+  padding: 6px 12px;
+  border: 1px solid #ddd;
+  border-radius: 20px;
+  background: #f5f5f5;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.2s;
+}
+
+.weekday-pill.active {
+  background: #4CAF50;
+  color: white;
+  border-color: #4CAF50;
+}
+
+.weekday-pill:hover {
+  background: #e0e0e0;
+}
+
+.weekday-pill.active:hover {
+  background: #3d8b40;
+}
 
 /* Filters & Actions */
 .reports-header {
@@ -71,6 +118,94 @@
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+/* Form Group Styling */
+.form-group {
+  margin-bottom: 1rem;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+  color: #333;
+}
+
+/* Date Range Styling */
+.date-range-inputs {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.date-range-inputs input[type="date"] {
+  flex: 1;
+  padding: 0.5rem;
+  border: 1px solid #ced4da;
+  border-radius: 0.25rem;
+  font-size: 0.875rem;
+}
+
+.date-range-inputs span {
+  color: #6c757d;
+}
+
+/* Weekday Filter Styling */
+.weekday-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.weekday-filter-option {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.375rem 0.75rem;
+  background-color: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 1rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.weekday-filter-option:hover {
+  background-color: #e9ecef;
+}
+
+.weekday-filter-option input {
+  margin-right: 0.375rem;
+  cursor: pointer;
+}
+
+.weekday-filter-option input:checked {
+  accent-color: #28a745;
+}
+
+.weekday-filter-option input:checked + span {
+  font-weight: 500;
+  color: #28a745;
+}
+
+/* Select Dropdown Styling */
+.form-select {
+  display: block;
+  width: 100%;
+  padding: 0.5rem;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: #495057;
+  background-color: #fff;
+  background-clip: padding-box;
+  border: 1px solid #ced4da;
+  border-radius: 0.25rem;
+  transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+}
+
+.form-select:focus {
+  border-color: #80bdff;
+  outline: 0;
+  box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
 }
 .generate-btn {
   background: #16a34a;
@@ -132,33 +267,30 @@
 /* Action Buttons */
 .actions-cell {
   display: flex;
-  gap: 6px;
+  gap: 4px;
   align-items: center;
 }
 .action-btn {
-  padding: 6px;
-  border: none;
-  border-radius: 4px;
+  padding: 4px;
+  border: 1px solid #ddd;
+  border-radius: 3px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 14px;
+  font-size: 12px;
   transition: all 0.2s ease;
   background: transparent;
-  color: #4b5563;
+  color: #6b7280;
 }
 .action-btn:hover {
   background: #f3f4f6;
+  border-color: #adb5bd;
   transform: translateY(-1px);
 }
 .action-btn i {
-  font-size: 14px;
+  font-size: 12px;
 }
-.action-btn.view { color: #3b82f6; }
-.action-btn.export { color: #10b981; }
-.action-btn.share { color: #8b5cf6; }
-.action-btn.delete { color: #ef4444; }
 
 /* Schedule Button & Badge */
 .schedule-btn {
@@ -279,6 +411,48 @@
   max-height: 90vh;
   overflow-y: auto;
   box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+
+/* Enhanced modal for report generation */
+.enhanced-modal {
+  max-width: 700px;
+  width: 95%;
+}
+
+.form-section {
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.form-section:last-child {
+  border-bottom: none;
+  margin-bottom: 16px;
+}
+
+.form-section h4 {
+  margin: 0 0 12px 0;
+  color: #374151;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.checkbox-group {
+  margin: 8px 0;
+}
+
+.checkbox-group label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  color: #374151;
+}
+
+.checkbox-group input[type="checkbox"] {
+  width: auto;
+  margin: 0;
 }
 .modal-content h3 {
   margin: 0 0 20px;

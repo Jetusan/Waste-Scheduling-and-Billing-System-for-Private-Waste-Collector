@@ -1,5 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
 import '../styles/Notifications.css';
+
+const API_BASE_URL = 'http://localhost:5000/api';
 
 const Notifications = () => {
   const [showModal, setShowModal] = useState(false);
@@ -7,6 +10,7 @@ const Notifications = () => {
   const [selectedUser, setSelectedUser] = useState(null);
   const [form, setForm] = useState({
     recipient: 'Collector',
+    email: '', // Add email field
     message: '',
     scheduleTime: '',
     channels: {
@@ -17,38 +21,19 @@ const Notifications = () => {
     priority: 'normal'
   });
 
-  const [notifications, setNotifications] = useState([
-    { 
-      id: 'NOT-001', 
-      recipient: 'Collector', 
-      message: 'Route changes for Downtown area', 
-      status: 'Sent', 
-      readStatus: 'Read',
-      timestamp: '2024-01-20 09:30',
-      channels: ['push', 'email'],
-      priority: 'high'
-    },
-    { 
-      id: 'NOT-002', 
-      recipient: 'User', 
-      message: 'Maintenance scheduled tonight', 
-      status: 'Pending', 
-      readStatus: 'Unread',
-      timestamp: '2024-01-20 10:15',
-      channels: ['push'],
-      priority: 'normal'
-    },
-    { 
-      id: 'NOT-003', 
-      recipient: 'Collector', 
-      message: 'New collection guidelines', 
-      status: 'Sent', 
-      readStatus: 'Read',
-      timestamp: '2024-01-20 11:00',
-      channels: ['push', 'sms'],
-      priority: 'normal'
-    }
-  ]);
+  // Remove hardcoded notifications, use empty array initially
+  const [notifications, setNotifications] = useState([]);
+
+  // Fetch notifications from backend on mount
+  useEffect(() => {
+    axios.get(`${API_BASE_URL}/notifications`)
+      .then(res => {
+        setNotifications(res.data);
+      })
+      .catch(err => {
+        console.error('Failed to fetch notifications:', err);
+      });
+  }, []);
 
   // Sample user notification history
   const [userHistory] = useState({
@@ -79,29 +64,30 @@ const Notifications = () => {
     }
   };
 
-  const handleSubmit = e => {
+  const handleSubmit = async e => {
     e.preventDefault();
-    const newNotif = {
-      id: `NOT-${String(notifications.length + 1).padStart(3, '0')}`,
-      recipient: form.recipient,
-      message: form.message,
-      status: form.scheduleTime ? 'Scheduled' : 'Pending',
-      readStatus: 'Unread',
-      timestamp: form.scheduleTime || new Date().toISOString().slice(0,16).replace('T',' '),
-      channels: Object.entries(form.channels)
-        .filter(([_, enabled]) => enabled)
-        .map(([channel]) => channel),
-      priority: form.priority
-    };
-    setNotifications(prev => [newNotif, ...prev]);
-    setShowModal(false);
-    setForm({
-      recipient: 'Collector',
-      message: '',
-      scheduleTime: '',
-      channels: { push: true, email: false, sms: false },
-      priority: 'normal'
-    });
+    try {
+      // Send to backend
+      await axios.post(`${API_BASE_URL}/notifications`, {
+        email: form.email,
+        title: form.recipient, // Using recipient as title for now, adjust as needed
+        message: form.message
+      });
+      // Refetch notifications
+      const res = await axios.get(`${API_BASE_URL}/notifications`);
+      setNotifications(res.data);
+      setShowModal(false);
+      setForm({
+        recipient: 'Collector',
+        email: '',
+        message: '',
+        scheduleTime: '',
+        channels: { push: true, email: false, sms: false },
+        priority: 'normal'
+      });
+    } catch (err) {
+      alert('Failed to send notification: ' + (err.response?.data?.error || err.message));
+    }
   };
 
   const toggleReadStatus = (id) => {
@@ -275,6 +261,11 @@ const Notifications = () => {
                   <option>Collector</option>
                   <option>User</option>
                 </select>
+              </div>
+
+              <div className="form-group">
+                <label>User Email</label>
+                <input type="email" name="email" value={form.email} onChange={handleChange} required />
               </div>
 
               <div className="form-group">

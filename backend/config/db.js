@@ -1,7 +1,7 @@
+// db.js
 const { Pool } = require('pg');
 require('dotenv').config();
 
-// Waste collection database pool (use this for all user-related operations)
 const pool = new Pool({
   user: process.env.DB_USER || 'postgres',
   host: process.env.DB_HOST || 'localhost',
@@ -10,19 +10,18 @@ const pool = new Pool({
   port: process.env.DB_PORT ? parseInt(process.env.DB_PORT) : 5432
 });
 
-// Test the connection
-pool.query('SELECT NOW()', (err, res) => {
-  if (err) {
-    console.error('❌ Database connection error:', err);
-  } else {
-    console.log('✅ Database connected successfully!');
-  }
-});
+// Test connection
+pool.query('SELECT NOW()')
+  .then(() => console.log('✅ Database connected successfully!'))
+  .catch(err => console.error('❌ Database connection error:', err));
 
-// Error handling for the pool
+// Error handling
 pool.on('error', (err) => {
   console.error('Unexpected error on idle client', err);
-  process.exit(-1);
 });
 
-module.exports = pool;
+// Export both the pool and a query function
+module.exports = {
+  pool,
+  query: (text, params) => pool.query(text, params)
+};

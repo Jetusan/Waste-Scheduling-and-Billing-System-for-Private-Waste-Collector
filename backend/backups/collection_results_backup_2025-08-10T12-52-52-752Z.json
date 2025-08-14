@@ -1,0 +1,57 @@
+{
+  "tableName": "collection_results",
+  "rowCount": 5,
+  "timestamp": "2025-08-10T12:52:53.038Z",
+  "data": [
+    {
+      "result_id": 4,
+      "schedule_id": 22,
+      "barangay_id": 1,
+      "status": "completed",
+      "collected_at": "2025-07-19T00:00:00.000Z",
+      "reason": null,
+      "notes": "All bins collected",
+      "created_at": "2025-07-19T00:05:00.000Z"
+    },
+    {
+      "result_id": 5,
+      "schedule_id": 23,
+      "barangay_id": 1,
+      "status": "missed",
+      "collected_at": null,
+      "reason": "Road blocked",
+      "notes": "Unable to access street",
+      "created_at": "2025-07-19T00:10:00.000Z"
+    },
+    {
+      "result_id": 6,
+      "schedule_id": 24,
+      "barangay_id": 2,
+      "status": "completed",
+      "collected_at": "2025-07-19T01:00:00.000Z",
+      "reason": null,
+      "notes": "Smooth collection",
+      "created_at": "2025-07-19T01:05:00.000Z"
+    },
+    {
+      "result_id": 7,
+      "schedule_id": 25,
+      "barangay_id": 2,
+      "status": "partial",
+      "collected_at": "2025-07-19T02:00:00.000Z",
+      "reason": "Some bins not out",
+      "notes": "Collected only available bins",
+      "created_at": "2025-07-19T02:05:00.000Z"
+    },
+    {
+      "result_id": 8,
+      "schedule_id": 26,
+      "barangay_id": 3,
+      "status": "completed",
+      "collected_at": "2025-07-21T23:30:00.000Z",
+      "reason": null,
+      "notes": "No issues",
+      "created_at": "2025-07-21T23:35:00.000Z"
+    }
+  ]
+}

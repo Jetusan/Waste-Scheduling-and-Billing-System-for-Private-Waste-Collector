@@ -36,14 +36,14 @@ const TermsAndConditions = ({ onAccept, onDecline }) => {
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>Terms and Conditions</Text>
-        <Text style={styles.subtitle}>Trash-Be-Gone Waste Collection Services</Text>
+        <Text style={styles.subtitle}>WSBS Waste Collection Services</Text>
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>1. Service Description</Text>
           <Text style={styles.text}>
-            Trash-Be-Gone (TBG) provides comprehensive waste collection services including regular household waste pickup, recyclable materials collection, and special waste disposal services. Our services are designed to maintain clean and sustainable communities.
+            WSBS provides comprehensive waste collection services including regular household waste pickup, recyclable materials collection, and special waste disposal services. Our services are designed to maintain clean and sustainable communities.
           </Text>
         </View>
 
@@ -94,7 +94,7 @@ const TermsAndConditions = ({ onAccept, onDecline }) => {
             • Maintain clean and accessible pickup areas{'\n'}
             • Report service issues within 24 hours{'\n'}
             • Provide accurate contact information{'\n'}
-            • Notify TBG of address changes or service modifications{'\n'}
+            • Notify WSBS of address changes or service modifications{'\n'}
             • Ensure waste containers are in good condition
           </Text>
         </View>
@@ -112,9 +112,9 @@ const TermsAndConditions = ({ onAccept, onDecline }) => {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>8. Liability and Insurance</Text>
           <Text style={styles.text}>
-            • TBG maintains comprehensive liability insurance{'\n'}
+            • WSBS maintains comprehensive liability insurance{'\n'}
             • Customers are responsible for damage to containers during normal use{'\n'}
-            • TBG is not liable for damage to improperly secured waste{'\n'}
+            • WSBS is not liable for damage to improperly secured waste{'\n'}
             • Force majeure events may affect service delivery
           </Text>
         </View>
@@ -133,7 +133,7 @@ const TermsAndConditions = ({ onAccept, onDecline }) => {
           <Text style={styles.sectionTitle}>10. Dispute Resolution</Text>
           <Text style={styles.text}>
             • Customer complaints should be submitted through official channels{'\n'}
-            • TBG will respond to complaints within 48 hours{'\n'}
+            • WSBS will respond to complaints within 48 hours{'\n'}
             • Unresolved disputes may be escalated to management{'\n'}
             • Legal disputes are subject to local jurisdiction
           </Text>
@@ -145,7 +145,7 @@ const TermsAndConditions = ({ onAccept, onDecline }) => {
             • Either party may terminate with 30-day written notice{'\n'}
             • Immediate termination for breach of terms{'\n'}
             • Outstanding balances must be settled upon termination{'\n'}
-            • TBG will remove containers within 7 days of termination
+            • WSBS will remove containers within 7 days of termination
           </Text>
         </View>
 
@@ -154,7 +154,7 @@ const TermsAndConditions = ({ onAccept, onDecline }) => {
           <Text style={styles.text}>
             For questions, concerns, or service requests:{'\n'}
             • Customer Service: +63 912 345 6789{'\n'}
-            • Email: support@trashbegone.ph{'\n'}
+            • Email: support@WSBS.ph{'\n'}
             • Emergency Hotline: +63 912 345 6790{'\n'}
             • Office Hours: Monday-Friday, 8:00 AM - 6:00 PM
           </Text>
@@ -285,14 +285,17 @@ const styles = StyleSheet.create({
   },
   buttonContainer: {
     flexDirection: 'row',
+    justifyContent: 'center',
     gap: 15,
   },
   declineButton: {
-    flex: 1,
     backgroundColor: '#f44336',
-    padding: 15,
+    paddingVertical: 12,
+    paddingHorizontal: 22, // Add horizontal padding
     borderRadius: 8,
     alignItems: 'center',
+    minWidth: 100, // Optional: ensures a minimum width
+    marginRight: 8, // Optional: space between buttons
   },
   declineButtonText: {
     color: 'white',
@@ -300,11 +303,13 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   acceptButton: {
-    flex: 1,
     backgroundColor: '#2E7D32',
-    padding: 15,
+    paddingVertical: 12,
+    paddingHorizontal: 22, // Add horizontal padding
     borderRadius: 8,
     alignItems: 'center',
+    minWidth: 100, // Optional: ensures a minimum width
+    marginLeft: 8, // Optional: space between buttons
   },
   acceptButtonText: {
     color: 'white',

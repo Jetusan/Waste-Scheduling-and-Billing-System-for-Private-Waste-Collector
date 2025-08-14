@@ -1,27 +1,9 @@
-### Test registration endpoint
-POST http://localhost:5000/api/auth/register
-Content-Type: application/json
-Accept: application/json
-
-{
-  "firstName": "Test",
-  "middleName": "User",
-  "lastName": "Example",
-  "username": "testuser123",
-  "contactNumber": "09123456789",
-  "password": "Testpass123!",
-  "confirmPassword": "Testpass123!",
-  "city": "General Santos City",
-  "barangay": "Apopong",
-  "street": "123 Test Street"
-}
-
-### Test login endpoint
+### Collector Login Test
 POST http://localhost:5000/api/auth/login
 Content-Type: application/json
-Accept: application/json
 
 {
-  "username": "jethro27",
-  "password": "jyttivann27"
-} 
+  "username": "09171234567",
+  "password": "collector123",
+  "source": "collector_app"
+}
