@@ -1,17 +1,32 @@
 const express = require('express');
 const cors = require('cors');
+const path = require('path');
 // Only import the routes we actually need
 const collectionSchedulesRouter = require('./routes/collectionSchedules');
 const authRouter = require('./routes/auth');
 const billingRouter = require('./routes/billing');
 const barangaysRouter = require('./routes/barangays-fixed'); // Enable barangays route
+const specialPickupRouter = require('./routes/specialPickup'); // Special pickup route
+// UserCollector related routes
+const residentsRouter = require('./routes/residents');
+const collectorsRouter = require('./routes/collectors');
+const trucksRouter = require('./routes/trucks');
+const collectorAssignmentsRouter = require('./routes/collectorAssignments');
+const debugAssignmentsRouter = require('./routes/debugAssignments');
 // const adminAuthRouter = require('./routes/adminAuth'); // Temporarily commented out
+
+// Add this near your other route imports
+const emailVerificationRoutes = require('./routes/emailVerification');
+const adminRegistrationsRouter = require('./routes/adminRegistrations');
+const testEmailRouter = require('./routes/test-email');
+const notificationsRouter = require('./routes/notifications');
 
 const app = express();
 
 // Middleware
 app.use(cors());
 app.use(express.json());
+app.use('/api', emailVerificationRoutes);
 
 // Debug middleware to log all incoming requests
 app.use((req, res, next) => {
@@ -20,11 +35,26 @@ app.use((req, res, next) => {
   next();
 });
 
+// Serve uploaded files (proof images) statically
+// Multer stores files under 'uploads/' relative to backend root
+// This makes them accessible at http://localhost:<PORT>/uploads/<filename>
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
 // Routes - only the essential ones
 app.use('/api/collection-schedules', collectionSchedulesRouter);
 app.use('/api/auth', authRouter);
 app.use('/api/billing', billingRouter);
 app.use('/api/barangays', barangaysRouter); // Enable barangays route
+app.use('/api/special-pickup', specialPickupRouter); // Special pickup route
+// UserCollector related routes - all enabled
+app.use('/api/residents', residentsRouter);
+app.use('/api/collectors', collectorsRouter);
+app.use('/api/trucks', trucksRouter);
+app.use('/api/collector/assignments', collectorAssignmentsRouter);
+app.use('/api/admin/registrations', adminRegistrationsRouter);
+app.use('/api/debug', debugAssignmentsRouter);
+app.use('/api/test-email', testEmailRouter);
+app.use('/api/notifications', notificationsRouter);
 // app.use('/api/admin/auth', adminAuthRouter); // Temporarily commented out
 
 // Temporary admin auth route

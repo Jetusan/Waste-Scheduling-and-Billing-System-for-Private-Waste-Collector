@@ -17,9 +17,9 @@ const getOwnProfile = async (req, res) => {
         un.last_name,
         CONCAT(un.first_name, ' ', COALESCE(un.middle_name, ''), ' ', un.last_name) as full_name,
         a.full_address,
-        a.street_name as street,
-        a.house_number,
-        a.purok_or_sitio as purok,
+        a.street,
+        a.block,
+        a.lot,
         b.barangay_name,
         a.city_municipality as city_name
       FROM users u
@@ -71,9 +71,10 @@ const getOwnProfile = async (req, res) => {
           street: user.street,
           barangay: user.barangay_name,
           city: user.city_name,
-          houseNumber: user.house_number,
-          purok: user.purok,
-          fullAddress: user.full_address
+          block: user.block,
+          lot: user.lot,
+          fullAddress: user.full_address,
+          subdivision: user.subdivision
         },
         
         // Backward compatibility - direct fields
@@ -81,8 +82,8 @@ const getOwnProfile = async (req, res) => {
         barangay_name: user.barangay_name,
         street: user.street,
         city_name: user.city_name,
-        house_number: user.house_number,
-        purok: user.purok,
+        block: user.block,
+        lot: user.lot,
         full_address: user.full_address,
         
         created_at: user.created_at

@@ -1,33 +1,68 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, StatusBar, ScrollView, Image, ActivityIndicator } from 'react-native';
+import React, { useEffect, useState, useCallback } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, StatusBar, ScrollView, Image, ActivityIndicator, Alert, RefreshControl } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Feather, MaterialIcons } from '@expo/vector-icons';
-
-const BACKEND_URL = 'http://10.31.191.188:5000';
+import { API_BASE_URL } from '../config';
+import { getUserId } from '../auth';
 
 const SpecialPickup = () => {
   const router = useRouter();
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [collectorId, setCollectorId] = useState(null);
+
+  const loadRequests = useCallback(async (cid) => {
+    const idToUse = cid ?? collectorId;
+    if (!idToUse) return;
+    setError(null);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/special-pickup/collector/${idToUse}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to fetch requests');
+      setRequests(data);
+    } catch (err) {
+      setError(err.message);
+    }
+  }, [API_BASE_URL, collectorId]);
 
   useEffect(() => {
-    const fetchRequests = async () => {
+    (async () => {
       setLoading(true);
-      setError(null);
       try {
-        const res = await fetch(`${BACKEND_URL}/api/special-pickup`);
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Failed to fetch requests');
-        setRequests(data);
-      } catch (err) {
-        setError(err.message);
+        const id = await getUserId();
+        setCollectorId(id);
+        await loadRequests(id);
       } finally {
         setLoading(false);
       }
-    };
-    fetchRequests();
-  }, []);
+    })();
+  }, [loadRequests]);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await loadRequests();
+    setRefreshing(false);
+  }, [loadRequests]);
+
+  const markAsCollected = async (requestId) => {
+    try {
+      // optimistic update
+      setRequests((prev) => prev.map((r) => r.request_id === requestId ? { ...r, status: 'collected' } : r));
+      const res = await fetch(`${API_BASE_URL}/api/special-pickup/${requestId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'collected', collector_id: collectorId })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to update request');
+    } catch (e) {
+      Alert.alert('Update Failed', e.message || 'Could not mark as collected');
+      // rollback by reloading
+      await loadRequests();
+    }
+  };
 
   return (
     <View style={styles.container}>
@@ -35,7 +70,9 @@ const SpecialPickup = () => {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.push('/collector/CHome')}>
-          <Feather name="arrow-left" size={24} color="black" />
+          <Text>
+            <Feather name="arrow-left" size={24} color="black" />
+          </Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Special Pickup Requests</Text>
         <View style={{ width: 24 }} />
@@ -49,7 +86,8 @@ const SpecialPickup = () => {
           <Text style={{ color: 'red' }}>{error}</Text>
         </View>
       ) : (
-        <ScrollView contentContainerStyle={styles.content}>
+        <ScrollView contentContainerStyle={styles.content}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
           {requests.length === 0 ? (
             <Text style={{ textAlign: 'center', color: '#888' }}>No special pickup requests found.</Text>
           ) : (
@@ -59,6 +97,7 @@ const SpecialPickup = () => {
                   <Text style={styles.userName}>User ID: {req.user_id}</Text>
                   <Text style={styles.userId}>Status: {req.status}</Text>
                 </View>
+
                 <View style={styles.detailItem}>
                   <MaterialIcons name={'check-box'} size={24} color="#4CAF50" />
                   <Text style={styles.detailText}>{req.address}</Text>
@@ -87,9 +126,9 @@ const SpecialPickup = () => {
                     <Text style={styles.inputPlaceholder}>Message: {req.message}</Text>
                   </View>
                 ) : null}
-                {/* Mark as Collected button (future: PATCH status) */}
+                {/* Mark as Collected button */}
                 <View style={styles.footer}>
-                  <TouchableOpacity style={styles.collectedButton}>
+                  <TouchableOpacity style={styles.collectedButton} onPress={() => markAsCollected(req.request_id)}>
                     <Text style={[styles.buttonText, { color: '#4CAF50' }]}>Mark as Collected</Text>
                   </TouchableOpacity>
                 </View>
@@ -98,6 +137,7 @@ const SpecialPickup = () => {
           )}
         </ScrollView>
       )}
+
     </View>
   );
 };

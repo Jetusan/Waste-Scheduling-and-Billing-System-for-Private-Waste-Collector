@@ -56,10 +56,37 @@ const updateRequest = async (req, res) => {
   }
 };
 
+// Get a specific special pickup request by ID
+const getRequestById = async (req, res) => {
+  try {
+    const { request_id } = req.params;
+    const request = await specialPickupModel.getSpecialPickupRequestById(request_id);
+    if (!request) {
+      return res.status(404).json({ error: 'Special pickup request not found' });
+    }
+    res.json(request);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch special pickup request', details: err.message });
+  }
+};
+
+// Cancel a special pickup request
+const cancelRequest = async (req, res) => {
+  try {
+    const { request_id } = req.params;
+    const cancelled = await specialPickupModel.updateSpecialPickupRequest(request_id, { status: 'cancelled' });
+    res.json(cancelled);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to cancel special pickup request', details: err.message });
+  }
+};
+
 module.exports = {
   createRequest,
   getAllRequests,
   getRequestsByUser,
   getRequestsByCollector,
-  updateRequest
+  updateRequest,
+  getRequestById,
+  cancelRequest
 }; 

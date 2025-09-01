@@ -61,7 +61,9 @@ export default function Schedule() {
       {/* Header with Back button */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.push('/resident/HomePage')}>
-          <Ionicons name="arrow-back" size={26} color="#fff" />
+          <Text>
+            <Ionicons name="arrow-back" size={26} color="#fff" />
+          </Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Schedule</Text>
         <View style={{ width: 28 }} />

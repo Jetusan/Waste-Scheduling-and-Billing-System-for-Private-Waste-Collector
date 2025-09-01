@@ -39,7 +39,7 @@ const CollectorLoginScreen = () => {
           try {
             // Use token if available, otherwise create a session identifier
             const authToken = data.token || `session_${data.user.id}_${Date.now()}`;
-            await saveAuth(authToken, data.user.role);
+            await saveAuth(authToken, data.user.role, data.user?.id);
             console.log('After saveAuth');
           } catch (e) {
             console.error('Error in saveAuth:', e);

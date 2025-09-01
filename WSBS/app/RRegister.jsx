@@ -1,22 +1,23 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import DropDownPicker from 'react-native-dropdown-picker';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator, Alert, Animated, FlatList, ScrollView } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator, Alert, Animated, ScrollView, Modal, Image } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { API_BASE_URL } from './config';
+import * as ImagePicker from 'expo-image-picker';
 
 // Helper for cross-platform alert
-const showAlert = (title, message, buttons, router) => {
+const showAlert = (title, message, buttons, router, shouldRedirect = false) => {
   if (Platform.OS === 'web') {
     window.alert(`${title}: ${message}`);
-    // If it's a success, redirect to login
-    if (title.includes('Success')) {
+    // Only redirect if explicitly requested (for registration completion)
+    if (shouldRedirect && title.includes('Registration Success')) {
       router.push('/RLogin');
     }
   } else {
     Alert.alert(title, message, buttons);
-    // Also redirect on mobile for success cases
-    if (title.includes('Success')) {
+    // Only redirect on mobile for registration completion
+    if (shouldRedirect && title.includes('Registration Success')) {
       // Add a slight delay before redirecting to allow user to read success message
       setTimeout(() => {
         router.push('/RLogin');
@@ -27,21 +28,39 @@ const showAlert = (title, message, buttons, router) => {
 
 const RegisterScreen = () => {
   const [currentStep, setCurrentStep] = useState(1);
+
+  // Request media library permissions for expo-image-picker
+  useEffect(() => {
+    (async () => {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission required', 'Camera roll permissions are needed to upload proof.');
+      }
+    })();
+  }, []);
   const [formData, setFormData] = useState({
-    firstName: '',
-    middleName: '',
-    lastName: '',
-    username: '',
-    contactNumber: '',
-    password: '',
-    confirmPassword: '',
-    city: 'General Santos City',
-    barangay: '',
-    street: '',
-    houseNumber: '',
-    purok: '',
-    email: ''
-  });
+  firstName: '',
+  middleName: '',
+  lastName: '',
+  username: '',
+  contactNumber: '',
+  password: '',
+  confirmPassword: '',
+  city: 'General Santos City',
+  barangay: '',
+  subdivision: '', // Add this
+  street: '',
+  block: '', // Add this
+  lot: '', // Add this
+  houseNumber: '',
+  purok: '',
+  email: '',
+  dateOfBirth: '',
+  birthMonth: '',
+  birthDay: '',
+  birthYear: '',
+  validationImage: null
+});
   
   const [passwordStrength, setPasswordStrength] = useState(0); // 0-4 scale
 
@@ -49,6 +68,93 @@ const RegisterScreen = () => {
   const [barangayValue, setBarangayValue] = useState(null);
   const [barangayItems, setBarangayItems] = useState([]);
   const [barangayLoading, setBarangayLoading] = useState(true);
+  // Subdivision dropdown state
+  const [subdivisionOpen, setSubdivisionOpen] = useState(false);
+  const [subdivisionValue, setSubdivisionValue] = useState(null);
+  const [subdivisionItems, setSubdivisionItems] = useState([]);
+  // Date selection state
+  const [showMonthPicker, setShowMonthPicker] = useState(false);
+  const [showDayPicker, setShowDayPicker] = useState(false);
+  const [showYearPicker, setShowYearPicker] = useState(false);
+
+  // Subdivision directory mapping
+  const subdivisionDirectory = {
+    "City Heights": [
+      "L. Dacera Subdivision", "T. Dacera Subdivision", "Dadiangas Heights Subdivision", "Daricom Subdivision", "De Castro Subdivision", "Del Carmen Subdivision", "Dela Cuadra Subdivision", "Divina Lim Subdivision", "Elma Subdivision", "Ferraren Subdivision", "Hermosa Subdivision", "Las Villas de Dadiangas", "Leyva Subdivision", "Lim Subdivision", "Lualhati Village", "Marin Village", "Morales Subdivision", "Munda Subdivision", "Paradise / Paralejas Subdivision", "Paparon Subdivision", "Provido Subdivision", "Pineda Subdivision", "Queenie’s Love Village", "Rogan Subdivision", "Royeca Subdivision", "Salvani Subdivision", "Santa Teresita Village"
+    ],
+    "Lagao": [
+      "Anas Subdivision", "Ascue Subdivision", "Artates Subdivision", "Balite Subdivision", "Bugarin Subdivision", "Carcon Subdivision", "Country Homes Subdivision", "Countryside Subdivision", "Cyrilang Subdivision", "DBP Subdivision", "Diaz Subdivision", "Falgui Subdivision", "Guinoo Subdivision", "Hicban Subdivision", "Lagman Subdivision", "Mateo Subdivision", "Pag-Asa Subdivision", "Paulino Llido Subdivision", "Leon Llido Subdivision", "Pioneer Village", "Rosario Village", "Camella Cerritos GenSan", "Lessandra General Santos"
+    ],
+    "San Isidro": [
+      "Anas Subdivision", "Ascue Subdivision", "Artates Subdivision", "Balite Subdivision", "Bugarin Subdivision", "Carcon Subdivision", "Country Homes Subdivision", "Countryside Subdivision", "Cyrilang Subdivision", "DBP Subdivision", "Diaz Subdivision", "Falgui Subdivision", "Guinoo Subdivision", "Hicban Subdivision", "Lagman Subdivision", "Mateo Subdivision", "Pag-Asa Subdivision", "Paulino Llido Subdivision", "Leon Llido Subdivision", "Pioneer Village", "Rosario Village", "Camella Cerritos GenSan", "Lessandra General Santos"
+    ],
+    "Katangawan": ["Camella Trails"],
+    "Fatima": ["Natad Subdivision", "Pioneer Village Ext.", "VSM Estate / Meadows / Premier Estates"],
+    "Calumpang": ["Santa Monica Subdivision", "Superville Subdivision"],
+    "Buayan": ["Santiago Subdivision", "Shrineville Subdivision"],
+    "Apopong": ["Rosewood Subdivision", "Yanson Village", "Loveland Subdivision"]
+  };
+  
+  // Generate date options
+  const monthItems = [
+    { label: 'January', value: '01' },
+    { label: 'February', value: '02' },
+    { label: 'March', value: '03' },
+    { label: 'April', value: '04' },
+    { label: 'May', value: '05' },
+    { label: 'June', value: '06' },
+    { label: 'July', value: '07' },
+    { label: 'August', value: '08' },
+    { label: 'September', value: '09' },
+    { label: 'October', value: '10' },
+    { label: 'November', value: '11' },
+    { label: 'December', value: '12' }
+  ];
+
+  // Add new state variables for the address fields
+  const [blockOpen, setBlockOpen] = useState(false);
+  const [blockValue, setBlockValue] = useState(null);
+  const [blockItems, setBlockItems] = useState([
+    { label: 'Block 1', value: 'Block 1' },
+    { label: 'Block 2', value: 'Block 2' },
+    { label: 'Block 3', value: 'Block 3' },
+    { label: 'Block 4', value: 'Block 4' },
+    { label: 'Block 5', value: 'Block 5' },
+    { label: 'Block 6', value: 'Block 6' },
+    { label: 'Block 7', value: 'Block 7' },
+    { label: 'Block 8', value: 'Block 8' },
+    { label: 'Block 9', value: 'Block 9' },
+    { label: 'Block 10', value: 'Block 10' },
+  ]);
+
+  const [lotOpen, setLotOpen] = useState(false);
+  const [lotValue, setLotValue] = useState(null);
+  const [lotItems, setLotItems] = useState([
+    { label: 'Lot 1', value: 'Lot 1' },
+    { label: 'Lot 2', value: 'Lot 2' },
+    { label: 'Lot 3', value: 'Lot 3' },
+    { label: 'Lot 4', value: 'Lot 4' },
+    { label: 'Lot 5', value: 'Lot 5' },
+    { label: 'Lot 6', value: 'Lot 6' },
+    { label: 'Lot 7', value: 'Lot 7' },
+    { label: 'Lot 8', value: 'Lot 8' },
+    { label: 'Lot 9', value: 'Lot 9' },
+    { label: 'Lot 10', value: 'Lot 10' },
+  ]);
+  
+  // Generate days 1-31
+  const dayItems = Array.from({ length: 31 }, (_, i) => ({
+    label: String(i + 1),
+    value: String(i + 1).padStart(2, '0')
+  }));
+  
+  // Generate years from 1950 to current year - 18 (for 18+ validation)
+  const currentYear = new Date().getFullYear();
+  const maxYear = currentYear - 18;
+  const yearItems = Array.from({ length: maxYear - 1949 }, (_, i) => ({
+    label: String(maxYear - i),
+    value: String(maxYear - i)
+  }));
   
   // Fetch barangays from backend
   useEffect(() => {
@@ -75,10 +181,61 @@ const RegisterScreen = () => {
     fetchBarangays();
   }, []);
 
+
   // Sync barangayValue with formData
   useEffect(() => {
     setBarangayValue(formData.barangay || null);
   }, [formData.barangay]);
+
+  // Sync subdivisionValue with formData
+  useEffect(() => {
+    setSubdivisionValue(formData.subdivision || null);
+  }, [formData.subdivision]);
+
+  // Update subdivision dropdown when barangay changes
+  useEffect(() => {
+    if (formData.barangay && subdivisionDirectory[formData.barangay]) {
+      setSubdivisionItems(
+        subdivisionDirectory[formData.barangay].map(sub => ({ label: sub, value: sub }))
+      );
+    } else {
+      setSubdivisionItems([]);
+    }
+    setSubdivisionValue(null);
+    setFormData(prev => ({ ...prev, subdivision: '' }));
+  }, [formData.barangay]);
+
+  // Sync blockValue with formData
+  useEffect(() => {
+    setBlockValue(formData.block || null);
+  }, [formData.block]);
+
+  // Sync lotValue with formData
+  useEffect(() => {
+    setLotValue(formData.lot || null);
+  }, [formData.lot]);
+
+  // Add this useEffect to handle zIndex issues
+  useEffect(() => {
+    if (open) {
+      setBlockOpen(false);
+      setLotOpen(false);
+    }
+  }, [open]);
+
+  useEffect(() => {
+    if (blockOpen) {
+      setOpen(false);
+      setLotOpen(false);
+    }
+  }, [blockOpen]);
+
+  useEffect(() => {
+    if (lotOpen) {
+      setOpen(false);
+      setBlockOpen(false);
+    }
+  }, [lotOpen]);
 
   const [loading, setLoading] = useState(false);
   const [fadeAnim] = useState(new Animated.Value(0));
@@ -87,9 +244,25 @@ const RegisterScreen = () => {
   const [registrationSuccess, setRegistrationSuccess] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [emailVerified, setEmailVerified] = useState(false);
+  const [emailVerificationSent, setEmailVerificationSent] = useState(false);
+  const [verificationLoading, setVerificationLoading] = useState(false);
 
   const nextStep = () => setCurrentStep(prev => prev + 1);
   const prevStep = () => setCurrentStep(prev => prev - 1);
+
+  const pickImage = async () => {
+    console.log('Upload Proof button pressed');
+    let result = await ImagePicker.launchImageLibraryAsync({
+      allowsEditing: true,
+      aspect: [4, 3],
+      quality: 1,
+    });
+    console.log('ImagePicker result:', result);
+    if (!result.canceled && result.assets && result.assets.length > 0) {
+      handleChange('validationImage', result.assets[0].uri);
+    }
+  };
 
   useEffect(() => {
     Animated.parallel([
@@ -110,6 +283,12 @@ const RegisterScreen = () => {
   const handleChange = useCallback((name, value) => {
     setFormData(prev => ({ ...prev, [name]: value }));
     
+    // Reset email verification when email changes
+    if (name === 'email') {
+      setEmailVerified(false);
+      setEmailVerificationSent(false);
+    }
+    
     // Calculate password strength when password changes
     if (name === 'password') {
       let strength = 0;
@@ -120,6 +299,107 @@ const RegisterScreen = () => {
       if (/[^A-Za-z0-9]/.test(value)) strength++;
       setPasswordStrength(strength);
     }
+  }, []);
+
+  // Email verification function
+  const handleEmailVerification = async () => {
+    if (!formData.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email.trim())) {
+      showAlert('Error', 'Please enter a valid email address first', [{ text: 'OK' }], router);
+      return;
+    }
+
+    setVerificationLoading(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/send-verification`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          email: formData.email.trim(),
+          name: `${formData.firstName} ${formData.lastName}`.trim() || 'User'
+        }),
+      });
+
+      const result = await response.json();
+      
+      if (response.ok && result.success) {
+        setEmailVerificationSent(true);
+        showAlert('Verification Sent', 'Please check your email and click the verification link to continue.', [{ text: 'OK' }], router);
+      } else {
+        showAlert('Error', result.message || 'Failed to send verification email', [{ text: 'OK' }], router);
+      }
+    } catch (error) {
+      console.error('Email verification error:', error);
+      showAlert('Error', 'Unable to send verification email. Please check your connection.', [{ text: 'OK' }], router);
+    } finally {
+      setVerificationLoading(false);
+    }
+  };
+
+  // Check verification status
+  const checkVerificationStatus = async () => {
+    if (!formData.email) return;
+    
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/check-verification-status`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: formData.email.trim() }),
+      });
+
+      const result = await response.json();
+      if (result.verified) {
+        setEmailVerified(true);
+        showAlert('Email Verified', 'Email verified successfully! You can now continue with registration.', [{ text: 'OK' }], router);
+      }
+    } catch (error) {
+      console.error('Verification check error:', error);
+    }
+  };
+
+  // Handle phone number formatting
+  const handlePhoneChange = useCallback((value) => {
+    // Remove all non-digits
+    const digits = value.replace(/\D/g, '');
+
+    let formattedValue = '';
+    // If user enters 11 digits starting with 09, convert to +639xxxxxxxxx
+    if (digits.length === 11 && digits.startsWith('09')) {
+      formattedValue = '+63' + digits.substring(1);
+    } else if (digits.length === 12 && digits.startsWith('639')) {
+      formattedValue = '+' + digits;
+    } else if (digits.length === 9) {
+      // If user enters only 9 digits, assume +639xxxxxxxxx
+      formattedValue = '+639' + digits;
+    } else if (digits.length === 13 && digits.startsWith('639')) {
+      // Edge case: user enters +639xxxxxxxxx with +
+      formattedValue = '+' + digits;
+    } else {
+      // Otherwise, just set what they typed (for validation to catch)
+      formattedValue = value;
+    }
+    setFormData(prev => ({ ...prev, contactNumber: formattedValue }));
+  }, []);
+
+  // Handle birth date dropdown changes
+  const handleBirthDateChange = useCallback((field, value) => {
+    setFormData(prev => {
+      const newData = { ...prev, [field]: value };
+      
+      // Update dateOfBirth when any component changes
+      if (field === 'birthMonth' || field === 'birthDay' || field === 'birthYear') {
+        const month = field === 'birthMonth' ? value : newData.birthMonth;
+        const day = field === 'birthDay' ? value : newData.birthDay;
+        const year = field === 'birthYear' ? value : newData.birthYear;
+        
+        if (month && day && year) {
+          newData.dateOfBirth = `${year}-${month}-${day}`;
+        } else {
+          newData.dateOfBirth = '';
+        }
+      }
+      
+      return newData;
+    });
   }, []);
 
   const validateForm = useCallback(() => {
@@ -139,10 +419,22 @@ const RegisterScreen = () => {
       showAlert('Error', 'Username must be at least 4 characters long', [{ text: 'OK' }], router);
       return false;
     }
-    if (!formData.contactNumber || !/^((09|\+639)\d{9})|(\d{10,12})$/.test(formData.contactNumber.trim())) {
-      showAlert('Error', 'Please enter a valid Philippine contact number (e.g., 09123456789 or +639123456789)', [{ text: 'OK' }], router);
+    if (!formData.contactNumber || !/^\+639\d{9}$/.test(formData.contactNumber.trim())) {
+      showAlert('Error', 'Please enter a valid Philippine mobile number (+639xxxxxxxxx)', [{ text: 'OK' }], router);
       return false;
     }
+    // Email validation
+    if (!formData.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email.trim())) {
+      showAlert('Error', 'Please enter a valid email address', [{ text: 'OK' }], router);
+      return false;
+    }
+    
+    // Email verification validation
+    if (!emailVerified) {
+      showAlert('Error', 'Please verify your email address before continuing with registration', [{ text: 'OK' }], router);
+      return false;
+    }
+    
     // Enhanced password validation
     if (!formData.password) {
       showAlert('Error', 'Password is required', [{ text: 'OK' }], router);
@@ -163,23 +455,46 @@ const RegisterScreen = () => {
       showAlert('Error', 'Passwords do not match', [{ text: 'OK' }], router);
       return false;
     }
-    if (!formData.street) {
-      showAlert('Error', 'Please enter your street address', [{ text: 'OK' }], router);
-      return false;
-    }
     if (!formData.barangay) {
       showAlert('Error', 'Please select your barangay', [{ text: 'OK' }], router);
+      return false;
+    }
+    // Final Step-2 required checks to prevent backend rejection
+    if (!formData.subdivision) {
+      showAlert('Error', 'Please select your subdivision', [{ text: 'OK' }], router);
+      return false;
+    }
+    if (!formData.block) {
+      showAlert('Error', 'Please select your block', [{ text: 'OK' }], router);
+      return false;
+    }
+    if (!formData.lot) {
+      showAlert('Error', 'Please select your lot', [{ text: 'OK' }], router);
       return false;
     }
     return true;
   }, [formData, router]);
 
   const handleRegister = useCallback(async () => {
+    if (!formData.validationImage) {
+        showAlert('Validation Required', 'Please attach a proof of residency to continue.');
+        return;
+    }
     if (!validateForm()) return;
   
     setLoading(true);
   
     try {
+      const body = new FormData();
+
+      const uriParts = formData.validationImage.split('.');
+      const fileType = uriParts[uriParts.length - 1];
+      body.append('proofImage', {
+        uri: formData.validationImage,
+        name: `photo.${fileType}`,
+        type: `image/${fileType}`,
+      });
+
       const registrationData = {
         firstName: formData.firstName.trim(),
         middleName: formData.middleName.trim() || null,
@@ -190,22 +505,57 @@ const RegisterScreen = () => {
         confirmPassword: formData.confirmPassword,
         city: formData.city,
         barangay: formData.barangay,
+        subdivision: formData.subdivision.trim(), // Add this
         street: formData.street.trim(),
+        block: formData.block, // Add this
+        lot: formData.lot, // Add this
         houseNumber: formData.houseNumber.trim() || null,
         purok: formData.purok.trim() || null,
-        email: formData.email.trim() || null
+        email: formData.email.trim(),
+        dateOfBirth: formData.dateOfBirth
       };
 
+      for (const key in registrationData) {
+        if (registrationData[key] !== null && registrationData[key] !== undefined) {
+          body.append(key, String(registrationData[key]));
+        }
+      }
+
       // Use optimized registration endpoint for cleaned database
-      const response = await fetch(`${API_BASE_URL}/api/auth/register-optimized`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(registrationData),
+      // Debug: log the sanitized data being sent (excluding image binary)
+      console.log('Submitting registration payload:', {
+        firstName: registrationData.firstName,
+        middleName: registrationData.middleName,
+        lastName: registrationData.lastName,
+        username: registrationData.username,
+        contactNumber: registrationData.contactNumber,
+        city: registrationData.city,
+        barangay: registrationData.barangay,
+        subdivision: registrationData.subdivision,
+        street: registrationData.street,
+        block: registrationData.block,
+        lot: registrationData.lot,
+        houseNumber: registrationData.houseNumber,
+        purok: registrationData.purok,
+        email: registrationData.email,
+        dateOfBirth: registrationData.dateOfBirth ? '[PROVIDED]' : '[MISSING]'
       });
 
-      const result = await response.json();
+      const response = await fetch(`${API_BASE_URL}/api/auth/register-optimized`, {
+        method: 'POST',
+        body: body,
+      });
+
+      let result;
+      try {
+        result = await response.json();
+      } catch (e) {
+        console.warn('Non-JSON response from server:', e);
+        result = { success: false, message: 'Server returned an unexpected response.' };
+      }
+
+      console.log('Registration response status:', response.status);
+      console.log('Registration response body:', result);
 
       if (response.ok && result.success) {
         // Reset form first
@@ -219,16 +569,22 @@ const RegisterScreen = () => {
           confirmPassword: '',
           city: 'General Santos City',
           barangay: '',
+          subdivision: '', // Add this
           street: '',
+          block: '', // Add this
+          lot: '', // Add this
           houseNumber: '',
           purok: '',
-
-          email: ''
+          email: '',
+          dateOfBirth: '',
+          birthMonth: '',
+          birthDay: '',
+          birthYear: ''
         });
         
         // Show success message with user details
         const successMessage = `Welcome ${result.user.name}!\n\n📍 Address: ${result.user.address}\n📱 Phone: ${result.user.phone}\n\nRedirecting to login...`;
-        showAlert('Registration Success! 🎉', successMessage, [{ text: 'Continue to Login' }], router);
+        showAlert('Registration Success! 🎉', successMessage, [{ text: 'Continue to Login' }], router, true);
       } else {
         // Handle specific error cases
         if (result.message) {
@@ -252,6 +608,9 @@ const RegisterScreen = () => {
     if (!formData.firstName || !/^[A-Za-z\s]{2,}$/.test(formData.firstName.trim())) {
       errors.push('First name must contain only letters and be at least 2 characters long');
     }
+    if (!formData.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email.trim())) {
+      errors.push('Please enter a valid email address');
+    }
     if (formData.middleName && !/^[A-Za-z\s]{1,}$/.test(formData.middleName.trim())) {
       errors.push('Middle name must contain only letters');
     }
@@ -261,22 +620,53 @@ const RegisterScreen = () => {
     if (!formData.username || formData.username.trim().length < 4) {
       errors.push('Username must be at least 4 characters long');
     }
-    if (!formData.contactNumber || !/^((09|\+639)\d{9})|(\d{10,12})$/.test(formData.contactNumber.trim())) {
+    if (!formData.contactNumber || !/^((09|\+639)\d{9})|(\d{10})$/.test(formData.contactNumber.trim())) {
       errors.push('Please enter a valid Philippine contact number');
     }
+    
+    // Date of birth validation
+    if (!formData.dateOfBirth) {
+      errors.push('Date of birth is required');
+    } else {
+      const today = new Date();
+      const birthDate = new Date(formData.dateOfBirth);
+      
+      if (isNaN(birthDate.getTime())) {
+        errors.push('Please enter a valid date of birth');
+      } else {
+        if (birthDate > today) {
+          errors.push('Date of birth cannot be in the future');
+        } else {
+          const age = today.getFullYear() - birthDate.getFullYear();
+          const monthDiff = today.getMonth() - birthDate.getMonth();
+          const dayDiff = today.getDate() - birthDate.getDate();
+          
+          if (age < 18 || (age === 18 && monthDiff < 0) || (age === 18 && monthDiff === 0 && dayDiff < 0)) {
+            errors.push('You must be at least 18 years old to register');
+          }
+        }
+      }
+    }
+    
     return errors;
   };
 
   const validateStep2 = () => {
-    const errors = [];
-    if (!formData.street) {
-      errors.push('Please enter your street address');
-    }
-    if (!formData.barangay) {
-      errors.push('Please select your barangay');
-    }
-    return errors;
-  };
+  const errors = [];
+  if (!formData.barangay) {
+    errors.push('Please select your barangay');
+  }
+  if (!formData.subdivision) {
+    errors.push('Please enter your subdivision');
+  }
+  if (!formData.block) {
+    errors.push('Please select your block');
+  }
+  if (!formData.lot) {
+    errors.push('Please select your lot');
+  }
+  return errors;
+};
 
   const validateStep3 = () => {
     const errors = [];
@@ -300,6 +690,12 @@ const RegisterScreen = () => {
     
     if (currentStep === 1) {
       errors = validateStep1();
+      
+      // Additional check for email verification before proceeding to step 2
+      if (errors.length === 0 && !emailVerified) {
+        showAlert('Email Verification Required', 'Please verify your email address before proceeding to the next step.', [{ text: 'OK' }], router);
+        return;
+      }
     } else if (currentStep === 2) {
       errors = validateStep2();
     }
@@ -350,6 +746,22 @@ const RegisterScreen = () => {
           onChangeText={(value) => handleChange('lastName', value)}
           placeholderTextColor="#888"
         />
+
+        <Text style={styles.label}>Proof of Residency *</Text>
+          <Text style={styles.helperText}>Upload a valid ID or utility bill as proof</Text>
+          {formData.validationImage ? (
+            <View style={styles.imagePreviewContainer}>
+              <Image source={{ uri: formData.validationImage }} style={styles.imagePreview} />
+              <TouchableOpacity onPress={() => handleChange('validationImage', null)} style={styles.removeImageButton}>
+                <Feather name="x-circle" size={20} color="#E53935" />
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <TouchableOpacity style={styles.imagePickerButton} onPress={pickImage}>
+              <Feather name="upload" size={20} color="#007BFF" />
+              <Text style={styles.imagePickerButtonText}>Upload Proof</Text>
+            </TouchableOpacity>
+          )}
       </View>
 
       <View style={styles.inputContainer}>
@@ -366,21 +778,27 @@ const RegisterScreen = () => {
 
       <View style={styles.inputContainer}>
         <Text style={styles.label}>Contact Number *</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="e.g., 09123456789"
-          value={formData.contactNumber}
-          onChangeText={(value) => handleChange('contactNumber', value)}
-          keyboardType="phone-pad"
-          maxLength={13}
-          placeholderTextColor="#888"
-        />
+        <View style={styles.phoneInputContainer}>
+          <View style={styles.countryCodeContainer}>
+            <Text style={styles.countryCodeText}>🇵🇭 +63</Text>
+          </View>
+          <TextInput
+            style={styles.phoneInput}
+            placeholder="9123456789"
+            value={formData.contactNumber.replace('+639', '')}
+            onChangeText={handlePhoneChange}
+            keyboardType="phone-pad"
+            maxLength={11}
+            placeholderTextColor="#888"
+          />
+        </View>
+        <Text style={styles.helperText}>Philippine mobile number (will be saved as +639xxxxxxxxx)</Text>
       </View>
 
       <View style={styles.inputContainer}>
-        <Text style={styles.label}>Email (Optional)</Text>
+        <Text style={styles.label}>Email *</Text>
         <TextInput
-          style={styles.input}
+          style={[styles.input, !formData.email && styles.requiredField]}
           placeholder="your.email@example.com"
           value={formData.email}
           onChangeText={(value) => handleChange('email', value)}
@@ -388,85 +806,373 @@ const RegisterScreen = () => {
           autoCapitalize="none"
           placeholderTextColor="#888"
         />
+        
+        {/* Email Verification Section */}
+        <View style={styles.verificationContainer}>
+          {!emailVerified && !emailVerificationSent && (
+            <TouchableOpacity 
+              style={styles.verifyButton} 
+              onPress={handleEmailVerification}
+              disabled={verificationLoading || !formData.email}
+            >
+              {verificationLoading ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <>
+                  <Feather name="mail" size={16} color="#fff" />
+                  <Text style={styles.verifyButtonText}>Verify Email</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          )}
+          
+          {emailVerificationSent && !emailVerified && (
+            <View style={styles.verificationStatus}>
+              <View style={styles.statusRow}>
+                <Feather name="clock" size={16} color="#FF9800" />
+                <Text style={styles.statusText}>Verification email sent! Check your inbox.</Text>
+              </View>
+              <View style={styles.buttonRow}>
+                <TouchableOpacity 
+                  style={styles.checkButton} 
+                  onPress={checkVerificationStatus}
+                >
+                  <Feather name="refresh-cw" size={14} color="#007BFF" />
+                  <Text style={styles.checkButtonText}>Check Status</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={styles.resendButton} 
+                  onPress={handleEmailVerification}
+                  disabled={verificationLoading}
+                >
+                  {verificationLoading ? (
+                    <ActivityIndicator size="small" color="#FF9800" />
+                  ) : (
+                    <>
+                      <Feather name="mail" size={14} color="#FF9800" />
+                      <Text style={styles.resendButtonText}>Resend Email</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+          
+          {emailVerified && (
+            <View style={styles.verifiedStatus}>
+              <Feather name="check-circle" size={16} color="#4CAF50" />
+              <Text style={styles.verifiedText}>Email verified successfully!</Text>
+            </View>
+          )}
+        </View>
+      </View>
+
+      <View style={styles.inputContainer}>
+        <Text style={styles.label}>Date of Birth *</Text>
+        <Text style={styles.helperText}>You must be at least 18 years old to register</Text>
+        
+        <View style={styles.dateRowContainer}>
+          {/* Month Selector */}
+          <View style={styles.dateDropdownContainer}>
+            <Text style={styles.dateLabel}>Month</Text>
+            <TouchableOpacity
+              style={styles.dateSelector}
+              onPress={() => setShowMonthPicker(true)}
+            >
+              <Text style={formData.birthMonth ? styles.dateSelectorText : styles.dateSelectorPlaceholder}>
+                {formData.birthMonth ? monthItems.find(m => m.value === formData.birthMonth)?.label : 'Select Month'}
+              </Text>
+              <Feather name="chevron-down" size={16} color="#888" />
+            </TouchableOpacity>
+          </View>
+
+          {/* Day Selector */}
+          <View style={styles.dateDropdownContainer}>
+            <Text style={styles.dateLabel}>Day</Text>
+            <TouchableOpacity
+              style={styles.dateSelector}
+              onPress={() => setShowDayPicker(true)}
+            >
+              <Text style={formData.birthDay ? styles.dateSelectorText : styles.dateSelectorPlaceholder}>
+                {formData.birthDay || 'Day'}
+              </Text>
+              <Feather name="chevron-down" size={16} color="#888" />
+            </TouchableOpacity>
+          </View>
+
+          {/* Year Selector */}
+          <View style={styles.dateDropdownContainer}>
+            <Text style={styles.dateLabel}>Year</Text>
+            <TouchableOpacity
+              style={styles.dateSelector}
+              onPress={() => setShowYearPicker(true)}
+            >
+              <Text style={formData.birthYear ? styles.dateSelectorText : styles.dateSelectorPlaceholder}>
+                {formData.birthYear || 'Year'}
+              </Text>
+              <Feather name="chevron-down" size={16} color="#888" />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Month Picker Modal */}
+        <Modal
+          visible={showMonthPicker}
+          transparent={true}
+          animationType="slide"
+          onRequestClose={() => setShowMonthPicker(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Select Month</Text>
+                <TouchableOpacity onPress={() => setShowMonthPicker(false)}>
+                  <Feather name="x" size={24} color="#333" />
+                </TouchableOpacity>
+              </View>
+              <ScrollView style={styles.modalScroll}>
+                {monthItems.map((month) => (
+                  <TouchableOpacity
+                    key={month.value}
+                    style={[
+                      styles.modalOption,
+                      formData.birthMonth === month.value && styles.modalOptionSelected
+                    ]}
+                    onPress={() => {
+                      handleBirthDateChange('birthMonth', month.value);
+                      setShowMonthPicker(false);
+                    }}
+                  >
+                    <Text style={[
+                      styles.modalOptionText,
+                      formData.birthMonth === month.value && styles.modalOptionTextSelected
+                    ]}>
+                      {month.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
+
+        {/* Day Picker Modal */}
+        <Modal
+          visible={showDayPicker}
+          transparent={true}
+          animationType="slide"
+          onRequestClose={() => setShowDayPicker(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Select Day</Text>
+                <TouchableOpacity onPress={() => setShowDayPicker(false)}>
+                  <Feather name="x" size={24} color="#333" />
+                </TouchableOpacity>
+              </View>
+              <ScrollView style={styles.modalScroll}>
+                <View style={styles.dayGrid}>
+                  {dayItems.map((day) => (
+                    <TouchableOpacity
+                      key={day.value}
+                      style={[
+                        styles.dayGridItem,
+                        formData.birthDay === day.value && styles.dayGridItemSelected
+                      ]}
+                      onPress={() => {
+                        handleBirthDateChange('birthDay', day.value);
+                        setShowDayPicker(false);
+                      }}
+                    >
+                      <Text style={[
+                        styles.dayGridText,
+                        formData.birthDay === day.value && styles.dayGridTextSelected
+                      ]}>
+                        {day.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
+
+        {/* Year Picker Modal */}
+        <Modal
+          visible={showYearPicker}
+          transparent={true}
+          animationType="slide"
+          onRequestClose={() => setShowYearPicker(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Select Year</Text>
+                <TouchableOpacity onPress={() => setShowYearPicker(false)}>
+                  <Feather name="x" size={24} color="#333" />
+                </TouchableOpacity>
+              </View>
+              <ScrollView style={styles.modalScroll}>
+                <View style={styles.yearGrid}>
+                  {yearItems.map((year) => (
+                    <TouchableOpacity
+                      key={year.value}
+                      style={[
+                        styles.yearGridItem,
+                        formData.birthYear === year.value && styles.yearGridItemSelected
+                      ]}
+                      onPress={() => {
+                        handleBirthDateChange('birthYear', year.value);
+                        setShowYearPicker(false);
+                      }}
+                    >
+                      <Text style={[
+                        styles.yearGridText,
+                        formData.birthYear === year.value && styles.yearGridTextSelected
+                      ]}>
+                        {year.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
       </View>
     </>
   );
 
   const renderStep2 = () => (
-    <>
-      <Text style={styles.stepTitle}>Step 2: Address Information</Text>
-      <Text style={styles.stepSubtitle}>Where are you located?</Text>
+  <>
+    <Text style={styles.stepTitle}>Step 2: Address Information</Text>
+    <Text style={styles.stepSubtitle}>Where are you located?</Text>
 
-      <View style={styles.inputContainer}>
-        <Text style={styles.label}>House Number (Optional)</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="e.g., 123, Block 5, Lot 10"
-          value={formData.houseNumber}
-          onChangeText={(value) => handleChange('houseNumber', value)}
-          placeholderTextColor="#888"
+    {/* 1. City - Fixed */}
+    <View style={styles.inputContainer}>
+      <Text style={styles.label}>City</Text>
+      <TextInput
+        style={[styles.input, styles.disabledInput]}
+        value="General Santos City"
+        editable={false}
+      />
+    </View>
+
+    {/* 2. Barangay - Dropdown */}
+    <View style={[styles.inputContainer, { zIndex: 4000 }]}>
+      <Text style={styles.label}>Barangay *</Text>
+      {barangayLoading ? (
+        <Text style={styles.dropdownPlaceholder}>Loading barangays...</Text>
+      ) : (
+        <DropDownPicker
+          open={open}
+          value={barangayValue}
+          items={barangayItems}
+          setOpen={setOpen}
+          setValue={setBarangayValue}
+          setItems={setBarangayItems}
+          placeholder="Select your Barangay"
+          style={styles.dropdown}
+          textStyle={styles.dropdownText}
+          dropDownContainerStyle={styles.dropdownContainer}
+          listMode="MODAL"
+          searchable={true}
+          zIndex={4000}
+          zIndexInverse={1000}
+          onSelectItem={(item) => {
+            handleChange('barangay', item.value);
+          }}
         />
-      </View>
+      )}
+    </View>
 
-      <View style={styles.inputContainer}>
-        <Text style={styles.label}>Street Address *</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="e.g., Maharlika Street"
-          value={formData.street}
-          onChangeText={(value) => handleChange('street', value)}
-          placeholderTextColor="#888"
-        />
-      </View>
+    {/* 3. Subdivision - Required Dropdown */}
+    <View style={[styles.inputContainer, { zIndex: 3500 }]}> 
+      <Text style={styles.label}>Subdivision *</Text>
+      <DropDownPicker
+        open={subdivisionOpen}
+        value={subdivisionValue}
+        items={subdivisionItems}
+        setOpen={setSubdivisionOpen}
+        setValue={setSubdivisionValue}
+        setItems={setSubdivisionItems}
+        placeholder="Select your Subdivision"
+        style={styles.dropdown}
+        textStyle={styles.dropdownText}
+        dropDownContainerStyle={styles.dropdownContainer}
+        listMode="MODAL"
+        searchable={true}
+        zIndex={3500}
+        zIndexInverse={1500}
+        onSelectItem={(item) => {
+          setFormData(prev => ({ ...prev, subdivision: item.value }));
+        }}
+      />
+    </View>
 
-      <View style={styles.inputContainer}>
-        <Text style={styles.label}>Purok/Subdivision (Optional)</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="e.g., Purok Maligaya"
-          value={formData.purok}
-          onChangeText={(value) => handleChange('purok', value)}
-          placeholderTextColor="#888"
-        />
-      </View>
+    {/* 4. Street - Optional */}
+    <View style={styles.inputContainer}>
+      <Text style={styles.label}>Street (Optional)</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="Enter your street name"
+        value={formData.street}
+        onChangeText={(value) => handleChange('street', value)}
+        placeholderTextColor="#888"
+      />
+    </View>
 
-      <View style={[styles.inputContainer, { zIndex: 1000 }]}>
-        <Text style={styles.label}>Barangay *</Text>
-        {barangayLoading ? (
-          <Text style={styles.dropdownPlaceholder}>Loading barangays...</Text>
-        ) : (
-          <DropDownPicker
-            open={open}
-            value={barangayValue}
-            items={barangayItems}
-            setOpen={setOpen}
-            setValue={setBarangayValue}
-            setItems={setBarangayItems}
-            placeholder="Select your Barangay"
-            style={styles.dropdown}
-            textStyle={styles.dropdownText}
-            dropDownContainerStyle={styles.dropdownContainer}
-            listMode="MODAL"
-            searchable={true}
-            zIndex={3000}
-            zIndexInverse={1000}
-            onSelectItem={(item) => {
-              handleChange('barangay', item.value);
-            }}
-          />
-        )}
-      </View>
+    {/* 5. Block - Required Dropdown */}
+    <View style={[styles.inputContainer, { zIndex: 3000 }]}>
+      <Text style={styles.label}>Block *</Text>
+      <DropDownPicker
+        open={blockOpen}
+        value={blockValue}
+        items={blockItems}
+        setOpen={setBlockOpen}
+        setValue={setBlockValue}
+        setItems={setBlockItems}
+        placeholder="Select your Block"
+        style={styles.dropdown}
+        textStyle={styles.dropdownText}
+        dropDownContainerStyle={styles.dropdownContainer}
+        listMode="MODAL"
+        searchable={true}
+        zIndex={3000}
+        zIndexInverse={2000}
+        onSelectItem={(item) => {
+          handleChange('block', item.value);
+        }}
+      />
+    </View>
 
-      <View style={styles.inputContainer}>
-        <Text style={styles.label}>City</Text>
-        <TextInput
-          style={[styles.input, styles.disabledInput]}
-          value="General Santos City"
-          editable={false}
-        />
-      </View>
-    </>
-  );
+    {/* 6. Lot - Required Dropdown */}
+    <View style={[styles.inputContainer, { zIndex: 2000 }]}>
+      <Text style={styles.label}>Lot *</Text>
+      <DropDownPicker
+        open={lotOpen}
+        value={lotValue}
+        items={lotItems}
+        setOpen={setLotOpen}
+        setValue={setLotValue}
+        setItems={setLotItems}
+        placeholder="Select your Lot"
+        style={styles.dropdown}
+        textStyle={styles.dropdownText}
+        dropDownContainerStyle={styles.dropdownContainer}
+        listMode="MODAL"
+        searchable={true}
+        zIndex={2000}
+        zIndexInverse={3000}
+        onSelectItem={(item) => {
+          handleChange('lot', item.value);
+        }}
+      />
+    </View>
+  </>
+);
 
   const renderStep3 = () => (
     <>
@@ -670,11 +1376,17 @@ const styles = StyleSheet.create({
   },
   backButton: {
     alignSelf: 'flex-start',
-    marginBottom: 20,
+    marginBottom: 8,
+    paddingVertical: 2,
+    paddingHorizontal: 8,
+    borderRadius: 4,
+    backgroundColor: 'transparent',
   },
   backButtonText: {
-    fontSize: 16,
+    fontSize: 13,
     color: '#007AFF',
+    fontWeight: '500',
+    padding: 0,
   },
   title: {
     fontSize: 28,
@@ -748,6 +1460,50 @@ const styles = StyleSheet.create({
   dropdownSelectedItem: {
     color: '#007AFF',
     fontWeight: '600',
+  },
+  errorText: {
+    color: '#D32F2F',
+    fontSize: 14,
+    marginBottom: 10,
+    textAlign: 'center',
+  },
+  imagePickerButton: {
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 60, // Reduced from 150
+    borderWidth: 2,
+    borderColor: '#007BFF',
+    borderStyle: 'dashed',
+    borderRadius: 8,
+    marginBottom: 5, // Reduced from 20
+    backgroundColor: '#F8F9FA',
+  },
+  imagePickerButtonText: {
+    color: '#007BFF',
+    marginTop: 8, // Reduced from 10
+    fontSize: 10, // Reduced from 16
+    fontWeight: 'bold',
+  },
+  imagePreviewContainer: {
+    alignItems: 'center',
+    marginBottom: 10, // Reduced from 20
+    position: 'relative',
+  },
+  imagePreview: {
+    width: '100%',
+    height: 150, // Reduced from 200
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#ddd',
+  },
+  removeImageButton: {
+    position: 'absolute',
+    top: 5,
+    right: 5,
+    backgroundColor: 'rgba(255, 255, 255, 0.8)',
+    borderRadius: 15,
+    padding: 2,
   },
   registerButton: {
     backgroundColor: '#007AFF',
@@ -891,9 +1647,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   prevButton: {
-    backgroundColor: '#ecf0f1',
+    backgroundColor: '#f0f4f8',
     borderWidth: 1,
-    borderColor: '#bdc3c7',
+    borderColor: '#d1d5db',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    minWidth: 120,
+    alignSelf: 'center',
+    borderRadius: 8,
+    marginHorizontal: 8,
+    marginBottom: 0,
+    elevation: 2,
   },
   nextButton: {
     backgroundColor: '#3498db',
@@ -901,10 +1665,280 @@ const styles = StyleSheet.create({
   prevButtonText: {
     color: '#2c3e50',
     fontWeight: '600',
+    fontSize: 16,
+    textAlign: 'center',
+    padding: 0,
   },
   nextButtonText: {
     color: '#fff',
     fontWeight: '600',
+  },
+  helperText: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 4,
+    fontStyle: 'italic',
+  },
+  phoneInputContainer: {
+    flexDirection: 'row',
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    backgroundColor: '#fff',
+    overflow: 'hidden',
+  },
+  countryCodeContainer: {
+    backgroundColor: '#f8f9fa',
+    paddingHorizontal: 12,
+    paddingVertical: 16,
+    borderRightWidth: 1,
+    borderRightColor: '#ddd',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  countryCodeText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+  },
+  phoneInput: {
+    flex: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 16,
+    fontSize: 16,
+    color: '#333',
+  },
+  dateRowContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 8,
+  },
+  dateDropdownContainer: {
+    flex: 1,
+    marginHorizontal: 4,
+  },
+  dateLabel: {
+    fontSize: 12,
+    color: '#666',
+    marginBottom: 4,
+    textAlign: 'center',
+    fontWeight: '500',
+  },
+  dateSelector: {
+    borderColor: '#ddd',
+    borderWidth: 1,
+    borderRadius: 8,
+    backgroundColor: '#fff',
+    minHeight: 50,
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  dateSelectorText: {
+    fontSize: 14,
+    color: '#333',
+  },
+  dateSelectorPlaceholder: {
+    fontSize: 14,
+    color: '#888',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    width: '85%',
+    maxHeight: '70%',
+    paddingVertical: 20,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingBottom: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#333',
+  },
+  modalScroll: {
+    maxHeight: 400,
+  },
+  modalOption: {
+    paddingVertical: 15,
+    paddingHorizontal: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  modalOptionSelected: {
+    backgroundColor: '#3498db',
+  },
+  modalOptionText: {
+    fontSize: 16,
+    color: '#333',
+  },
+  modalOptionTextSelected: {
+    color: '#fff',
+    fontWeight: '600',
+  },
+  dayGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: 10,
+  },
+  dayGridItem: {
+    width: '14.28%',
+    aspectRatio: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    margin: 2,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#ddd',
+  },
+  dayGridItemSelected: {
+    backgroundColor: '#3498db',
+    borderColor: '#3498db',
+  },
+  dayGridText: {
+    fontSize: 16,
+    color: '#333',
+  },
+  dayGridTextSelected: {
+    color: '#fff',
+    fontWeight: '600',
+  },
+  yearGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: 10,
+  },
+  yearGridItem: {
+    width: '25%',
+    aspectRatio: 2,
+    justifyContent: 'center',
+    alignItems: 'center',
+    margin: 2,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#ddd',
+  },
+  yearGridItemSelected: {
+    backgroundColor: '#3498db',
+    borderColor: '#3498db',
+  },
+  yearGridText: {
+    fontSize: 14,
+    color: '#333',
+  },
+  yearGridTextSelected: {
+    color: '#fff',
+    fontWeight: '600',
+  },
+  // Email verification styles
+  verificationContainer: {
+    marginTop: 8,
+  },
+  verifyButton: {
+    backgroundColor: '#007BFF',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 6,
+    marginTop: 8,
+  },
+  verifyButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+    marginLeft: 6,
+  },
+  verificationStatus: {
+    backgroundColor: '#FFF3CD',
+    borderColor: '#FFEAA7',
+    borderWidth: 1,
+    borderRadius: 6,
+    padding: 12,
+    marginTop: 8,
+  },
+  statusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  statusText: {
+    color: '#856404',
+    fontSize: 13,
+    marginLeft: 8,
+    flex: 1,
+  },
+  buttonRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 8,
+    gap: 8,
+  },
+  checkButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#E3F2FD',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 4,
+    flex: 1,
+  },
+  checkButtonText: {
+    color: '#007BFF',
+    fontSize: 12,
+    fontWeight: '600',
+    marginLeft: 4,
+  },
+  resendButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFF3CD',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 4,
+    flex: 1,
+    borderWidth: 1,
+    borderColor: '#FFEAA7',
+  },
+  resendButtonText: {
+    color: '#FF9800',
+    fontSize: 12,
+    fontWeight: '600',
+    marginLeft: 4,
+  },
+  verifiedStatus: {
+    backgroundColor: '#D4EDDA',
+    borderColor: '#C3E6CB',
+    borderWidth: 1,
+    borderRadius: 6,
+    padding: 10,
+    marginTop: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  verifiedText: {
+    color: '#155724',
+    fontSize: 13,
+    fontWeight: '600',
+    marginLeft: 8,
   },
 });
 

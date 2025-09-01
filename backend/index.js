@@ -1,4 +1,7 @@
 const dotenv = require('dotenv');
+dotenv.config(); // Load environment variables FIRST
+
+const config = require('./config/config');
 
 // Add error handling for uncaught exceptions
 process.on('uncaughtException', (err) => {
@@ -16,8 +19,7 @@ process.on('unhandledRejection', (reason, promise) => {
 const app = require('./app');
 const { pool } = require('./config/db'); // Destructure the pool from exports
 
-dotenv.config();
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || config.PORT;
 
 // Test database connection using pool.query() instead of pool.connect()
 pool.query('SELECT NOW()')
@@ -31,7 +33,8 @@ pool.query('SELECT NOW()')
 // Start server with error handling
 const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`Server running on port ${PORT}`);
-  console.log(`API URL: http://localhost:${PORT}`);
+  console.log(`API URL: ${config.BASE_URL}`);
+  console.log(`Local URL: ${config.LOCALHOST_URL}`);
   console.log(`🎯 Server is now ready to handle requests!`);
 });
 

@@ -67,10 +67,18 @@ const updateSpecialPickupRequest = async (request_id, updates) => {
   return result.rows[0];
 };
 
+// Get a specific special pickup request by ID
+const getSpecialPickupRequestById = async (request_id) => {
+  const query = 'SELECT * FROM special_pickup_requests WHERE request_id = $1';
+  const result = await pool.query(query, [request_id]);
+  return result.rows[0];
+};
+
 module.exports = {
   createSpecialPickupRequest,
   getAllSpecialPickupRequests,
   getSpecialPickupRequestsByCollector,
   getSpecialPickupRequestsByUser,
-  updateSpecialPickupRequest
+  updateSpecialPickupRequest,
+  getSpecialPickupRequestById
 }; 

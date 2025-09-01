@@ -1,4 +1,6 @@
 const billingModel = require('../models/billingModel');
+const config = require('../config/config');
+const { pool } = require('../config/db');
 
 // Subscription Plans Controllers
 const getAllSubscriptionPlans = async (req, res) => {
@@ -386,92 +388,157 @@ const getBillingStats = async (req, res) => {
   }
 };
 
-// Mobile Subscription Creation with Invoice Generation
+// Mobile Subscription Creation with Single Plan (₱199)
 const createMobileSubscription = async (req, res) => {
   try {
-    const { user_id, plan_id, payment_method } = req.body;
+    console.log('📥 Mobile subscription request body:', req.body);
+    console.log('📥 Request body keys:', Object.keys(req.body || {}));
     
-    // Validate required fields
-    if (!user_id || !plan_id || !payment_method) {
+    const { payment_method } = req.body;
+    
+    // Extract user_id from JWT token (user is already authenticated)
+    const user_id = req.user?.userId || req.user?.user_id;
+    
+    console.log('🔍 Extracted user_id from token:', user_id);
+    
+    // Validate required fields (plan_id no longer needed - single plan system)
+    if (!user_id || !payment_method) {
+      console.log('❌ Missing fields - user_id:', user_id, 'payment_method:', payment_method);
       return res.status(400).json({ 
         error: 'Missing required fields', 
-        details: 'user_id, plan_id, and payment_method are required' 
+        details: 'user_id (from token) and payment_method are required',
+        received: { user_id, payment_method }
       });
     }
 
-    // Get plan details
-    const plan = await billingModel.getSubscriptionPlanById(plan_id);
-    if (!plan) {
-      return res.status(404).json({ error: 'Subscription plan not found' });
-    }
+    // Check if user already has an active subscription
+    const existingSubscription = await billingModel.getSubscriptionByUserId(user_id);
+    let subscription = null;
+    
+    if (existingSubscription) {
+      console.log('⚠️ User already has subscription, creating new billing cycle');
+      // Use existing subscription for renewal/new billing cycle
+      subscription = existingSubscription;
+    } else {
+      // Get the single ₱199 plan (Full Plan)
+      const plans = await billingModel.getAllSubscriptionPlans();
+      const plan = plans.find(p => p.price == 199);
+      if (!plan) {
+        return res.status(404).json({ error: 'Full Plan (₱199) not found in database' });
+      }
 
-    // Set billing start date to current date
-    const billing_start_date = new Date().toISOString().split('T')[0];
+      // Set billing start date to current date
+      const billing_start_date = new Date().toISOString().split('T')[0];
 
-    // Create subscription
-    const subscriptionData = {
-      user_id,
-      plan_id,
-      billing_start_date,
-      payment_method
-    };
-
-    const newSubscription = await billingModel.createCustomerSubscription(subscriptionData);
-
-    // Generate invoice for the subscription
-    const due_date = new Date();
-    due_date.setDate(due_date.getDate() + 30); // Due in 30 days
-
-    const invoiceData = {
-      subscription_id: newSubscription.subscription_id,
-      amount: plan.price,
-      due_date: due_date.toISOString().split('T')[0],
-      generated_date: new Date().toISOString().split('T')[0],
-      notes: `Initial invoice for ${plan.plan_name} subscription`
-    };
-
-    const newInvoice = await billingModel.createInvoice(invoiceData);
-
-    // If payment method is GCash, create immediate payment record
-    let paymentRecord = null;
-    if (payment_method.toLowerCase() === 'gcash') {
-      const paymentData = {
-        invoice_id: newInvoice.invoice_id,
-        amount: plan.price,
-        payment_method: 'GCash',
-        payment_date: new Date().toISOString().split('T')[0],
-        reference_number: `GCASH-${Date.now()}`,
-        notes: `GCash payment for ${plan.plan_name} subscription`
+      // Create new subscription with pending_payment status
+      const subscriptionData = {
+        user_id,
+        plan_id: plan.plan_id,
+        billing_start_date,
+        payment_method
       };
-      
-      paymentRecord = await billingModel.createPayment(paymentData);
+
+      subscription = await billingModel.createCustomerSubscription(subscriptionData);
     }
 
-    // Return comprehensive response
+    // Get plan details for invoice generation
+    const plan = await billingModel.getSubscriptionPlanById(subscription.plan_id);
+    console.log('✅ Subscription processed successfully:', {
+      subscription_id: subscription.subscription_id,
+      user_id: user_id,
+      plan: plan.plan_name,
+      amount: `₱${plan.price}`
+    });
+
+    // Check for recent unpaid invoice to avoid duplicates during testing
+    const recentInvoiceQuery = `
+      SELECT * FROM invoices 
+      WHERE user_id = $1 AND status = 'unpaid' 
+      AND DATE(created_at) = CURRENT_DATE
+      ORDER BY created_at DESC LIMIT 1
+    `;
+    const recentInvoiceResult = await pool.query(recentInvoiceQuery, [user_id]);
+    
+    let newInvoice;
+    if (recentInvoiceResult.rows.length > 0) {
+      console.log('📋 Using existing unpaid invoice from today');
+      newInvoice = recentInvoiceResult.rows[0];
+    } else {
+      // Generate invoice for the subscription
+      const due_date = new Date();
+      due_date.setDate(due_date.getDate() + 30); // Due in 30 days
+
+      const invoiceData = {
+        user_id: user_id,
+        plan_id: plan.plan_id,
+        due_date: due_date.toISOString().split('T')[0],
+        generated_date: new Date().toISOString().split('T')[0],
+        notes: `Initial invoice for ${plan.plan_name} subscription`
+      };
+
+      console.log('🔄 GENERATING NEW INVOICE...');
+      console.log('📋 Invoice Data:', {
+        user_id: user_id,
+        plan: plan.plan_name,
+        amount: `₱${plan.price}`,
+        due_date: invoiceData.due_date
+      });
+
+      newInvoice = await billingModel.createInvoice(invoiceData);
+      
+      console.log('✨ NEW INVOICE CREATED! ✅');
+      console.log('🎯 Invoice Number:', newInvoice.invoice_number);
+    }
+    
+    console.log('🧾 INVOICE GENERATION COMPLETE! ✅');
+    console.log('📄 Final Invoice Details:', {
+      invoice_id: newInvoice.invoice_id,
+      invoice_number: newInvoice.invoice_number,
+      subscription_id: subscription.subscription_id,
+      user_id: user_id,
+      amount: `₱${newInvoice.amount || plan.price}`,
+      due_date: newInvoice.due_date || 'N/A',
+      status: newInvoice.status || 'unpaid',
+      plan: plan.plan_name,
+      created_at: new Date().toISOString()
+    });
+
+    // Determine subscription success indication based on payment method
+    let subscriptionStatus = 'pending_payment';
+    let paymentStatus = 'pending';
+    let nextStep = '';
+    
+    if (payment_method.toLowerCase() === 'gcash') {
+      nextStep = 'complete_gcash_payment';
+      paymentStatus = 'awaiting_gcash';
+    } else if (payment_method.toLowerCase() === 'cash') {
+      nextStep = 'await_collection_payment';
+      paymentStatus = 'awaiting_cash';
+    }
+
+    // Return comprehensive response with clear next steps
     const response = {
       success: true,
-      message: 'Subscription created successfully',
+      message: existingSubscription ? 'New billing cycle created for existing subscription' : 'Subscription created successfully',
       subscription: {
-        id: newSubscription.subscription_id,
+        id: subscription.subscription_id,
         plan_name: plan.plan_name,
         price: plan.price,
-        billing_start_date: newSubscription.billing_start_date,
-        payment_method: newSubscription.payment_method,
-        status: 'active'
+        billing_start_date: subscription.billing_start_date,
+        payment_method: subscription.payment_method,
+        status: subscriptionStatus,
+        payment_status: paymentStatus
       },
       invoice: {
         id: newInvoice.invoice_number,
-        amount: newInvoice.amount,
+        invoice_id: newInvoice.invoice_id,
         due_date: newInvoice.due_date,
-        status: payment_method.toLowerCase() === 'gcash' ? 'paid' : 'unpaid'
+        status: 'unpaid'
       },
-      payment: paymentRecord ? {
-        id: paymentRecord.payment_id,
-        amount: paymentRecord.amount,
-        method: paymentRecord.payment_method,
-        reference: paymentRecord.reference_number,
-        date: paymentRecord.payment_date
-      } : null
+      next_step: nextStep,
+      instructions: payment_method.toLowerCase() === 'gcash' 
+        ? 'Complete payment via GCash to activate your subscription'
+        : 'Your subscription will be activated when you pay the collector during waste collection'
     };
 
     res.status(201).json(response);
@@ -507,12 +574,12 @@ const getPaymentStatus = async (sourceId) => {
   }
 };
 
-// GCash Payment Source Creation
+// GCash Payment Source Creation with Subscription Linking
 const createGcashSource = async (req, res) => {
   try {
     console.log('📥 Creating GCash payment source:', req.body);
     
-    const { amount, description, isAdmin } = req.body;
+    const { amount, description, isAdmin, subscription_id, invoice_id } = req.body;
     
     // Validate required fields
     if (!amount || !description) {
@@ -524,18 +591,25 @@ const createGcashSource = async (req, res) => {
     // Get PayMongo credentials from environment
     const paymongoSecretKey = process.env.PAYMONGO_SECRET_KEY;
     if (!paymongoSecretKey) {
+      console.error('❌ PayMongo Secret Key not found in environment variables');
+      console.log('💡 Please set PAYMONGO_SECRET_KEY in your .env file');
       return res.status(500).json({
-        error: 'PayMongo configuration not found'
+        error: 'PayMongo configuration not found. Please check your environment variables.',
+        hint: 'Set PAYMONGO_SECRET_KEY in your .env file'
       });
     }
 
-    // Determine redirect URLs based on isAdmin flag
-    const successUrl = isAdmin 
-      ? process.env.ADMIN_SUCCESS_URL 
-      : process.env.FRONTEND_SUCCESS_URL;
-    const failedUrl = isAdmin 
-      ? process.env.ADMIN_FAILED_URL 
-      : process.env.FRONTEND_FAILED_URL;
+    // Determine redirect URLs based on isAdmin flag using centralized config
+    const baseSuccessUrl = isAdmin 
+      ? process.env.ADMIN_SUCCESS_URL || config.ADMIN_PAYMENT_REDIRECT.SUCCESS
+      : process.env.FRONTEND_SUCCESS_URL || config.PAYMENT_REDIRECT.SUCCESS;
+    const baseFailedUrl = isAdmin 
+      ? process.env.ADMIN_FAILED_URL || config.ADMIN_PAYMENT_REDIRECT.FAILED
+      : process.env.FRONTEND_FAILED_URL || config.PAYMENT_REDIRECT.FAILED;
+    
+    // Add subscription_id to success URL for mobile app
+    const successUrl = subscription_id ? `${baseSuccessUrl}?subscription_id=${subscription_id}` : baseSuccessUrl;
+    const failedUrl = subscription_id ? `${baseFailedUrl}?subscription_id=${subscription_id}` : baseFailedUrl;
 
     // Create PayMongo GCash Source
     const paymongoData = {
@@ -582,13 +656,15 @@ const createGcashSource = async (req, res) => {
     try {
       const paymentData = {
         source_id: source.id,
-        amount: amount / 100, // Convert from centavos to pesos for storage
-        description: description,
-        status: 'pending',
-        payment_method: 'GCash',
-        created_at: new Date().toISOString()
+        invoice_id: invoice_id, // Link to specific invoice
+        amount: parseInt(amount),
+        currency: 'PHP',
+        payment_method: 'gcash',
+        checkout_url: source.attributes?.redirect?.checkout_url,
+        redirect_success: successUrl,
+        redirect_failed: failedUrl
       };
-      
+
       await billingModel.createPaymentSource(paymentData);
       console.log('✅ Payment source stored in database:', source.id);
     } catch (dbError) {
@@ -604,7 +680,8 @@ const createGcashSource = async (req, res) => {
       checkout_url: source.attributes.redirect.checkout_url,
       amount: source.attributes.amount,
       description: source.attributes.description,
-      status: source.attributes.status
+      status: source.attributes.status,
+      subscription_id: subscription_id
     });
     
   } catch (error) {
@@ -613,6 +690,135 @@ const createGcashSource = async (req, res) => {
       error: 'Failed to create GCash payment source',
       details: error.message
     });
+  }
+};
+
+// Payment Success Confirmation for GCash
+const confirmGcashPayment = async (req, res) => {
+  try {
+    const { source_id, subscription_id } = req.body;
+    
+    if (!source_id || !subscription_id) {
+      return res.status(400).json({
+        error: 'Missing required fields: source_id and subscription_id'
+      });
+    }
+
+    // Get payment source details
+    const paymentSource = await billingModel.getPaymentSourceById(source_id);
+    if (!paymentSource) {
+      return res.status(404).json({ error: 'Payment source not found' });
+    }
+
+    // Activate subscription with payment data
+    const paymentData = {
+      amount: paymentSource.amount / 100, // Convert from centavos
+      payment_method: 'GCash',
+      reference_number: source_id,
+      notes: 'GCash payment confirmation'
+    };
+
+    const activatedSubscription = await billingModel.activateSubscription(subscription_id, paymentData);
+    
+    // Update payment source status
+    await billingModel.updatePaymentStatus(source_id, 'completed');
+
+    res.json({
+      success: true,
+      message: 'Subscription activated successfully',
+      subscription: activatedSubscription
+    });
+    
+  } catch (error) {
+    console.error('Error confirming GCash payment:', error);
+    res.status(500).json({
+      error: 'Failed to confirm payment',
+      details: error.message
+    });
+  }
+};
+
+// Cash Payment Confirmation (for collectors)
+const confirmCashPayment = async (req, res) => {
+  try {
+    const { subscription_id, collector_id, amount, notes } = req.body;
+    
+    if (!subscription_id || !collector_id || !amount) {
+      return res.status(400).json({
+        error: 'Missing required fields: subscription_id, collector_id, and amount'
+      });
+    }
+
+    // Activate subscription with cash payment data
+    const paymentData = {
+      amount: parseFloat(amount),
+      payment_method: 'Cash',
+      reference_number: `CASH-${Date.now()}`,
+      notes: notes || 'Cash payment on collection'
+    };
+
+    const activatedSubscription = await billingModel.activateSubscription(subscription_id, paymentData);
+
+    res.json({
+      success: true,
+      message: 'Cash payment confirmed and subscription activated',
+      subscription: activatedSubscription
+    });
+    
+  } catch (error) {
+    console.error('Error confirming cash payment:', error);
+    res.status(500).json({
+      error: 'Failed to confirm cash payment',
+      details: error.message
+    });
+  }
+};
+
+// Get User Subscription Status
+const getUserSubscriptionStatus = async (req, res) => {
+  try {
+    const { user_id } = req.params;
+    
+    const subscription = await billingModel.getSubscriptionByUserId(user_id);
+    
+    if (!subscription) {
+      return res.json({
+        has_subscription: false,
+        message: 'No subscription found for this user'
+      });
+    }
+
+    res.json({
+      has_subscription: true,
+      subscription: {
+        id: subscription.subscription_id,
+        plan_name: subscription.plan_name,
+        price: subscription.price,
+        status: subscription.status,
+        payment_status: subscription.payment_status,
+        payment_method: subscription.payment_method,
+        billing_start_date: subscription.billing_start_date,
+        created_at: subscription.subscription_created_at,
+        payment_confirmed_at: subscription.payment_confirmed_at
+      }
+    });
+    
+  } catch (error) {
+    console.error('Error fetching user subscription status:', error);
+    res.status(500).json({
+      error: 'Failed to fetch subscription status',
+      details: error.message
+    });
+  }
+};
+
+// Get Pending Cash Subscriptions for Collectors
+const getPendingCashSubscriptions = async () => {
+  try {
+    return await billingModel.getPendingCashSubscriptions();
+  } catch (error) {
+    console.error('Error fetching pending cash subscriptions:', error);
+    throw error;
   }
 };
 
@@ -627,6 +833,8 @@ module.exports = {
   getCustomerSubscriptionById,
   createCustomerSubscription,
   createMobileSubscription,
+  getUserSubscriptionStatus,
+  getPendingCashSubscriptions,
   
   // Invoices
   getAllInvoices,
@@ -638,6 +846,8 @@ module.exports = {
   // Payments
   getPaymentsByInvoiceId,
   createPayment,
+  confirmGcashPayment,
+  confirmCashPayment,
   
   // Billing History
   getBillingHistory,

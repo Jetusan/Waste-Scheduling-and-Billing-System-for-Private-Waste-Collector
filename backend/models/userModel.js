@@ -1,5 +1,6 @@
 const { pool } = require('../config/db');
 const bcrypt = require('bcrypt');
+const crypto = require('crypto');
 
 const createUser = async (user) => {
   const client = await pool.connect();
@@ -9,10 +10,12 @@ const createUser = async (user) => {
     middleName: user.middleName,
     lastName: user.lastName,
     username: user.username,
+    email: user.email,
     contactNumber: user.contactNumber,
     city: user.city,
     barangay: user.barangay,
-    street: user.street
+    street: user.street,
+    verificationToken: user.verificationToken
   });
   
   try {
@@ -21,7 +24,8 @@ const createUser = async (user) => {
 
     const {
       firstName, middleName, lastName, username,
-      contactNumber, password, city, barangay, street
+      email, contactNumber, password, city, barangay, street,
+      verificationToken
     } = user;
 
     // 1. Insert into user_names table
@@ -70,12 +74,28 @@ const createUser = async (user) => {
     const addressId = addressResult.rows[0].address_id;
     console.log('✅ Address inserted successfully:', addressResult.rows[0]);
 
-    // 5. Insert into users table (password is already hashed)
-    console.log('\n\ud83d\udc64 Creating user account for:', username);
+    // 5. Check if email was verified during registration process
+    console.log('\n📧 Checking email verification status for:', email);
+    const tempTokens = global.tempVerificationTokens || {};
+    const isEmailVerified = tempTokens[email] && tempTokens[email].verified;
+    console.log('📧 Email verification status:', isEmailVerified ? 'VERIFIED' : 'NOT VERIFIED');
+    
+    // Clean up temporary token if verified
+    if (isEmailVerified && tempTokens[email]) {
+      delete tempTokens[email];
+      console.log('🧹 Cleaned up temporary verification token');
+    }
+
+    // 6. Insert into users table (password is already hashed)
+    console.log('\n👤 Creating user account for:', username);
     const userQuery = `
-      INSERT INTO users (username, password_hash, contact_number, address_id, name_id, role_id, created_at, updated_at)
-      VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
-      RETURNING user_id, username, contact_number, created_at, updated_at;
+      INSERT INTO users (
+        username, email, password_hash, contact_number, 
+        address_id, name_id, role_id, email_verified,
+        verification_token, verification_token_expires, registration_status, created_at, updated_at
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW() + INTERVAL '24 hours', 'pending', NOW(), NOW())
+      RETURNING user_id, username, email, contact_number, created_at, updated_at;
     `;
     
     // Get the resident role_id
@@ -85,11 +105,14 @@ const createUser = async (user) => {
     
     const userResult = await client.query(userQuery, [
       username,
+      email,
       password, // Use the already hashed password
       contactNumber,
       addressId,
       nameId,
-      residentRoleId // Use the actual role_id from the roles table
+      residentRoleId,
+      isEmailVerified, // Use the verification status from temporary storage
+      verificationToken
     ]);
     console.log('\u2705 User account created successfully:', {
       user_id: userResult.rows[0].user_id,
@@ -125,8 +148,50 @@ const getUserByUsername = async (username) => {
 };
 
 const findByEmail = async (email) => {
-  const query = `SELECT * FROM user_details WHERE email = $1`;
+  const query = `
+    SELECT ud.*, r.role_name AS role
+    FROM user_details ud
+    LEFT JOIN roles r ON ud.role_id = r.role_id
+    WHERE ud.email = $1
+  `;
   const result = await pool.query(query, [email]);
+  return result.rows[0];
+};
+
+const findByVerificationToken = async (token) => {
+  const query = `
+    SELECT * FROM users 
+    WHERE verification_token = $1 
+    AND verification_token_expires > NOW()
+  `;
+  const result = await pool.query(query, [token]);
+  return result.rows[0];
+};
+
+const verifyUserEmail = async (userId) => {
+  const query = `
+    UPDATE users 
+    SET email_verified = true,
+        verification_token = NULL,
+        verification_token_expires = NULL,
+        updated_at = NOW()
+    WHERE user_id = $1
+    RETURNING *
+  `;
+  const result = await pool.query(query, [userId]);
+  return result.rows[0];
+};
+
+const updateVerificationToken = async (userId, token) => {
+  const query = `
+    UPDATE users 
+    SET verification_token = $1,
+        verification_token_expires = NOW() + INTERVAL '24 hours',
+        updated_at = NOW()
+    WHERE user_id = $2
+    RETURNING *
+  `;
+  const result = await pool.query(query, [token, userId]);
   return result.rows[0];
 };
 
@@ -210,7 +275,10 @@ const searchUsersByName = async (searchTerm) => {
 module.exports = { 
   createUser, 
   getUserByUsername, 
-  findByEmail, 
+  findByEmail,
+  findByVerificationToken,
+  verifyUserEmail,
+  updateVerificationToken, 
   getUserById, 
   updateUserName, 
   getAllUsers, 

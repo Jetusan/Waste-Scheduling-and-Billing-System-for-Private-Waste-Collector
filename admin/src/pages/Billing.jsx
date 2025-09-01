@@ -562,6 +562,53 @@ const Billing = () => {
         </div>
       )}
 
+      {/* Test Payment Section */}
+      <div className="test-payment-section" style={{ 
+        marginTop: '20px', 
+        padding: '20px', 
+        border: '2px dashed #007bff', 
+        borderRadius: '8px',
+        backgroundColor: '#f8f9fa'
+      }}>
+        <h3 style={{ color: '#007bff', marginBottom: '10px' }}>
+          <i className="fas fa-flask"></i> Test Payment Integration
+        </h3>
+        <p style={{ marginBottom: '15px', color: '#6c757d' }}>
+          Test the GCash payment integration with a sample ₱100 payment.
+        </p>
+        <button 
+          className="btn btn-primary"
+          onClick={handleGcashPayment}
+          style={{
+            backgroundColor: '#007bff',
+            border: 'none',
+            padding: '12px 24px',
+            borderRadius: '6px',
+            color: 'white',
+            fontWeight: 'bold',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px'
+          }}
+        >
+          <i className="fas fa-credit-card"></i>
+          Authorize Test Payment (₱100)
+        </button>
+        {error && (
+          <div style={{ 
+            marginTop: '10px', 
+            padding: '10px', 
+            backgroundColor: '#f8d7da', 
+            color: '#721c24',
+            borderRadius: '4px',
+            border: '1px solid #f5c6cb'
+          }}>
+            <strong>Error:</strong> {error}
+          </div>
+        )}
+      </div>
+
       {/* Export Modal */}
       {isExportModalOpen && (
         <div className="modal-overlay">

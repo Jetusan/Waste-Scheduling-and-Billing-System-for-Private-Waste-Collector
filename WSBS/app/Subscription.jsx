@@ -9,56 +9,23 @@ import * as Linking from 'expo-linking';
 import PaymentPage from './PaymentPage';
 import { API_BASE_URL } from './config';
 
-const plans = [
-  {
-    id: 'lite',
-    name: 'Lite Plan',
-    price: '₱99',
-    priceValue: 99,
-    bagsPerWeek: '1 bag',
-    bagsPerMonth: '4 bags',
-    extraBagCost: '₱30/bag',
-    biodegradable: 'Optional at ₱50/bag',
-    bottle: 'Optional at ₱100/bag',
-    binakbak: 'Optional at ₱200/bag',
-    pickup: 'Weekly (Residual only)',
-    addon: '✅ Available',
-    contract: '1 Year (Fixed)',
-    preTermination: '₱200 if < 1 year',
-  },
-  {
-    id: 'essential',
-    name: 'Essential Plan',
-    price: '₱149',
-    priceValue: 149,
-    bagsPerWeek: '2 bags',
-    bagsPerMonth: '8 bags',
-    extraBagCost: '₱30/bag',
-    biodegradable: 'Optional at ₱50/bag',
-    bottle: 'Optional at ₱100/bag',
-    binakbak: 'Optional at ₱200/bag',
-    pickup: 'Weekly (Residual only)',
-    addon: '✅ Available',
-    contract: '1 Year (Fixed)',
-    preTermination: '₱200 if < 1 year',
-  },
-  {
-    id: 'full',
-    name: 'Full Plan',
-    price: '₱199',
-    priceValue: 199,
-    bagsPerWeek: '3 bags',
-    bagsPerMonth: '12 bags',
-    extraBagCost: '₱30/bag',
-    biodegradable: 'Optional at ₱50/bag',
-    bottle: 'Optional at ₱100/bag',
-    binakbak: 'Optional at ₱200/bag',
-    pickup: 'Weekly (Residual only)',
-    addon: '✅ Available',
-    contract: '1 Year (Fixed)',
-    preTermination: '₱200 if < 1 year',
-  },
-];
+// Single plan - Full Plan only
+const singlePlan = {
+  id: 'full',
+  name: 'Full Plan',
+  price: '₱199',
+  priceValue: 199,
+  bagsPerWeek: '3 bags',
+  bagsPerMonth: '12 bags',
+  extraBagCost: '₱30/bag',
+  biodegradable: 'Optional at ₱50/bag',
+  bottle: 'Optional at ₱100/bag',
+  binakbak: 'Optional at ₱200/bag',
+  pickup: 'Weekly (Residual only)',
+  addon: '✅ Available',
+  contract: '1 Year (Fixed)',
+  preTermination: '₱200 if < 1 year',
+};
 
 const paymentMethods = [
   {
@@ -78,8 +45,7 @@ const paymentMethods = [
 ];
 
 const Subscription = () => {
-  const [selectedPlan, setSelectedPlan] = useState('full');
-  const [expandedPlan, setExpandedPlan] = useState(null);
+  const [showDetails, setShowDetails] = useState(false);
   const [showTerms, setShowTerms] = useState(true); // Start with terms
   const [showPlanSelection, setShowPlanSelection] = useState(false);
   const [showInvoice, setShowInvoice] = useState(false);
@@ -120,7 +86,7 @@ const Subscription = () => {
     fetchProfile();
   }, []);
 
-  const selectedPlanData = plans.find(plan => plan.id === selectedPlan);
+  const selectedPlanData = singlePlan;
 
   // Remove payment-related state and functions
   // Remove: selectedPaymentMethod, isProcessing, handlePaymentMethodSelect, handleConfirmPayment, handleGcashPayment
@@ -134,6 +100,11 @@ const Subscription = () => {
   const handleTermsDecline = () => {
     setShowTerms(false);
     router.push('/resident/HomePage');
+  };
+
+  const handleProceedToInvoice = () => {
+    setShowPlanSelection(false);
+    setShowInvoice(true);
   };
 
   const handleProceedToPayment = () => {
@@ -195,69 +166,56 @@ const Subscription = () => {
               onPress={() => router.push('/resident/HomePage')}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
-              <Ionicons name="arrow-back" size={24} color="#fff" />
+              <Text>
+                <Ionicons name="arrow-back" size={24} color="#fff" />
+              </Text>
           </TouchableOpacity>
           <Text style={styles.logo}>PLANS</Text>
        </View>
-        {/* Plan Options */}
+        {/* Single Plan Display */}
         <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 90 }]}>  
           <View style={styles.planContainerVertical}>
-            {plans.map((plan) => (
+            <View style={[styles.planCardVertical, styles.selectedCard]}>
+              <Text style={styles.planName}>{singlePlan.name}</Text>
+              <Text style={styles.planPrice}>{singlePlan.price} <Text style={styles.perMonth}>/ month</Text></Text>
               <TouchableOpacity
-                key={plan.id}
-                style={[
-                  styles.planCardVertical,
-                  selectedPlan === plan.id && styles.selectedCard,
-                ]}
-                onPress={() => setSelectedPlan(plan.id)}
-                activeOpacity={0.95}
+                style={styles.detailedButton}
+                onPress={() => setShowDetails(!showDetails)}
               >
-                <Text style={styles.planName}>{plan.name}</Text>
-                <Text style={styles.planPrice}>{plan.price} <Text style={styles.perMonth}>/ month</Text></Text>
-                <TouchableOpacity
-                  style={styles.detailedButton}
-                  onPress={(e) => {
-                    e.stopPropagation();
-                    setExpandedPlan(expandedPlan === plan.id ? null : plan.id);
-                  }}
-                >
-                  <Text style={styles.detailedButtonText}>{expandedPlan === plan.id ? 'Hide Details' : 'Detailed'}</Text>
-                </TouchableOpacity>
-                {expandedPlan === plan.id && (
-                  <View style={styles.detailsWrapper}>
-                    <View style={styles.sectionDivider} />
-                    <Text style={styles.sectionHeader}>Residual Bags</Text>
-                    <View style={styles.detailRow}><Text style={styles.featureLabel}>Included/week:</Text> <Text style={styles.featureValue}>{plan.bagsPerWeek}</Text></View>
-                    <View style={styles.detailRow}><Text style={styles.featureLabel}>Included/month:</Text> <Text style={styles.featureValue}>{plan.bagsPerMonth}</Text></View>
-                    <View style={styles.detailRow}><Text style={styles.featureLabel}>Extra Bag Cost:</Text> <Text style={styles.featureValue}>{plan.extraBagCost}</Text></View>
-                    <View style={styles.sectionDivider} />
-                    <Text style={styles.sectionHeader}>Optional Pickups</Text>
-                    <View style={styles.detailRow}><Text style={styles.featureLabel}>Biodegradable:</Text> <Text style={styles.featureValue}>{plan.biodegradable}</Text></View>
-                    <View style={styles.detailRow}><Text style={styles.featureLabel}>Bottle:</Text> <Text style={styles.featureValue}>{plan.bottle}</Text></View>
-                    <View style={styles.detailRow}><Text style={styles.featureLabel}>Binakbak:</Text> <Text style={styles.featureValue}>{plan.binakbak}</Text></View>
-                    <View style={styles.sectionDivider} />
-                    <Text style={styles.sectionHeader}>Other Details</Text>
-                    <View style={styles.detailRow}><Text style={styles.featureLabel}>Pickup Frequency:</Text> <Text style={styles.featureValue}>{plan.pickup}</Text></View>
-                    <View style={styles.detailRow}><Text style={styles.featureLabel}>Add-on Support:</Text> <Text style={styles.featureValue}>{plan.addon}</Text></View>
-                    <View style={styles.detailRow}><Text style={styles.featureLabel}>Contract Term:</Text> <Text style={styles.featureValue}>{plan.contract}</Text></View>
-                    <View style={styles.detailRow}><Text style={styles.featureLabel}>Pre-Termination Fee:</Text> <Text style={styles.featureValue}>{plan.preTermination}</Text></View>
-                  </View>
-                )}
-                {selectedPlan === plan.id && (
-                  <View style={styles.recommendedBadge}>
-                    <Text style={styles.badgeText}>Selected</Text>
-                  </View>
-                )}
+                <Text style={styles.detailedButtonText}>{showDetails ? 'Hide Details' : 'Show Details'}</Text>
               </TouchableOpacity>
-            ))}
+              {showDetails && (
+                <View style={styles.detailsWrapper}>
+                  <View style={styles.sectionDivider} />
+                  <Text style={styles.sectionHeader}>Residual Bags</Text>
+                  <View style={styles.detailRow}><Text style={styles.featureLabel}>Included/week:</Text> <Text style={styles.featureValue}>{singlePlan.bagsPerWeek}</Text></View>
+                  <View style={styles.detailRow}><Text style={styles.featureLabel}>Included/month:</Text> <Text style={styles.featureValue}>{singlePlan.bagsPerMonth}</Text></View>
+                  <View style={styles.detailRow}><Text style={styles.featureLabel}>Extra Bag Cost:</Text> <Text style={styles.featureValue}>{singlePlan.extraBagCost}</Text></View>
+                  <View style={styles.sectionDivider} />
+                  <Text style={styles.sectionHeader}>Optional Pickups</Text>
+                  <View style={styles.detailRow}><Text style={styles.featureLabel}>Biodegradable:</Text> <Text style={styles.featureValue}>{singlePlan.biodegradable}</Text></View>
+                  <View style={styles.detailRow}><Text style={styles.featureLabel}>Bottle:</Text> <Text style={styles.featureValue}>{singlePlan.bottle}</Text></View>
+                  <View style={styles.detailRow}><Text style={styles.featureLabel}>Binakbak:</Text> <Text style={styles.featureValue}>{singlePlan.binakbak}</Text></View>
+                  <View style={styles.sectionDivider} />
+                  <Text style={styles.sectionHeader}>Other Details</Text>
+                  <View style={styles.detailRow}><Text style={styles.featureLabel}>Pickup Frequency:</Text> <Text style={styles.featureValue}>{singlePlan.pickup}</Text></View>
+                  <View style={styles.detailRow}><Text style={styles.featureLabel}>Add-on Support:</Text> <Text style={styles.featureValue}>{singlePlan.addon}</Text></View>
+                  <View style={styles.detailRow}><Text style={styles.featureLabel}>Contract Term:</Text> <Text style={styles.featureValue}>{singlePlan.contract}</Text></View>
+                  <View style={styles.detailRow}><Text style={styles.featureLabel}>Pre-Termination Fee:</Text> <Text style={styles.featureValue}>{singlePlan.preTermination}</Text></View>
+                </View>
+              )}
+              <View style={styles.recommendedBadge}>
+                <Text style={styles.badgeText}>Our Plan</Text>
+              </View>
+            </View>
           </View>
         </ScrollView>
         <View style={styles.bottomSection}>
           <Text style={styles.termsNote}>
-            By clicking &quot;Next&quot;, you agree to review and accept our Terms and Conditions
+            By clicking &quot;Subscribe Now&quot;, you agree to review and accept our Terms and Conditions
           </Text>
-          <TouchableOpacity style={styles.nextButton} onPress={handleProceedToPayment}>
-            <Text style={styles.nextButtonText}>Next</Text>
+          <TouchableOpacity style={styles.nextButton} onPress={handleProceedToInvoice}>
+            <Text style={styles.nextButtonText}>Subscribe Now</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>

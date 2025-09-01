@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import '../styles/MDashboard.css';
 import axios from 'axios';
 
 const API_BASE_URL = 'http://localhost:5000/api';
 
 const Dashboard = () => {
+  const navigate = useNavigate();
   const [metrics, setMetrics] = useState({
     totalRevenue: 0,
     monthlyRevenue: 0,
@@ -32,10 +34,6 @@ const Dashboard = () => {
     routeEfficiency: 0,
     driverPerformance: 0,
   });
-  const [nextPickups, setNextPickups] = useState([]);
-  const [dueInvoices, setDueInvoices] = useState([]);
-  const [recentComplaints, setRecentComplaints] = useState([]);
-  const [topPerformers, setTopPerformers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -44,80 +42,34 @@ const Dashboard = () => {
       setLoading(true);
       setError(null);
       try {
-        // Fetch all data in parallel for better performance
-        const [
-          dashboardStats,
-          upcomingSchedules,
-          overdueInvoices,
-          recentComplaintsData,
-          topPerformersData,
-        ] = await Promise.all([
-          axios.get(`${API_BASE_URL}/dashboard/stats`).catch(() => ({ 
-            data: { 
-              revenue: { total: 0, monthly: 0, yearly: 0, today: 0 },
-              subscribers: { Basic: 0, Regular: 0, Premium: 0, AllIn: 0, total: 0, inactive: 0 },
-              collections: { 
-                efficiency: 0, 
-                route_efficiency: 0,
-                today: { total: 0, completed: 0, pending: 0, cancelled: 0 },
-                week: { total: 0, completed: 0 },
-                month: { total: 0, completed: 0 },
-                missed: 0 
-              },
-              payments: { 
-                overdue: { count: 0, amount: 0 }, 
-                failed_7d: 0,
-                successful_7d: 0
-              },
-              fleet: { total: 0, active: 0, inactive: 0, maintenance: 0 },
-              residents: { total: 0, new_30d: 0 },
-              complaints: { total: 0, pending: 0, resolved: 0 },
-              performance: { driver_avg: 0 }
-            } 
-          })),
-          axios.get(`${API_BASE_URL}/dashboard/upcoming-schedules?limit=8`).catch(() => ({ data: [] })),
-          axios.get(`${API_BASE_URL}/dashboard/overdue-invoices?limit=8`).catch(() => ({ data: [] })),
-          axios.get(`${API_BASE_URL}/dashboard/recent-complaints?limit=5`).catch(() => ({ data: [] })),
-          axios.get(`${API_BASE_URL}/dashboard/top-performers?limit=3`).catch(() => ({ data: [] })),
-        ]);
+        // Fetch only essential dashboard stats
+        const dashboardStats = await axios.get(`${API_BASE_URL}/dashboard/stats`).catch(() => ({ 
+          data: { 
+            revenue: { total: 0, monthly: 0, yearly: 0, today: 0 },
+            subscribers: { Basic: 0, Regular: 0, Premium: 0, AllIn: 0, total: 0, inactive: 0 },
+            collections: { 
+              efficiency: 0, 
+              route_efficiency: 0,
+              today: { total: 0, completed: 0, pending: 0, cancelled: 0 },
+              week: { total: 0, completed: 0 },
+              month: { total: 0, completed: 0 },
+              missed: 0 
+            },
+            payments: { 
+              overdue: { count: 0, amount: 0 }, 
+              failed_7d: 0,
+              successful_7d: 0
+            },
+            fleet: { total: 0, active: 0, inactive: 0, maintenance: 0 },
+            residents: { total: 0, new_30d: 0 },
+            complaints: { total: 0, pending: 0, resolved: 0 },
+            performance: { driver_avg: 0 }
+          } 
+        }));
 
-        console.log('Dashboard data fetched:', {
-          stats: dashboardStats.data,
-          schedules: upcomingSchedules.data?.length || 0,
-          invoices: overdueInvoices.data?.length || 0,
-          complaints: recentComplaintsData.data?.length || 0,
-          performers: topPerformersData.data?.length || 0,
-        });
+        console.log('Dashboard stats fetched:', dashboardStats.data);
 
         const stats = dashboardStats.data;
-
-        // Format upcoming schedules
-        const formattedPickups = upcomingSchedules.data.map(s => ({
-          date: new Date(s.schedule_date).toLocaleDateString('en-PH', { 
-            month: '2-digit', 
-            day: '2-digit',
-            year: 'numeric'
-          }),
-          subdivision: s.barangays && s.barangays.length > 0 
-            ? s.barangays.map(b => b.barangay_name).join(', ')
-            : 'N/A',
-          truck: s.truck_number || 'Unassigned',
-          status: s.status || 'Scheduled',
-          waste_type: s.waste_type || 'Mixed'
-        }));
-
-        // Format overdue invoices
-        const formattedInvoices = overdueInvoices.data.map(inv => ({
-          id: inv.id || inv.invoice_number || 'N/A',
-          name: inv.customer_name || inv.username || 'N/A',
-          due: new Date(inv.due_date).toLocaleDateString('en-PH', { 
-            month: '2-digit', 
-            day: '2-digit' 
-          }),
-          amount: typeof inv.amount === 'number' 
-            ? `₱${inv.amount.toLocaleString()}`
-            : inv.amount || '₱0',
-        }));
 
         setMetrics({
           totalRevenue: stats.revenue?.total || 0,
@@ -170,11 +122,6 @@ const Dashboard = () => {
           driverPerformance: stats.performance?.driver_avg || 0,
         });
 
-        setNextPickups(formattedPickups);
-        setDueInvoices(formattedInvoices);
-        setRecentComplaints(recentComplaintsData.data || []);
-        setTopPerformers(topPerformersData.data || []);
-
       } catch (err) {
         console.error('Dashboard data fetch error:', err);
         let errorMsg = 'Failed to load dashboard data.';
@@ -203,351 +150,140 @@ const Dashboard = () => {
 
   return (
     <div className="main-dashboard">
-      {/* Enhanced Header with Statistics Overview */}
+      {/* Simplified Header */}
       <div className="dashboard-header">
         <div>
-          <h1>Admin Dashboard</h1>
-          <p>Comprehensive waste management overview and analytics</p>
+          <h3>Waste management overview</h3>
         </div>
         <div className="header-actions">
           <button 
             className="refresh-btn" 
             onClick={() => window.location.reload()}
-            title="Refresh Dashboard"
+            title="Refresh"
           >
-            <i className="fas fa-sync-alt"></i> Refresh
-          </button>
-          <button className="export-btn" title="Export Report">
-            <i className="fas fa-download"></i> Export
+            <i className="fas fa-sync-alt"></i>
           </button>
         </div>
       </div>
 
-      {/* Key Metrics Overview */}
+      {/* Simplified Key Metrics */}
       <div className="overview-section">
-        <h3><i className="fas fa-chart-line"></i> Key Metrics Overview</h3>
-        <div className="metrics-grid">
-          {/* Monthly Revenue */}
-          <div className="metric-card success">
+        <h3><i className="fas fa-tachometer-alt"></i> Dashboard Overview</h3>
+        <div className="simple-metrics-grid">
+          {/* Revenue */}
+          <div className="simple-metric-card success">
             <div className="metric-icon">
               <i className="fas fa-peso-sign"></i>
             </div>
-            <div className="metric-info">
+            <div className="metric-content">
               <h3>₱{typeof metrics.monthlyRevenue === 'number' ? metrics.monthlyRevenue.toLocaleString() : '0'}</h3>
               <p>Monthly Revenue</p>
-              <span className="trend positive">↑ +8.3%</span>
             </div>
           </div>
 
-          {/* Active Trucks */}
-          <div className="metric-card primary">
-            <div className="metric-icon">
-              <i className="fas fa-truck"></i>
-            </div>
-            <div className="metric-info">
-              <h3>{metrics.activeTrucks}/{metrics.totalTrucks}</h3>
-              <p>Active Trucks</p>
-              <div className="sub-metrics">
-                <span>Inactive: {metrics.inactiveTrucks}</span>
-                <span>Maintenance: {metrics.trucksInMaintenance}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Active Subscribers */}
-          <div className="metric-card info">
+          {/* Total Subscribers */}
+          <div className="simple-metric-card info">
             <div className="metric-icon">
               <i className="fas fa-users"></i>
             </div>
-            <div className="metric-info">
+            <div className="metric-content">
               <h3>{metrics.activeSubscribers.total}</h3>
-              <p>Active Subscribers</p>
-              <div className="subscription-breakdown">
-                <span>Basic: {metrics.activeSubscribers.Basic}</span>
-                <span>Regular: {metrics.activeSubscribers.Regular}</span>
-                <span>Premium: {metrics.activeSubscribers.Premium}</span>
-                <span>All-In: {metrics.activeSubscribers.AllIn}</span>
-              </div>
+              <p>Subscriber</p>
             </div>
           </div>
 
-          {/* Overdue Invoices */}
-          <div className="metric-card warning">
+          {/* Fleet Status */}
+          <div className="simple-metric-card primary">
             <div className="metric-icon">
-              <i className="fas fa-clock"></i>
+              <i className="fas fa-truck"></i>
             </div>
-            <div className="metric-info">
+            <div className="metric-content">
+              <h3>{metrics.totalTrucks}</h3>
+              <p>Trucks</p>
+            </div>
+          </div>
+
+          {/* Invoices */}
+          <div className="simple-metric-card warning">
+            <div className="metric-icon">
+              <i className="fas fa-file-invoice-dollar"></i>
+            </div>
+            <div className="metric-content">
               <h3>{metrics.overduePayments.count}</h3>
               <p>Overdue Invoices</p>
-              <span className="amount">₱{typeof metrics.overduePayments.amount === 'number' ? metrics.overduePayments.amount.toLocaleString() : '0'}</span>
-            </div>
-          </div>
-
-          {/* Missed Collections */}
-          <div className="metric-card danger">
-            <div className="metric-icon">
-              <i className="fas fa-exclamation-circle"></i>
-            </div>
-            <div className="metric-info">
-              <h3>{metrics.missedPickups.count}</h3>
-              <p>Missed Collections</p>
-              <span className="locations">{metrics.missedPickups.locations}</span>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Detailed Analytics Section */}
-      <div className="detailed-section">
-        <div className="analytics-grid">
-          {/* Upcoming Collections */}
-          <div className="analytics-card">
-            <div className="card-header">
-              <h4><i className="fas fa-truck"></i> Upcoming Collections</h4>
-              <a href="/schedules" className="view-all">View All Schedules</a>
-            </div>
-            <div className="card-content">
-              {nextPickups.length > 0 ? (
-                <div className="pickup-list detailed">
-                  {nextPickups.slice(0, 6).map((pickup, i) => (
-                    <div key={i} className="pickup-item detailed">
-                      <div className="pickup-info">
-                        <span className="pickup-date">{pickup.date}</span>
-                        <span className="pickup-location">{pickup.subdivision}</span>
-                        <span className="pickup-truck">Truck: {pickup.truck}</span>
-                        <span className="pickup-waste-type">{pickup.waste_type}</span>
-                      </div>
-                      <span className={`status-badge ${pickup.status.toLowerCase()}`}>
-                        {pickup.status}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="empty-state">
-                  <i className="fas fa-calendar-times"></i>
-                  <p>No upcoming pickups scheduled</p>
-                </div>
-              )}
-            </div>
+      {/* Today's Summary */}
+      <div className="today-summary">
+        <h3><i className="fas fa-calendar-day"></i> Today's Overview</h3>
+        <div className="summary-grid">
+          <div className="summary-item">
+            <span className="summary-label">Collections Scheduled</span>
+            <span className="summary-value">{metrics.todayPickups.total}</span>
           </div>
-
-          {/* Outstanding Invoices */}
-          <div className="analytics-card">
-            <div className="card-header">
-              <h4><i className="fas fa-file-invoice-dollar"></i> Outstanding Invoices</h4>
-              <a href="/billing" className="view-all">Manage Billing</a>
-            </div>
-            <div className="card-content">
-              {dueInvoices.length > 0 ? (
-                <div className="invoice-list detailed">
-                  {dueInvoices.slice(0, 6).map((invoice, i) => (
-                    <div key={i} className="invoice-item detailed">
-                      <div className="invoice-info">
-                        <span className="invoice-id">#{invoice.id}</span>
-                        <span className="invoice-customer">{invoice.name}</span>
-                        <span className="invoice-due">Due: {invoice.due}</span>
-                      </div>
-                      <div className="invoice-details">
-                        <span className="invoice-amount">{invoice.amount}</span>
-                        <span className="overdue-badge">Overdue</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="empty-state">
-                  <i className="fas fa-receipt"></i>
-                  <p>No outstanding invoices</p>
-                </div>
-              )}
-            </div>
+          <div className="summary-item">
+            <span className="summary-label">Completed</span>
+            <span className="summary-value success">{metrics.todayPickups.completed}</span>
           </div>
-        </div>
-
-        <div className="analytics-grid">
-          {/* Recent Complaints */}
-          <div className="analytics-card">
-            <div className="card-header">
-              <h4><i className="fas fa-comment-alt"></i> Recent Complaints</h4>
-              <a href="/complaints" className="view-all">View All</a>
-            </div>
-            <div className="card-content">
-              {recentComplaints.length > 0 ? (
-                <div className="complaints-list">
-                  {recentComplaints.map((complaint, i) => (
-                    <div key={i} className="complaint-item">
-                      <div className="complaint-info">
-                        <span className="complaint-id">#{complaint.id}</span>
-                        <span className="complaint-description">{complaint.description}</span>
-                        <span className="complaint-date">{complaint.date}</span>
-                      </div>
-                      <span className={`priority-badge ${complaint.priority || 'medium'}`}>
-                        {complaint.priority || 'Medium'}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="empty-state">
-                  <i className="fas fa-smile"></i>
-                  <p>No recent complaints</p>
-                </div>
-              )}
-            </div>
+          <div className="summary-item">
+            <span className="summary-label">Pending</span>
+            <span className="summary-value warning">{metrics.todayPickups.pending}</span>
           </div>
-
-          {/* Top Performers */}
-          <div className="analytics-card">
-            <div className="card-header">
-              <h4><i className="fas fa-star"></i> Top Performers</h4>
-              <a href="/users" className="view-all">View Team</a>
-            </div>
-            <div className="card-content">
-              {topPerformers.length > 0 ? (
-                <div className="performers-list">
-                  {topPerformers.map((performer, i) => (
-                    <div key={i} className="performer-item">
-                      <div className="performer-info">
-                        <span className="performer-rank">#{i + 1}</span>
-                        <span className="performer-name">{performer.name}</span>
-                        <span className="performer-role">{performer.role}</span>
-                      </div>
-                      <div className="performer-stats">
-                        <span className="performance-score">{performer.score}/10</span>
-                        <span className="collections-count">{performer.collections} collections</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="empty-state">
-                  <i className="fas fa-users"></i>
-                  <p>Performance data loading...</p>
-                </div>
-              )}
-            </div>
+          <div className="summary-item">
+            <span className="summary-label">Revenue Today</span>
+            <span className="summary-value">₱{typeof metrics.todayRevenue === 'number' ? metrics.todayRevenue.toLocaleString() : '0'}</span>
           </div>
         </div>
       </div>
 
-      {/* Advanced Actions Grid */}
-      <div className="advanced-actions">
-        <h3><i className="fas fa-cogs"></i> Administrative Actions</h3>
-        <div className="actions-grid advanced">
-          <button className="action-btn primary" onClick={() => window.location.href = '/schedules'}>
-            <i className="fas fa-calendar-plus"></i>
-            <div>
-              <span>Schedule Collections</span>
-              <small>Manage pickup schedules</small>
-            </div>
+      {/* Simplified Quick Actions */}
+      <div className="quick-actions-section">
+        <h3><i className="fas fa-bolt"></i> Quick Actions</h3>
+        <div className="simple-actions-grid">
+          <button className="simple-action-btn" onClick={() => navigate('/admin/operations/schedule')}>
+            <i className="fas fa-calendar-alt"></i>
+            <span>Schedules</span>
           </button>
-          <button className="action-btn success" onClick={() => window.location.href = '/billing'}>
-            <i className="fas fa-file-invoice-dollar"></i>
-            <div>
-              <span>Billing Management</span>
-              <small>Invoices & payments</small>
-            </div>
+          <button className="simple-action-btn" onClick={() => navigate('/admin/billing')}>
+            <i className="fas fa-file-invoice"></i>
+            <span>Billing</span>
           </button>
-          <button className="action-btn info" onClick={() => window.location.href = '/reports'}>
-            <i className="fas fa-chart-line"></i>
-            <div>
-              <span>Analytics & Reports</span>
-              <small>Performance insights</small>
-            </div>
+          <button className="simple-action-btn" onClick={() => navigate('/admin/insights/reports')}>
+            <i className="fas fa-chart-bar"></i>
+            <span>Reports</span>
           </button>
-          <button className="action-btn warning" onClick={() => window.location.href = '/notifications'}>
-            <i className="fas fa-bell"></i>
-            <div>
-              <span>Notifications</span>
-              <small>System alerts</small>
-            </div>
-          </button>
-          <button className="action-btn danger" onClick={() => window.location.href = '/complaints'}>
-            <i className="fas fa-exclamation-triangle"></i>
-            <div>
-              <span>Handle Complaints</span>
-              <small>Customer support</small>
-            </div>
-          </button>
-          <button className="action-btn secondary" onClick={() => window.location.href = '/users'}>
-            <i className="fas fa-users-cog"></i>
-            <div>
-              <span>User Management</span>
-              <small>Residents & collectors</small>
-            </div>
+          <button className="simple-action-btn" onClick={() => navigate('/admin/operations/subscribers')}>
+            <i className="fas fa-users"></i>
+            <span>Users</span>
           </button>
         </div>
       </div>
 
-      {/* Critical Alerts System */}
-      {(metrics.overduePayments.count > 0 || metrics.missedPickups.count > 0 || metrics.pendingComplaints > 5 || metrics.failedPayments > 10) && (
-        <div className="alerts-section critical">
-          <h3><i className="fas fa-exclamation-triangle"></i> Critical Alerts & Notifications</h3>
-          <div className="alerts-grid">
+      {/* Critical Alerts - Simplified */}
+      {(metrics.overduePayments.count > 0 || metrics.missedPickups.count > 0) && (
+        <div className="simple-alerts">
+          <h3><i className="fas fa-exclamation-triangle"></i> Alerts</h3>
+          <div className="alerts-list">
             {metrics.overduePayments.count > 0 && (
-              <div className="alert danger">
-                <i className="fas fa-exclamation-triangle"></i>
-                <div className="alert-content">
-                  <strong>{metrics.overduePayments.count} overdue payments</strong>
-                  <span>Total amount: ₱{typeof metrics.overduePayments.amount === 'number' ? metrics.overduePayments.amount.toLocaleString() : '0'}</span>
-                </div>
-                <a href="/billing" className="alert-action">Manage</a>
+              <div className="simple-alert warning">
+                <i className="fas fa-clock"></i>
+                <span>{metrics.overduePayments.count} overdue payments</span>
+                <a href="/billing" className="alert-link">View</a>
               </div>
             )}
             {metrics.missedPickups.count > 0 && (
-              <div className="alert warning">
+              <div className="simple-alert danger">
                 <i className="fas fa-times-circle"></i>
-                <div className="alert-content">
-                  <strong>{metrics.missedPickups.count} missed collections</strong>
-                  <span>Require immediate attention</span>
-                </div>
-                <a href="/schedules" className="alert-action">Reschedule</a>
-              </div>
-            )}
-            {metrics.pendingComplaints > 5 && (
-              <div className="alert info">
-                <i className="fas fa-comment-alt"></i>
-                <div className="alert-content">
-                  <strong>{metrics.pendingComplaints} pending complaints</strong>
-                  <span>Customer satisfaction at risk</span>
-                </div>
-                <a href="/complaints" className="alert-action">Resolve</a>
-              </div>
-            )}
-            {metrics.failedPayments > 10 && (
-              <div className="alert secondary">
-                <i className="fas fa-credit-card"></i>
-                <div className="alert-content">
-                  <strong>{metrics.failedPayments} failed payments</strong>
-                  <span>Review payment methods</span>
-                </div>
-                <a href="/billing" className="alert-action">Review</a>
+                <span>{metrics.missedPickups.count} missed collections</span>
+                <a href="/schedules" className="alert-link">View</a>
               </div>
             )}
           </div>
         </div>
       )}
-
-      {/* System Status Footer */}
-      <div className="system-status">
-        <div className="status-item">
-          <i className="fas fa-circle online"></i>
-          <span>System Online</span>
-        </div>
-        <div className="status-item">
-          <i className="fas fa-database"></i>
-          <span>Database Connected</span>
-        </div>
-        <div className="status-item">
-          <i className="fas fa-sync-alt"></i>
-          <span>Last Updated: {new Date().toLocaleTimeString()}</span>
-        </div>
-        <div className="status-item">
-          <i className="fas fa-users"></i>
-          <span>Admin: {localStorage.getItem('username') || 'Administrator'}</span>
-        </div>
-      </div>
     </div>
   );
 };

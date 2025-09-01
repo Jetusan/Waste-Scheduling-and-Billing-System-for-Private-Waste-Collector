@@ -2,8 +2,9 @@ import * as SecureStore from 'expo-secure-store';
 
 const TOKEN_KEY = 'userToken';
 const ROLE_KEY = 'userRole';
+const USER_ID_KEY = 'userId';
 
-export async function saveAuth(token, role) {
+export async function saveAuth(token, role, userId) {
   console.log('Saving auth - token:', token ? 'present' : 'missing', 'role:', role);
   
   if (token) {
@@ -13,6 +14,11 @@ export async function saveAuth(token, role) {
   // Only save role if it's defined, otherwise save empty string
   const roleToSave = role ? String(role) : '';
   await SecureStore.setItemAsync(ROLE_KEY, roleToSave);
+
+  // Save userId if provided
+  if (userId !== undefined && userId !== null) {
+    await SecureStore.setItemAsync(USER_ID_KEY, String(userId));
+  }
 }
 
 export async function getToken() {
@@ -23,7 +29,13 @@ export async function getRole() {
   return await SecureStore.getItemAsync(ROLE_KEY);
 }
 
+export async function getUserId() {
+  const id = await SecureStore.getItemAsync(USER_ID_KEY);
+  return id ? Number(id) : null;
+}
+
 export async function logout() {
   await SecureStore.deleteItemAsync(TOKEN_KEY);
   await SecureStore.deleteItemAsync(ROLE_KEY);
+  await SecureStore.deleteItemAsync(USER_ID_KEY);
 }

@@ -15,12 +15,15 @@ const CSettings = () => {
         {/* Header with Back Button and Title */}
                 <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()}>
-            <Feather name="arrow-left" size={24} color="#333" />
+            <Text>
+              <Feather name="arrow-left" size={24} color="#333" />
+            </Text>
           </TouchableOpacity>
 
           <Text style={styles.pageTitle}>Settings</Text>
 
-          <View style={{ width: 24 }} />  {/* Invisible spacer for alignment */}
+          {/* Invisible spacer for alignment */}
+          <View style={{ width: 24 }} />  
         </View>
 
 

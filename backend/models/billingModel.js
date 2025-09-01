@@ -1,4 +1,4 @@
-const pool = require('../config/db');
+const { pool } = require('../config/db');
 
 // Subscription Plans
 const getAllSubscriptionPlans = async () => {
@@ -66,12 +66,20 @@ const getCustomerSubscriptionById = async (subscriptionId) => {
 
 const createCustomerSubscription = async (subscriptionData) => {
   const { user_id, plan_id, billing_start_date, payment_method } = subscriptionData;
+  
+  // Determine initial status based on payment method
+  const initialStatus = payment_method.toLowerCase() === 'gcash' ? 'pending_payment' : 'pending_payment';
+  const paymentStatus = 'pending';
+  
   const query = `
-    INSERT INTO customer_subscriptions (user_id, plan_id, billing_start_date, payment_method)
-    VALUES ($1, $2, $3, $4)
+    INSERT INTO customer_subscriptions (
+      user_id, plan_id, billing_start_date, payment_method, 
+      status, payment_status, subscription_created_at
+    )
+    VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)
     RETURNING *
   `;
-  const result = await pool.query(query, [user_id, plan_id, billing_start_date, payment_method]);
+  const result = await pool.query(query, [user_id, plan_id, billing_start_date, payment_method, initialStatus, paymentStatus]);
   return result.rows[0];
 };
 
@@ -91,17 +99,14 @@ const getInvoiceById = async (invoiceId) => {
   const query = `
     SELECT 
       i.*,
-      cs.subscription_id,
-      u.user_id,
       u.username,
       u.contact_number,
       sp.plan_name,
       sp.price,
       sp.frequency
     FROM invoices i
-    JOIN customer_subscriptions cs ON i.subscription_id = cs.subscription_id
-    JOIN users u ON cs.user_id = u.user_id
-    JOIN subscription_plans sp ON cs.plan_id = sp.plan_id
+    JOIN users u ON i.user_id = u.user_id
+    JOIN subscription_plans sp ON i.plan_id = sp.plan_id
     WHERE i.invoice_id = $1
   `;
   const result = await pool.query(query, [invoiceId]);
@@ -109,19 +114,27 @@ const getInvoiceById = async (invoiceId) => {
 };
 
 const createInvoice = async (invoiceData) => {
-  const { subscription_id, amount, due_date, generated_date, notes } = invoiceData;
+  const { user_id, plan_id, due_date, generated_date, notes, amount } = invoiceData;
   
   // Generate invoice number
   const invoiceNumberQuery = 'SELECT COUNT(*) + 1 as next_number FROM invoices';
   const invoiceNumberResult = await pool.query(invoiceNumberQuery);
   const invoiceNumber = `INV-${String(invoiceNumberResult.rows[0].next_number).padStart(3, '0')}`;
 
+  // Get plan price if amount not provided
+  let invoiceAmount = amount;
+  if (!invoiceAmount) {
+    const planQuery = 'SELECT price FROM subscription_plans WHERE plan_id = $1';
+    const planResult = await pool.query(planQuery, [plan_id]);
+    invoiceAmount = planResult.rows[0]?.price || 0;
+  }
+
   const query = `
-    INSERT INTO invoices (invoice_number, subscription_id, amount, due_date, generated_date, notes)
-    VALUES ($1, $2, $3, $4, $5, $6)
+    INSERT INTO invoices (invoice_number, user_id, plan_id, due_date, generated_date, notes, amount)
+    VALUES ($1, $2, $3, $4, $5, $6, $7)
     RETURNING *
   `;
-  const result = await pool.query(query, [invoiceNumber, subscription_id, amount, due_date, generated_date, notes]);
+  const result = await pool.query(query, [invoiceNumber, user_id, plan_id, due_date, generated_date, notes, invoiceAmount]);
   return result.rows[0];
 };
 
@@ -308,33 +321,88 @@ const generateMonthlyInvoices = async () => {
   return newInvoices;
 };
 
-module.exports = {
-  // Subscription Plans
-  getAllSubscriptionPlans,
-  getSubscriptionPlanById,
-  createSubscriptionPlan,
-  
-  // Customer Subscriptions
-  getAllCustomerSubscriptions,
-  getCustomerSubscriptionById,
-  createCustomerSubscription,
-  
-  // Invoices
-  getAllInvoices,
-  getInvoiceById,
-  createInvoice,
-  updateInvoiceStatus,
-  addLateFees,
-  
-  // Payments
-  getPaymentsByInvoiceId,
-  createPayment,
-  
-  // Billing History
-  getBillingHistory,
-  
-  // Auto-generation
-  generateMonthlyInvoices
+// Subscription Status Management
+const activateSubscription = async (subscriptionId, paymentData = null) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    
+    // Update subscription status to active
+    const updateSubscriptionQuery = `
+      UPDATE customer_subscriptions 
+      SET status = 'active', 
+          payment_status = 'paid',
+          payment_confirmed_at = CURRENT_TIMESTAMP,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE subscription_id = $1
+      RETURNING *
+    `;
+    const subscriptionResult = await client.query(updateSubscriptionQuery, [subscriptionId]);
+    
+    if (subscriptionResult.rows.length === 0) {
+      throw new Error('Subscription not found');
+    }
+    
+    const subscription = subscriptionResult.rows[0];
+    
+    // Update related invoice status to paid
+    const updateInvoiceQuery = `
+      UPDATE invoices 
+      SET status = 'paid', updated_at = CURRENT_TIMESTAMP
+      WHERE subscription_id = $1
+    `;
+    await client.query(updateInvoiceQuery, [subscriptionId]);
+    
+    // Create payment record if payment data provided
+    if (paymentData) {
+      const { amount, payment_method, reference_number, notes } = paymentData;
+      const createPaymentQuery = `
+        INSERT INTO payments (invoice_id, amount, payment_method, payment_date, reference_number, notes)
+        SELECT i.invoice_id, $1, $2, CURRENT_TIMESTAMP, $3, $4
+        FROM invoices i
+        WHERE i.subscription_id = $5
+        RETURNING *
+      `;
+      await client.query(createPaymentQuery, [amount, payment_method, reference_number, notes, subscriptionId]);
+    }
+    
+    await client.query('COMMIT');
+    return subscription;
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
+const getSubscriptionByUserId = async (userId) => {
+  const query = `
+    SELECT 
+      cs.*,
+      sp.plan_name,
+      sp.price,
+      sp.frequency,
+      sp.description
+    FROM customer_subscriptions cs
+    JOIN subscription_plans sp ON cs.plan_id = sp.plan_id
+    WHERE cs.user_id = $1
+    ORDER BY cs.created_at DESC
+    LIMIT 1
+  `;
+  const result = await pool.query(query, [userId]);
+  return result.rows[0];
+};
+
+const updateSubscriptionPaymentStatus = async (subscriptionId, paymentStatus) => {
+  const query = `
+    UPDATE customer_subscriptions 
+    SET payment_status = $1, updated_at = CURRENT_TIMESTAMP
+    WHERE subscription_id = $2
+    RETURNING *
+  `;
+  const result = await pool.query(query, [paymentStatus, subscriptionId]);
+  return result.rows[0];
 };
 
 // Payment Source Tracking for GCash/PayMongo
@@ -368,37 +436,76 @@ const createPaymentSource = async (sourceData) => {
 };
 
 const updatePaymentStatus = async (sourceId, status, webhookData = null) => {
-  const query = `
-    UPDATE payment_sources 
-    SET status = $1, webhook_data = $2, updated_at = CURRENT_TIMESTAMP
-    WHERE source_id = $3
-    RETURNING *
-  `;
-  
-  const result = await pool.query(query, [status, webhookData, sourceId]);
-  
-  // If payment completed, also create a payment record
-  if (status === 'completed' && result.rows.length > 0) {
-    const paymentSource = result.rows[0];
-    const paymentData = {
-      invoice_id: paymentSource.invoice_id,
-      amount: paymentSource.amount / 100, // Convert from centavos to pesos
-      payment_method: 'GCash',
-      payment_date: new Date().toISOString().split('T')[0],
-      reference_number: sourceId,
-      notes: 'Payment via GCash/PayMongo'
-    };
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
     
-    await createPayment(paymentData);
+    const query = `
+      UPDATE payment_sources 
+      SET status = $1, webhook_data = $2, updated_at = CURRENT_TIMESTAMP
+      WHERE source_id = $3
+      RETURNING *
+    `;
     
-    // Update invoice status to paid
-    await pool.query(
-      'UPDATE invoices SET status = $1 WHERE invoice_id = $2',
-      ['paid', paymentSource.invoice_id]
-    );
+    const result = await client.query(query, [status, webhookData, sourceId]);
+    
+    // If payment completed, also create a payment record and activate subscription
+    if (status === 'completed' && result.rows.length > 0) {
+      const paymentSource = result.rows[0];
+      
+      // Create payment record
+      const paymentData = {
+        invoice_id: paymentSource.invoice_id,
+        amount: paymentSource.amount / 100, // Convert from centavos to pesos
+        payment_method: 'GCash',
+        payment_date: new Date().toISOString().split('T')[0],
+        reference_number: sourceId,
+        notes: 'Payment via GCash/PayMongo'
+      };
+      
+      const createPaymentQuery = `
+        INSERT INTO payments (invoice_id, amount, payment_method, payment_date, reference_number, notes)
+        VALUES ($1, $2, $3, $4, $5, $6)
+        RETURNING *
+      `;
+      await client.query(createPaymentQuery, [
+        paymentData.invoice_id, 
+        paymentData.amount, 
+        paymentData.payment_method, 
+        paymentData.payment_date, 
+        paymentData.reference_number, 
+        paymentData.notes
+      ]);
+      
+      // Update invoice status to paid
+      await client.query(
+        'UPDATE invoices SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE invoice_id = $2',
+        ['paid', paymentSource.invoice_id]
+      );
+      
+      // Activate the subscription
+      const activateSubscriptionQuery = `
+        UPDATE customer_subscriptions 
+        SET status = 'active', 
+            payment_status = 'paid',
+            payment_confirmed_at = CURRENT_TIMESTAMP,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE subscription_id = (
+          SELECT subscription_id FROM invoices WHERE invoice_id = $1
+        )
+        RETURNING *
+      `;
+      await client.query(activateSubscriptionQuery, [paymentSource.invoice_id]);
+    }
+    
+    await client.query('COMMIT');
+    return result.rows[0];
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
   }
-  
-  return result.rows[0];
 };
 
 const getPaymentStatus = async (sourceId) => {
@@ -418,6 +525,32 @@ const getPaymentSourceById = async (sourceId) => {
   return result.rows[0];
 };
 
+// Get pending cash subscriptions for collectors
+const getPendingCashSubscriptions = async () => {
+  const query = `
+    SELECT 
+      cs.subscription_id,
+      cs.payment_method,
+      cs.subscription_created_at,
+      u.user_id,
+      u.username as resident_name,
+      u.contact_number,
+      u.email,
+      sp.plan_name,
+      sp.price,
+      'Address not provided' as address
+    FROM customer_subscriptions cs
+    JOIN users u ON cs.user_id = u.user_id
+    JOIN subscription_plans sp ON cs.plan_id = sp.plan_id
+    WHERE cs.status = 'pending_payment' 
+    AND cs.payment_status = 'pending'
+    AND LOWER(cs.payment_method) = 'cash'
+    ORDER BY cs.subscription_created_at ASC
+  `;
+  const result = await pool.query(query);
+  return result.rows;
+};
+
 module.exports = {
   // Subscription Plans
   getAllSubscriptionPlans,
@@ -428,6 +561,9 @@ module.exports = {
   getAllCustomerSubscriptions,
   getCustomerSubscriptionById,
   createCustomerSubscription,
+  activateSubscription,
+  getSubscriptionByUserId,
+  updateSubscriptionPaymentStatus,
   
   // Invoices
   getAllInvoices,
@@ -450,5 +586,8 @@ module.exports = {
   createPaymentSource,
   updatePaymentStatus,
   getPaymentStatus,
-  getPaymentSourceById
-}; 
+  getPaymentSourceById,
+  
+  // Cash Payment Management
+  getPendingCashSubscriptions
+};

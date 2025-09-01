@@ -12,6 +12,7 @@ export default function HomePage() {
   const [error, setError] = useState(null);
   const [userName, setUserName] = useState('');
   const [userBarangay, setUserBarangay] = useState('');
+  const [hasHomeLocation, setHasHomeLocation] = useState(null); // null=unknown, true/false once fetched
 
   useEffect(() => {
     // Fetch schedules
@@ -66,6 +67,35 @@ export default function HomePage() {
       }
     };
     fetchProfile();
+  }, []);
+
+  useEffect(() => {
+    // Check if user has a pinned home location
+    const fetchHomeLocation = async () => {
+      try {
+        const token = await getToken();
+        if (!token) {
+          setHasHomeLocation(false);
+          return;
+        }
+        const res = await fetch(`${API_BASE_URL}/api/residents/me/home-location`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.status === 404) {
+          setHasHomeLocation(false);
+          return;
+        }
+        if (!res.ok) {
+          // Keep it unknown on transient errors
+          setHasHomeLocation(null);
+          return;
+        }
+        setHasHomeLocation(true);
+      } catch {
+        setHasHomeLocation(null);
+      }
+    };
+    fetchHomeLocation();
   }, []);
 
   useEffect(() => {
@@ -141,7 +171,13 @@ export default function HomePage() {
           style={styles.profileImage}
           source={{ uri: 'https://via.placeholder.com/50' }} // Replace with actual image URL
         />
-        <Ionicons name="settings-outline" size={28} color="black" style={styles.settingsIcon} />
+        <Ionicons
+          name="settings-outline"
+          size={28}
+          color="black"
+          style={styles.settingsIcon}
+          onPress={() => router.push('/SetHomeLocation')}
+        />
       </View>
 
       <ScrollView 
@@ -167,6 +203,17 @@ export default function HomePage() {
       {/* Upcoming Schedule Section */}
       <View style={styles.scheduleSection}>
         <Text style={styles.servicesTitle}>Upcoming Collection Schedule</Text>
+        {/* Inline prompt: show only if user has no pinned home location */}
+        {!loading && !error && hasHomeLocation === false && (
+          <View style={styles.locationCard}>
+            <Text style={styles.locationTitle}>Set your home location to get accurate collection schedules</Text>
+            <Text style={styles.locationSubtitle}>Please pin your location so we can show schedules for your area.</Text>
+            <Pressable style={styles.ctaButton} onPress={() => router.push('/SetHomeLocation')}>
+              <Ionicons name="location-outline" size={18} color="#fff" />
+              <Text style={styles.ctaText}>Set Home Location</Text>
+            </Pressable>
+          </View>
+        )}
         {loading ? (
           <ActivityIndicator size="small" color="#4CD964" style={{ marginVertical: 10 }} />
         ) : error ? (
@@ -224,14 +271,14 @@ export default function HomePage() {
         {/* Removed Schedule button */}
         <Pressable 
           style={styles.serviceButton}
-          onPress={() => router.push('spickup')}
+          onPress={() => router.push('/spickup')}
         >
           <Ionicons name="add-circle-outline" size={32} color="#4CD964" />
           <Text style={styles.serviceText}>Special Pickup</Text>
         </Pressable>
         <Pressable 
             style={styles.serviceButton}
-            onPress={() => router.push('Subscription')}
+            onPress={() => router.push('/Subscription')}
           >
             <Ionicons name="pricetag-outline" size={32} color="#4CD964" />
             <Text style={styles.serviceText}>Subscriptions</Text>
@@ -368,6 +415,40 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#666',
     fontStyle: 'italic',
+  },
+  locationCard: {
+    borderWidth: 1,
+    borderColor: '#D1FAE5',
+    backgroundColor: '#F0FFF4',
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 10,
+  },
+  locationTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#065F46',
+  },
+  locationSubtitle: {
+    marginTop: 4,
+    fontSize: 12,
+    color: '#047857',
+  },
+  ctaButton: {
+    marginTop: 10,
+    backgroundColor: '#4CD964',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  ctaText: {
+    color: '#fff',
+    fontWeight: '700',
+    marginLeft: 6,
   },
   seeAllBtn: {
     alignSelf: 'flex-end',

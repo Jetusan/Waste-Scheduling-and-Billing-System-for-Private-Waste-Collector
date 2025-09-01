@@ -5,11 +5,6 @@ import { useRouter } from 'expo-router';
 export default function RoleScreen() {
   const router = useRouter();
 
-  const handleResidentPress = () => {
-    console.log('Navigating to RLogin');
-    router.push('./RLogin');  // Using relative path
-  };
-
   return (
     <View style={[globalStyles.container, styles.container]}>
       <Pressable 
@@ -24,7 +19,7 @@ export default function RoleScreen() {
       <View style={styles.buttonContainer}> 
         <Pressable 
           style={styles.roleButton} 
-          onPress={() => router.push('RLogin')}
+          onPress={() => router.push('/RLogin')}
         >
           <Text style={styles.buttonText}>Resident(Subscriber)</Text>
         </Pressable>

@@ -44,7 +44,20 @@ const LoginScreen = () => {
       });
       const data = await response.json();
       console.log('Enhanced login API response:', data);
-      
+
+      // Handle pending/rejected for residents only (backend sends 403 + code)
+      if (!response.ok) {
+        if (response.status === 403 && data && data.code === 'PENDING_APPROVAL') {
+          Alert.alert('Pending Approval', 'Your account is pending admin approval. Please try again later.');
+          return;
+        }
+        if (response.status === 403 && data && data.code === 'REJECTED') {
+          const reason = data.rejection_reason ? `\nReason: ${data.rejection_reason}` : '';
+          Alert.alert('Registration Rejected', `Your registration was rejected.${reason}`);
+          return;
+        }
+      }
+
       if (data.success && data.user) {
         console.log('Before saveAuth');
         try {
@@ -101,10 +114,10 @@ const LoginScreen = () => {
 
         <Text style={styles.title}>Resident Login</Text>
 
-        <Text style={styles.label}>Username</Text>
+        <Text style={styles.label}>Username or Email</Text>
         <TextInput
           style={styles.input}
-          placeholder="Enter your username"
+          placeholder="Enter your username or email"
           value={username}
           onChangeText={setUsername}
           autoCapitalize="none"

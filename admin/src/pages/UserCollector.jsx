@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import '../styles/UsersCollectors.css';
 import axios from 'axios';
 
@@ -6,6 +7,11 @@ const UsersCollectors = () => {
   const [activeTab, setActiveTab] = useState('subscribers');
   const [allUsers, setAllUsers] = useState([]);
   const [trucks, setTrucks] = useState([]);
+  const [pendingResidents, setPendingResidents] = useState([]);
+  const [pendingError, setPendingError] = useState('');
+  const [pendingLoading, setPendingLoading] = useState(false);
+  const [actingOnId, setActingOnId] = useState(null);
+  const [residentView, setResidentView] = useState('list'); // 'list' | 'pending'
   const [showAddCollectorModal, setShowAddCollectorModal] = useState(false);
   const [newCollector, setNewCollector] = useState({ 
     firstName: '',
@@ -13,18 +19,17 @@ const UsersCollectors = () => {
     lastName: '',
     username: '', 
     contact_number: '', 
-    email: '',
     street: '',
     houseNumber: '',
     purok: '',
     barangay: '',
     city: 'General Santos City',
-    landmark: '',
     license_number: '', 
     license_expiry_date: '',
     truck_id: '', 
     status: 'active', 
-    password: '' 
+    password: '',
+    confirmPassword: ''
   });
   const [showAddTruckModal, setShowAddTruckModal] = useState(false);
   const [newTruck, setNewTruck] = useState({ truck_number: '', plate_number: '', status: 'active' });
@@ -35,22 +40,125 @@ const UsersCollectors = () => {
   const [editingUser, setEditingUser] = useState(null);
   const [isEditTruckModalOpen, setIsEditTruckModalOpen] = useState(false);
   const [editingTruck, setEditingTruck] = useState(null);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState(null);
   
+  // Helper to normalize proof image URL coming from backend
+  const getProofUrl = (url) => {
+    try {
+      if (!url) return null;
+      // Normalize any Windows backslashes to forward slashes
+      const cleaned = String(url).replace(/\\\\/g, '/').replace(/\\/g, '/');
+      // If already absolute, return as-is
+      if (/^https?:\/\//i.test(cleaned)) return cleaned;
+      // Ensure leading slash then prefix backend origin
+      const withSlash = cleaned.startsWith('/') ? cleaned : `/${cleaned}`;
+      return `http://localhost:5000${withSlash}`;
+    } catch (_) {
+      return null;
+    }
+  };
+
   // Barangay state for collector registration
   const [barangays, setBarangays] = useState([]);
   const [barangayLoading, setBarangayLoading] = useState(false);
   
   // Submission loading state to prevent double submissions
   const [isSubmittingCollector, setIsSubmittingCollector] = useState(false);
+  // Wizard step and password strength (collector modal)
+  const [currentCollectorStep, setCurrentCollectorStep] = useState(1); // 1..3
+  const [passwordStrength, setPasswordStrength] = useState(0); // 0-5
+
+  // Password strength helper
+  const calculatePasswordStrength = (pw) => {
+    if (!pw) return 0;
+    let s = 0;
+    if (pw.length >= 8) s++;
+    if (/[a-z]/.test(pw)) s++;
+    if (/[A-Z]/.test(pw)) s++;
+    if (/\d/.test(pw)) s++;
+    if (/[^A-Za-z0-9]/.test(pw)) s++;
+    return s;
+  };
+
+  // Step validators
+  const validateCollectorStep1 = () => {
+    if (!newCollector.firstName || newCollector.firstName.trim().length < 2) return 'First name is required (min 2 chars)';
+    if (!newCollector.lastName || newCollector.lastName.trim().length < 2) return 'Last name is required (min 2 chars)';
+    if (!newCollector.username || newCollector.username.trim().length < 4) return 'Username must be at least 4 characters';
+    if (!newCollector.contact_number || !/^((09|\+639)\d{9})$/.test(newCollector.contact_number.trim())) return 'Please enter a valid Philippine contact number';
+    return null;
+  };
+
+  const validateCollectorStep2 = () => {
+    if (!newCollector.barangay) return 'Please select a barangay';
+    if (!newCollector.street || newCollector.street.trim().length < 2) return 'Street is required';
+    return null;
+  };
+
+  const validateCollectorStep3 = () => {
+    if (!newCollector.password || newCollector.password.length < 8) return 'Password must be at least 8 characters';
+    if (passwordStrength < 2) return 'Password is too weak';
+    if (newCollector.password !== newCollector.confirmPassword) return 'Passwords do not match';
+    if (!newCollector.license_number || newCollector.license_number.trim().length < 3) return 'License number is required';
+    if (!newCollector.truck_id) return 'Please select a truck';
+    if (!newCollector.status) return 'Please select status';
+    return null;
+  };
+
+  const handleNextCollectorStep = () => {
+    const validators = [validateCollectorStep1, validateCollectorStep2, validateCollectorStep3];
+    const idx = currentCollectorStep - 1;
+    const err = validators[idx]();
+    if (err) {
+      alert(err);
+      return;
+    }
+    setCurrentCollectorStep(Math.min(3, currentCollectorStep + 1));
+  };
+
+  const handlePrevCollectorStep = () => {
+    setCurrentCollectorStep(Math.max(1, currentCollectorStep - 1));
+  };
+
+  // Router
+  const navigate = useNavigate();
+
+  // Helper to produce detailed error messages for Axios
+  const formatAxiosError = (err, context = 'Request failed') => {
+    try {
+      const status = err?.response?.status;
+      const statusText = err?.response?.statusText;
+      const data = err?.response?.data;
+      const method = err?.config?.method?.toUpperCase();
+      const url = err?.config?.url;
+      const body = data ? (typeof data === 'string' ? data : JSON.stringify(data)) : undefined;
+      const lines = [];
+      lines.push(`${context}`);
+      if (method || url) lines.push(`Endpoint: ${method || 'GET'} ${url || ''}`.trim());
+      if (status) lines.push(`Status: ${status}${statusText ? ' ' + statusText : ''}`);
+      if (body) lines.push(`Response: ${body}`);
+      if (!status && err?.message) lines.push(`Message: ${err.message}`);
+      return lines.join('\n');
+    } catch (_) {
+      return context;
+    }
+  };
 
   useEffect(() => {
     console.log('Tab changed to:', activeTab);
     if (activeTab === 'trucks') {
       fetchTrucks();
+    } else if (activeTab === 'subscribers') {
+      if (residentView === 'pending') {
+        fetchPendingResidents();
+      } else {
+        fetchData();
+      }
     } else {
       fetchData();
     }
-  }, [activeTab]);
+  }, [activeTab, residentView]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -58,28 +166,35 @@ const UsersCollectors = () => {
     try {
       if (activeTab === 'subscribers') {
         console.log('Fetching residents data...');
-        const { data } = await axios.get('http://localhost:5000/api/residents');
+        const endpoint = 'http://localhost:5000/api/residents';
+        const { data } = await axios.get(endpoint);
         console.log('Received residents data:', data);
-        const normalized = data.map(u => ({
-          resident_id: u.resident_id,
-          user_id: u.user_id,
-          full_name: `${u.first_name || ''} ${u.middle_name ? u.middle_name + ' ' : ''}${u.last_name || ''}`.trim(),
-          first_name: u.first_name || '',
-          middle_name: u.middle_name || '',
-          last_name: u.last_name || '',
-          contact_number: u.contact_number || '',
-          street: u.street || '',
-          barangay: u.barangay_name || '',
-          city: u.city_name || '',
-          subscription_status: u.subscription_status || 'inactive',
-          joined: u.created_at,
-          updated: u.updated_at
-        }));
+        const normalized = data
+          .filter(u => u.approval_status !== 'pending') // Filter out pending residents
+          .map(u => ({
+            resident_id: u.resident_id || u.user_id,
+            user_id: u.user_id,
+            full_name: `${u.first_name || ''} ${u.middle_name ? u.middle_name + ' ' : ''}${u.last_name || ''}`.trim(),
+            first_name: u.first_name || '',
+            middle_name: u.middle_name || '',
+            last_name: u.last_name || '',
+            username: u.username || '',
+            email: u.email || '',
+            contact_number: u.contact_number || '',
+            street: u.street || '',
+            barangay: u.barangay_name || u.barangay || '',
+            city: u.city_name || u.city || 'General Santos City',
+            subscription_status: u.subscription_status || 'inactive',
+            approval_status: u.approval_status || 'approved', // Default to approved if not set
+            joined: u.created_at,
+            updated: u.updated_at
+          }));
         console.log('Normalized residents data:', normalized);
         setAllUsers(normalized);
       } else {
         console.log('Fetching collectors data...');
-        const { data } = await axios.get('http://localhost:5000/api/collectors');
+        const endpoint = 'http://localhost:5000/api/collectors';
+        const { data } = await axios.get(endpoint);
         console.log('Received collectors data:', data);
         const normalized = data.map(u => ({
           ...u, // keep all fields from backend
@@ -93,7 +208,7 @@ const UsersCollectors = () => {
       }
     } catch (err) {
       console.error('Error fetching data:', err);
-      setError('Failed to load data. Please try again.');
+      setError(formatAxiosError(err, 'Failed to load data.'));
       setAllUsers([]);
     } finally {
       setLoading(false);
@@ -111,6 +226,87 @@ const UsersCollectors = () => {
       setTrucks([]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Fetch pending residents (admin-only endpoint, include token if present)
+  const fetchPendingResidents = async () => {
+    setPendingLoading(true);
+    setPendingError('');
+    try {
+      const token = localStorage.getItem('adminToken') || localStorage.getItem('token');
+      if (!token) {
+        setPendingError('Admin login required. Redirecting to login...');
+        setPendingResidents([]);
+        const redirect = '/admin/operations/subscribers?view=pending';
+        navigate(`/login?redirect=${encodeURIComponent(redirect)}`);
+        return;
+      }
+      const headers = { Authorization: `Bearer ${token}` };
+      const endpoint = 'http://localhost:5000/api/residents/pending';
+      const { data } = await axios.get(endpoint, { headers });
+      if (data && data.success) {
+        setPendingResidents(data.users || []);
+      } else {
+        setPendingResidents([]);
+        setPendingError(data?.message || 'Failed to load pending residents.');
+      }
+    } catch (err) {
+      console.error('Error fetching pending residents:', err);
+      const status = err?.response?.status;
+      if (status === 401 || status === 403) {
+        // Clear any bad token and prompt login
+        localStorage.removeItem('adminToken');
+        setPendingError('Session expired or unauthorized. Redirecting to login...');
+        const redirect = '/admin/operations/subscribers?view=pending';
+        navigate(`/login?redirect=${encodeURIComponent(redirect)}`);
+      } else {
+        setPendingError(formatAxiosError(err, 'Failed to load pending residents.'));
+      }
+      setPendingResidents([]);
+    } finally {
+      setPendingLoading(false);
+    }
+  };
+
+  const approveResident = async (userId) => {
+    if (!userId) return;
+    try {
+      setActingOnId(userId);
+      const token = localStorage.getItem('adminToken') || localStorage.getItem('token');
+      const headers = token ? { Authorization: `Bearer ${token}` } : {};
+      const endpoint = `http://localhost:5000/api/residents/${userId}/approve`;
+      const { data } = await axios.post(endpoint, { accept: true }, { headers });
+      if (!data?.success) {
+        alert(`Approve failed\n${data?.message || ''}`.trim());
+      }
+      await fetchPendingResidents();
+    } catch (err) {
+      console.error('Approve error:', err);
+      alert(formatAxiosError(err, 'Failed to approve resident.'));
+    } finally {
+      setActingOnId(null);
+    }
+  };
+
+  const rejectResident = async (userId) => {
+    if (!userId) return;
+    const reason = window.prompt('Enter rejection reason (optional):') || '';
+    try {
+      setActingOnId(userId);
+      const token = localStorage.getItem('adminToken') || localStorage.getItem('token');
+      const headers = token ? { Authorization: `Bearer ${token}` } : {};
+      const endpoint = `http://localhost:5000/api/residents/${userId}/approve`;
+      const { data } = await axios.post(endpoint, { accept: false, reason }, { headers });
+      if (!data?.success) {
+        alert(`Reject failed\n${data?.message || ''}`.trim());
+      }
+      await fetchPendingResidents();
+    } catch (err) {
+      console.error('Reject error:', err);
+      alert(formatAxiosError(err, 'Failed to reject resident.'));
+    } finally {
+      setActingOnId(null);
     }
   };
 
@@ -196,20 +392,25 @@ const UsersCollectors = () => {
 
   const handleAddCollector = async (e) => {
     e.preventDefault();
-    
-    // Prevent double submission
-    if (isSubmittingCollector) {
-      console.log('⚠️ Submission already in progress, ignoring duplicate request');
-      return;
+
+    // Run all validators before submit
+    const validators = [validateCollectorStep1, validateCollectorStep2, validateCollectorStep3];
+    for (let i = 0; i < validators.length; i++) {
+      const err = validators[i]();
+      if (err) {
+        alert(err);
+        setCurrentCollectorStep(i + 1);
+        return;
+      }
     }
-    
+
+    if (isSubmittingCollector) return;
     setIsSubmittingCollector(true);
-    setError(''); // Clear any previous errors
-    
+    setError('');
+
     try {
       console.log('🚀 Starting collector registration...');
-      
-      // Prepare the registration data to match the mobile app format
+
       const registrationData = {
         firstName: newCollector.firstName.trim(),
         middleName: newCollector.middleName.trim() || null,
@@ -217,29 +418,24 @@ const UsersCollectors = () => {
         username: newCollector.username.trim(),
         contactNumber: newCollector.contact_number.trim(),
         password: newCollector.password,
-        confirmPassword: newCollector.password,
         city: newCollector.city,
         barangay: newCollector.barangay.trim(),
         street: newCollector.street.trim(),
         houseNumber: newCollector.houseNumber.trim() || null,
         purok: newCollector.purok.trim() || null,
-        landmark: newCollector.landmark.trim() || null,
-        email: newCollector.email.trim() || null,
-        // Collector-specific fields
+        
         license_number: newCollector.license_number.trim(),
         license_expiry_date: newCollector.license_expiry_date || null,
-        truck_id: Number(newCollector.truck_id),
+        truck_id: newCollector.truck_id ? Number(newCollector.truck_id) : null,
         status: newCollector.status,
-        role: 'collector' // Specify role as collector
+        role: 'collector'
       };
 
       console.log('📝 Registration data prepared:', { username: registrationData.username });
+      const resp = await axios.post('http://localhost:5000/api/collectors/register-optimized', registrationData);
+      console.log('✅ Collector added:', resp.data);
 
-      // Use the same registration endpoint as mobile app but for collectors
-      const response = await axios.post('http://localhost:5000/api/collectors/register-optimized', registrationData);
-      
-      console.log('✅ Collector registered successfully:', response.data);
-      
+      // Reset
       setShowAddCollectorModal(false);
       setNewCollector({ 
         firstName: '',
@@ -247,7 +443,6 @@ const UsersCollectors = () => {
         lastName: '',
         username: '', 
         contact_number: '', 
-        email: '',
         street: '',
         houseNumber: '',
         purok: '',
@@ -258,12 +453,16 @@ const UsersCollectors = () => {
         license_expiry_date: '',
         truck_id: '', 
         status: 'active', 
-        password: '' 
+        password: '',
+        confirmPassword: ''
       });
+      setCurrentCollectorStep(1);
       await fetchData();
     } catch (err) {
-      console.error('❌ Error adding collector:', err);
-      setError(err.response?.data?.error || err.response?.data?.message || 'Failed to add collector.');
+      console.error('Error adding collector:', err);
+      const msg = err?.response?.data?.message || err?.response?.data?.error || 'Failed to add collector.';
+      setError(msg);
+      alert(msg);
     } finally {
       setIsSubmittingCollector(false);
     }
@@ -300,6 +499,7 @@ const UsersCollectors = () => {
     } finally {
       setBarangayLoading(false);
     }
+    setCurrentCollectorStep(1);
     setShowAddCollectorModal(true);
   };
 
@@ -413,44 +613,145 @@ const UsersCollectors = () => {
       ) : (
         <>
           {activeTab === 'subscribers' && (
-            <div className="table-container">
-              <table className="users-table">
-                <thead>
-                  <tr>
-                    <th>Name</th>
-                    <th>Contact #</th>
-                    <th>Street</th>
-                    <th>Barangay</th>
-                    <th>City</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
-                  <tbody>
-                    {filteredUsers.length === 0 ? (
-                      <tr>
-                        <td colSpan={6} className="no-data">
-                          No residents found
-                        </td>
-                      </tr>
-                    ) : (
-                      filteredUsers.map(u => (
-                        <tr key={u.user_id}>
-                          <td>{u.full_name}</td>
-                          <td>{u.contact_number}</td>
-                          <td>{u.street}</td>
-                          <td>{u.barangay}</td>
-                          <td>{u.city}</td>
-                          <td>
-                            <span className={`status ${(u.subscription_status || 'inactive').toLowerCase()}`}>
-                              {u.subscription_status || 'Inactive'}
-                            </span>
-                          </td>
+            <>
+              <div style={{ marginBottom: '10px', display: 'flex', gap: '8px' }}>
+                <button
+                  className={`toggle-btn ${residentView === 'list' ? 'active' : ''}`}
+                  onClick={() => setResidentView('list')}
+                >
+                  List of Residents
+                </button>
+                <button
+                  className={`toggle-btn ${residentView === 'pending' ? 'active' : ''}`}
+                  onClick={() => setResidentView('pending')}
+                >
+                  Pending
+                </button>
+              </div>
+              {residentView === 'list' ? (
+                <div className="table-container">
+                  {loading ? (
+                    <div className="loading">Loading...</div>
+                  ) : (
+                    <table className="users-table">
+                      <thead>
+                        <tr>
+                          <th>Name</th>
+                          <th>Contact #</th>
+                          <th>Street</th>
+                          <th>Barangay</th>
+                          <th>City</th>
+                          <th>Status</th>
                         </tr>
-                      ))
-                    )}
-                  </tbody>
-              </table>
-            </div>
+                      </thead>
+                      <tbody>
+                        {filteredUsers.length === 0 ? (
+                          <tr>
+                            <td colSpan={6} className="no-data">No residents found</td>
+                          </tr>
+                        ) : (
+                          filteredUsers.map(u => (
+                            <tr key={u.user_id}>
+                              <td>{u.full_name}</td>
+                              <td>{u.contact_number}</td>
+                              <td>{u.street}</td>
+                              <td>{u.barangay}</td>
+                              <td>{u.city}</td>
+                              <td>
+                                <span className={`status ${(u.subscription_status || 'inactive').toLowerCase()}`}>
+                                  {u.subscription_status || 'Inactive'}
+                                </span>
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              ) : (
+                <div className="table-container">
+                  {pendingError && <div className="error-message">{pendingError}</div>}
+                  {pendingLoading ? (
+                    <div className="loading">Loading pending residents...</div>
+                  ) : (
+                    <table className="users-table">
+                      <thead>
+                        <tr>
+                          <th>Proof</th>
+                          <th>Name</th>
+                          <th>Username</th>
+                          <th>Contact</th>
+                          <th>Address</th>
+                          <th>Joined</th>
+                          <th>Action</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {pendingResidents.length === 0 ? (
+                          <tr>
+                            <td colSpan={7} className="no-data">No pending residents</td>
+                          </tr>
+                        ) : (
+                          pendingResidents.map(u => (
+                            <tr key={u.user_id}>
+                              <td>
+                                {u.validation_image_url ? (
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                    <img
+                                      src={getProofUrl(u.validation_image_url)}
+                                      alt="proof"
+                                      style={{ width: 60, height: 60, objectFit: 'cover', borderRadius: 6, cursor: 'pointer', border: '1px solid #ddd' }}
+                                      onClick={() => { setPreviewUrl(getProofUrl(u.validation_image_url)); setIsPreviewOpen(true); }}
+                                      onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                                    />
+                                    <button
+                                      type="button"
+                                      className="action-btn edit"
+                                      onClick={() => { setPreviewUrl(getProofUrl(u.validation_image_url)); setIsPreviewOpen(true); }}
+                                      title="View proof"
+                                    >
+                                      View
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <span>N/A</span>
+                                )}
+                              </td>
+                              <td>{[u.first_name, u.middle_name, u.last_name].filter(Boolean).join(' ')}</td>
+                              <td>{u.username}</td>
+                              <td>{u.contact_number || '—'}</td>
+                              <td>{u.full_address || [u.block, u.lot, u.subdivision, u.street, u.city_municipality].filter(Boolean).join(', ')}</td>
+                              <td>{u.created_at ? new Date(u.created_at).toLocaleString() : ''}</td>
+                              <td>
+                                <div className="action-buttons">
+                                  <button
+                                    className="action-btn edit"
+                                    onClick={() => approveResident(u.user_id)}
+                                    disabled={actingOnId === u.user_id}
+                                    title="Approve"
+                                  >
+                                    {actingOnId === u.user_id ? 'Approving...' : 'Approve'}
+                                  </button>
+                                  <button
+                                    className="action-btn delete"
+                                    onClick={() => rejectResident(u.user_id)}
+                                    disabled={actingOnId === u.user_id}
+                                    title="Reject"
+                                  >
+                                    {actingOnId === u.user_id ? 'Rejecting...' : 'Reject'}
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              )}
+            </>
           )}
           {activeTab === 'collectors' && (
             <>
@@ -519,104 +820,117 @@ const UsersCollectors = () => {
               )}
               {showAddCollectorModal && (
                 <div className="modal-overlay">
-                  <div className="modal simple-modal" style={{ maxWidth: '600px', maxHeight: '80vh', overflow: 'auto' }}>
-                    <h3>Add Collector</h3>
+                  <div className="modal simple-modal" style={{ maxWidth: '640px', maxHeight: '85vh', overflow: 'auto' }}>
+                    <h3 style={{ marginBottom: 8 }}>Add Collector</h3>
+                    {/* Stepper */}
+                    <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+                      {[1,2,3].map(s => (
+                        <div key={s} style={{ flex: 1, height: 6, borderRadius: 4, background: s <= currentCollectorStep ? '#2c7be5' : '#e5e7eb' }} />
+                      ))}
+                    </div>
                     <form onSubmit={handleAddCollector}>
-                      {/* Personal Information */}
-                      <div style={{ marginBottom: '20px', borderBottom: '1px solid #eee', paddingBottom: '15px' }}>
-                        <h4 style={{ margin: '0 0 15px 0', color: '#666' }}>Personal Information</h4>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
-                          <div>
-                            <label>First Name *</label>
-                            <input type="text" value={newCollector.firstName} onChange={e => setNewCollector({ ...newCollector, firstName: e.target.value })} required />
+                      {currentCollectorStep === 1 && (
+                        <div style={{ marginBottom: 12 }}>
+                          <h4 style={{ margin: '0 0 12px 0', color: '#666' }}>Personal & Account</h4>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                            <div>
+                              <label>First Name *</label>
+                              <input type="text" value={newCollector.firstName} onChange={e => setNewCollector({ ...newCollector, firstName: e.target.value })} />
+                            </div>
+                            <div>
+                              <label>Last Name *</label>
+                              <input type="text" value={newCollector.lastName} onChange={e => setNewCollector({ ...newCollector, lastName: e.target.value })} />
+                            </div>
                           </div>
-                          <div>
-                            <label>Last Name *</label>
-                            <input type="text" value={newCollector.lastName} onChange={e => setNewCollector({ ...newCollector, lastName: e.target.value })} required />
-                          </div>
-                        </div>
-                        <label>Middle Name</label>
-                        <input type="text" value={newCollector.middleName} onChange={e => setNewCollector({ ...newCollector, middleName: e.target.value })} />
-                      </div>
+                          <label>Middle Name</label>
+                          <input type="text" value={newCollector.middleName} onChange={e => setNewCollector({ ...newCollector, middleName: e.target.value })} />
 
-                      {/* Account Information */}
-                      <div style={{ marginBottom: '20px', borderBottom: '1px solid #eee', paddingBottom: '15px' }}>
-                        <h4 style={{ margin: '0 0 15px 0', color: '#666' }}>Account Information</h4>
-                        <label>Username *</label>
-                        <input type="text" value={newCollector.username} onChange={e => setNewCollector({ ...newCollector, username: e.target.value })} required />
-                        <label>Password *</label>
-                        <input type="password" value={newCollector.password} onChange={e => setNewCollector({ ...newCollector, password: e.target.value })} required />
-                        <label>Contact Number *</label>
-                        <input type="text" value={newCollector.contact_number} onChange={e => setNewCollector({ ...newCollector, contact_number: e.target.value })} required placeholder="e.g., 09123456789" />
-                        <label>Email</label>
-                        <input type="email" value={newCollector.email} onChange={e => setNewCollector({ ...newCollector, email: e.target.value })} placeholder="optional" />
-                      </div>
+                          <label>Username *</label>
+                          <input type="text" value={newCollector.username} onChange={e => setNewCollector({ ...newCollector, username: e.target.value })} />
 
-                      {/* Address Information */}
-                      <div style={{ marginBottom: '20px', borderBottom: '1px solid #eee', paddingBottom: '15px' }}>
-                        <h4 style={{ margin: '0 0 15px 0', color: '#666' }}>Address Information</h4>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
-                          <div>
-                            <label>House Number</label>
-                            <input type="text" value={newCollector.houseNumber} onChange={e => setNewCollector({ ...newCollector, houseNumber: e.target.value })} placeholder="e.g., 123, Block 5" />
-                          </div>
-                          <div>
-                            <label>Purok/Subdivision</label>
-                            <input type="text" value={newCollector.purok} onChange={e => setNewCollector({ ...newCollector, purok: e.target.value })} placeholder="e.g., Purok 1" />
-                          </div>
+                          <label>Contact Number *</label>
+                          <input type="text" value={newCollector.contact_number} onChange={e => setNewCollector({ ...newCollector, contact_number: e.target.value })} placeholder="e.g., 09123456789" />
                         </div>
-                        <label>Street Address *</label>
-                        <input type="text" value={newCollector.street} onChange={e => setNewCollector({ ...newCollector, street: e.target.value })} required placeholder="e.g., Maharlika Street" />
-                        <label>Barangay *</label>
-                        {barangayLoading ? (
-                          <input type="text" value="Loading barangays..." disabled />
-                        ) : (
-                          <select value={newCollector.barangay} onChange={e => setNewCollector({ ...newCollector, barangay: e.target.value })} required>
-                            <option value="">Select Barangay</option>
-                            {barangays.map(barangay => (
-                              <option key={barangay.barangay_id} value={barangay.barangay_name}>{barangay.barangay_name}</option>
+                      )}
+
+                      {currentCollectorStep === 2 && (
+                        <div style={{ marginBottom: 12 }}>
+                          <h4 style={{ margin: '0 0 12px 0', color: '#666' }}>Address</h4>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                            <div>
+                              <label>House Number</label>
+                              <input type="text" value={newCollector.houseNumber} onChange={e => setNewCollector({ ...newCollector, houseNumber: e.target.value })} placeholder="e.g., 123, Block 5" />
+                            </div>
+                            <div>
+                              <label>Purok/Subdivision</label>
+                              <input type="text" value={newCollector.purok} onChange={e => setNewCollector({ ...newCollector, purok: e.target.value })} placeholder="e.g., Purok 1" />
+                            </div>
+                          </div>
+                          <label>Street Address *</label>
+                          <input type="text" value={newCollector.street} onChange={e => setNewCollector({ ...newCollector, street: e.target.value })} placeholder="e.g., Maharlika Street" />
+                          <label>Barangay *</label>
+                          {barangayLoading ? (
+                            <input type="text" value="Loading barangays..." disabled />
+                          ) : (
+                            <select value={newCollector.barangay} onChange={e => setNewCollector({ ...newCollector, barangay: e.target.value })}>
+                              <option value="">Select Barangay</option>
+                              {barangays.map(barangay => (
+                                <option key={barangay.barangay_id} value={barangay.barangay_name}>{barangay.barangay_name}</option>
+                              ))}
+                            </select>
+                          )}
+                          <label>City</label>
+                          <input type="text" value={newCollector.city} onChange={e => setNewCollector({ ...newCollector, city: e.target.value })} disabled style={{ backgroundColor: '#f5f5f5' }} />
+                        </div>
+                      )}
+
+                      {currentCollectorStep === 3 && (
+                        <div style={{ marginBottom: 12 }}>
+                          <h4 style={{ margin: '0 0 12px 0', color: '#666' }}>Security & Work</h4>
+                          <label>Password *</label>
+                          <input type="password" value={newCollector.password} onChange={e => { const v = e.target.value; setNewCollector({ ...newCollector, password: v }); setPasswordStrength(calculatePasswordStrength(v)); }} />
+                          <div style={{ height: 6, borderRadius: 4, background: '#e5e7eb', margin: '6px 0 10px 0' }}>
+                            <div style={{ height: '100%', width: `${(passwordStrength/5)*100}%`, background: passwordStrength >= 3 ? '#16a34a' : '#f59e0b', borderRadius: 4 }} />
+                          </div>
+                          <label>Confirm Password *</label>
+                          <input type="password" value={newCollector.confirmPassword} onChange={e => setNewCollector({ ...newCollector, confirmPassword: e.target.value })} />
+
+                          <label>License Number *</label>
+                          <input type="text" value={newCollector.license_number} onChange={e => setNewCollector({ ...newCollector, license_number: e.target.value })} />
+                          <label>License Expiry Date</label>
+                          <input type="date" value={newCollector.license_expiry_date} onChange={e => setNewCollector({ ...newCollector, license_expiry_date: e.target.value })} />
+                          <label>Assigned Truck *</label>
+                          <select value={newCollector.truck_id} onChange={e => setNewCollector({ ...newCollector, truck_id: e.target.value })}>
+                            <option value="">Select Truck</option>
+                            {trucks.map(truck => (
+                              <option key={truck.truck_id} value={truck.truck_id}>{truck.truck_number}</option>
                             ))}
                           </select>
-                        )}
-                        <label>City</label>
-                        <input type="text" value={newCollector.city} onChange={e => setNewCollector({ ...newCollector, city: e.target.value })} disabled style={{ backgroundColor: '#f5f5f5' }} />
-                        <label>Landmark</label>
-                        <input type="text" value={newCollector.landmark} onChange={e => setNewCollector({ ...newCollector, landmark: e.target.value })} placeholder="e.g., Near SM Mall" />
-                      </div>
+                          <label>Status *</label>
+                          <select value={newCollector.status} onChange={e => setNewCollector({ ...newCollector, status: e.target.value })}>
+                            <option value="active">Active</option>
+                            <option value="inactive">Inactive</option>
+                            <option value="on_leave">On Leave</option>
+                            <option value="suspended">Suspended</option>
+                            <option value="terminated">Terminated</option>
+                          </select>
+                        </div>
+                      )}
 
-                      {/* Work Information */}
-                      <div style={{ marginBottom: '20px' }}>
-                        <h4 style={{ margin: '0 0 15px 0', color: '#666' }}>Work Information</h4>
-                        <label>License Number *</label>
-                        <input type="text" value={newCollector.license_number} onChange={e => setNewCollector({ ...newCollector, license_number: e.target.value })} required />
-                        <label>License Expiry Date</label>
-                        <input type="date" value={newCollector.license_expiry_date} onChange={e => setNewCollector({ ...newCollector, license_expiry_date: e.target.value })} />
-                        <label>Assigned Truck *</label>
-                        <select value={newCollector.truck_id} onChange={e => setNewCollector({ ...newCollector, truck_id: e.target.value })} required>
-                          <option value="">Select Truck</option>
-                          {trucks.map(truck => (
-                            <option key={truck.truck_id} value={truck.truck_id}>{truck.truck_number}</option>
-                          ))}
-                        </select>
-                        <label>Status *</label>
-                        <select value={newCollector.status} onChange={e => setNewCollector({ ...newCollector, status: e.target.value })} required>
-                          <option value="active">Active</option>
-                          <option value="inactive">Inactive</option>
-                          <option value="on_leave">On Leave</option>
-                          <option value="suspended">Suspended</option>
-                          <option value="terminated">Terminated</option>
-                        </select>
-                      </div>
-
-                      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, marginTop: 16 }}>
                         <button type="button" className="simple-cancel-btn" onClick={() => setShowAddCollectorModal(false)}>Cancel</button>
-                        <button 
-                          type="submit" 
-                          className="simple-submit-btn" 
-                          disabled={isSubmittingCollector}
-                        >
-                          {isSubmittingCollector ? 'Adding Collector...' : 'Add Collector'}
-                        </button>
+                        <div style={{ display: 'flex', gap: 10 }}>
+                          {currentCollectorStep > 1 && (
+                            <button type="button" className="simple-cancel-btn" onClick={handlePrevCollectorStep}>Back</button>
+                          )}
+                          {currentCollectorStep < 3 ? (
+                            <button type="button" className="simple-submit-btn" onClick={handleNextCollectorStep}>Next</button>
+                          ) : (
+                            <button type="submit" className="simple-submit-btn" disabled={isSubmittingCollector}>
+                              {isSubmittingCollector ? 'Adding...' : 'Add Collector'}
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </form>
                   </div>
@@ -702,8 +1016,30 @@ const UsersCollectors = () => {
               )}
             </>
           )}
-        </>
-      )}
+          {isPreviewOpen && (
+            <div className="modal-overlay" onClick={() => { setIsPreviewOpen(false); setPreviewUrl(null); }}>
+              <div
+                className="modal simple-modal"
+                style={{ maxWidth: '90vw', maxHeight: '90vh', padding: 10, display: 'flex', flexDirection: 'column', alignItems: 'center' }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div style={{ display: 'flex', width: '100%', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <h3 style={{ margin: 0 }}>Proof Image</h3>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    {previewUrl && (
+                      <a href={previewUrl} target="_blank" rel="noreferrer" className="simple-submit-btn">Open in new tab</a>
+                    )}
+                    <button className="simple-cancel-btn" onClick={() => { setIsPreviewOpen(false); setPreviewUrl(null); }}>Close</button>
+                  </div>
+                </div>
+                {previewUrl ? (
+                  <img src={previewUrl} alt="Proof large preview" style={{ maxWidth: '88vw', maxHeight: '78vh', objectFit: 'contain', borderRadius: 8, border: '1px solid #eee' }} />
+                ) : (
+                  <div>No image to preview</div>
+                )}
+              </div>
+            </div>
+          )}
 
       {/* Edit Modal */}
       {isEditModalOpen && editingUser && (
@@ -908,6 +1244,8 @@ const UsersCollectors = () => {
             </form>
           </div>
         </div>
+      )}
+        </>
       )}
     </section>
   );

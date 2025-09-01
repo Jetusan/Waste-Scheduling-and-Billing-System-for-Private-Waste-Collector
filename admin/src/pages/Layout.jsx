@@ -3,6 +3,9 @@ import React, { useState, useEffect } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import '../styles/Layout.css';
 import Logo from '../assets/images/LOGO.png';
+import axios from 'axios';
+
+const API_BASE_URL = 'http://localhost:5000/api';
 
 const navConfig = [
   { title: 'Dashboard', icon: 'fas fa-chart-line', path: '/admin/dashboard' },
@@ -44,7 +47,7 @@ const navConfig = [
 ];
 
 const pageTitles = {
-  '/admin/dashboard': 'Dashboard',
+  '/admin/dashboard': 'Waste Scheduling and Billing System',
   '/admin/operations/schedule': 'Collection Schedule',
   '/admin/operations/subscribers': 'Users',
   '/admin/billing': 'Billing Management',
@@ -60,21 +63,100 @@ export default function Layout() {
   const nav = useNavigate();
   const [openMenus, setOpenMenus] = useState({});
   const [avatarOpen, setAvatarOpen] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [notificationOpen, setNotificationOpen] = useState(false);
 
   // close avatar when clicking outside
   useEffect(() => {
     const handler = e => {
       if (!e.target.closest('.avatar-container')) setAvatarOpen(false);
+      if (!e.target.closest('.notification-container')) setNotificationOpen(false);
     };
     document.addEventListener('click', handler);
     return () => document.removeEventListener('click', handler);
   }, []);
 
+  useEffect(() => {
+    fetchNotifications();
+  }, []);
+
+  const fetchNotifications = async () => {
+    try {
+      const token = sessionStorage.getItem('adminToken');
+      const response = await axios.get(`${API_BASE_URL}/notifications`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      // Handle the nested response structure from backend
+      const notificationData = response.data.notifications || response.data;
+      setNotifications(notificationData);
+      setUnreadCount(notificationData.filter(notification => !notification.is_read).length);
+    } catch (error) {
+      console.error('Error fetching notifications:', error);
+      setNotifications([]);
+      setUnreadCount(0);
+    }
+  };
+
+  const markAsRead = async (notificationId) => {
+    try {
+      const token = sessionStorage.getItem('adminToken');
+      await axios.put(`${API_BASE_URL}/notifications/${notificationId}/read`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      setNotifications(prevNotifications => prevNotifications.map(notification => {
+        if (notification.notification_id === notificationId) {
+          return { ...notification, is_read: true };
+        }
+        return notification;
+      }));
+      setUnreadCount(prevUnreadCount => Math.max(0, prevUnreadCount - 1));
+    } catch (error) {
+      console.error('Error marking notification as read:', error);
+    }
+  };
+
+  const markAllAsRead = async () => {
+    try {
+      const token = sessionStorage.getItem('adminToken');
+      const unreadNotifications = notifications.filter(n => !n.is_read);
+      
+      // Mark all unread notifications as read
+      await Promise.all(
+        unreadNotifications.map(notification =>
+          axios.put(`${API_BASE_URL}/notifications/${notification.notification_id}/read`, {}, {
+            headers: { Authorization: `Bearer ${token}` }
+          })
+        )
+      );
+      
+      setNotifications(prevNotifications => 
+        prevNotifications.map(notification => ({ ...notification, is_read: true }))
+      );
+      setUnreadCount(0);
+    } catch (error) {
+      console.error('Error marking all notifications as read:', error);
+    }
+  };
+
+  const formatTimeAgo = (dateString) => {
+    const now = new Date();
+    const notificationDate = new Date(dateString);
+    const diffInMinutes = Math.floor((now - notificationDate) / (1000 * 60));
+    
+    if (diffInMinutes < 1) return 'Just now';
+    if (diffInMinutes < 60) return `${diffInMinutes}m ago`;
+    if (diffInMinutes < 1440) return `${Math.floor(diffInMinutes / 60)}h ago`;
+    return `${Math.floor(diffInMinutes / 1440)}d ago`;
+  };
+
   const toggle = key => setOpenMenus(prev => ({ ...prev, [key]: !prev[key] }));
   const isActive = path => loc.pathname.startsWith(path);
 
   const logout = () => {
-    sessionStorage.removeItem('adminAuth');
+    sessionStorage.removeItem('adminToken');
     nav('/login');
   };
 
@@ -129,9 +211,64 @@ export default function Layout() {
         <header className="topbar">
           <h1>{pageTitles[loc.pathname] || ''}</h1>
           <div className="controls">
-            <button className="icon-btn notification">
-              <i className="fas fa-bell" /><span className="badge" />
-            </button>
+            <div className="notification-container">
+              <button
+                className="icon-btn notification"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setNotificationOpen(o => !o);
+                }}
+              >
+                <i className="fas fa-bell" />
+                {unreadCount > 0 && (
+                  <span className="badge">{unreadCount}</span>
+                )}
+              </button>
+              {notificationOpen && (
+                <div className="notification-dropdown">
+                  <div className="notification-header">
+                    <h4>Notifications</h4>
+                    {unreadCount > 0 && (
+                      <button className="mark-all-read" onClick={markAllAsRead}>
+                        Mark all read
+                      </button>
+                    )}
+                  </div>
+                  <div className="notification-list">
+                    {notifications.length === 0 ? (
+                      <div className="no-notifications">
+                        <i className="fas fa-bell-slash"></i>
+                        <p>No notifications yet</p>
+                      </div>
+                    ) : (
+                      notifications.map(notification => (
+                        <div
+                          key={notification.notification_id}
+                          className={`notification-item ${notification.is_read ? 'read' : 'unread'}`}
+                          onClick={() => markAsRead(notification.notification_id)}
+                        >
+                          <div className="notification-content">
+                            <h5>{notification.title || 'Notification'}</h5>
+                            <p>{notification.message}</p>
+                            <span className="notification-time">
+                              {formatTimeAgo(notification.created_at)}
+                            </span>
+                          </div>
+                          {!notification.is_read && <div className="notification-indicator"></div>}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                  {notifications.length > 0 && (
+                    <div className="notification-footer">
+                      <Link to="/admin/settings/notifications" onClick={() => setNotificationOpen(false)}>
+                        View all notifications
+                      </Link>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
             <div className="avatar-container">
               <div
                 className="avatar"

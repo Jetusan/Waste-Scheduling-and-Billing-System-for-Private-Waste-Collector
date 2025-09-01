@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Linking from 'expo-linking';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_BASE_URL } from './config';
+import { getToken } from './auth';
 
 const PaymentPage = ({
   selectedPlanData,
@@ -13,13 +14,57 @@ const PaymentPage = ({
 }) => {
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [subscriptionData, setSubscriptionData] = useState(null);
 
-  // Handle deep linking for payment results
-  const handleDeepLink = React.useCallback((event) => {
+  // Enhanced deep linking with subscription activation
+  const handleDeepLink = React.useCallback(async (event) => {
     if (event.url.includes('wsbs://payment/success')) {
-      Alert.alert('Payment Successful!', 'Your payment has been processed successfully.', [
-        { text: 'OK', onPress: onSuccess }
-      ]);
+      try {
+        // Get stored subscription and payment data
+        const pendingPaymentId = await AsyncStorage.getItem('pendingPaymentId');
+        const pendingSubscriptionId = await AsyncStorage.getItem('pendingSubscriptionId');
+        
+        if (pendingPaymentId && pendingSubscriptionId) {
+          // Confirm payment and activate subscription
+          const token = await getToken();
+          const confirmResponse = await fetch(`${API_BASE_URL}/api/billing/confirm-gcash-payment`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              source_id: pendingPaymentId,
+              subscription_id: pendingSubscriptionId
+            })
+          });
+          
+          const confirmData = await confirmResponse.json();
+          
+          if (confirmData.success) {
+            // Clear stored data
+            await AsyncStorage.removeItem('pendingPaymentId');
+            await AsyncStorage.removeItem('pendingSubscriptionId');
+            
+            Alert.alert(
+              'Subscription Activated!', 
+              'Your payment was successful and subscription is now active!', 
+              [{ text: 'OK', onPress: onSuccess }]
+            );
+          } else {
+            Alert.alert('Error', 'Payment successful but subscription activation failed. Please contact support.');
+          }
+        } else {
+          Alert.alert('Payment Successful!', 'Your payment has been processed successfully.', [
+            { text: 'OK', onPress: onSuccess }
+          ]);
+        }
+      } catch (error) {
+        console.error('Error handling payment success:', error);
+        Alert.alert('Payment Successful!', 'Your payment has been processed successfully.', [
+          { text: 'OK', onPress: onSuccess }
+        ]);
+      }
     } else if (event.url.includes('wsbs://payment/failed')) {
       Alert.alert('Payment Failed', 'Your payment could not be processed. Please try again.');
       setIsProcessing(false);
@@ -41,26 +86,74 @@ const PaymentPage = ({
       return;
     }
     setIsProcessing(true);
+    
     try {
-      // Example: You may want to call your backend to create a subscription or record payment here
-      // For GCash, you may want to trigger handleGcashPayment instead
-      if (selectedPaymentMethod.id === 'gcash') {
-        await handleGcashPayment();
+      // First, create the subscription
+      const token = await getToken();
+      if (!token) {
+        Alert.alert('Error', 'Authentication required. Please login again.');
         setIsProcessing(false);
         return;
       }
-      // For other payment methods, simulate success
-      Alert.alert('Success!', `Payment for ${selectedPlanData.name} via ${selectedPaymentMethod.name} processed!`, [
-        { text: 'OK', onPress: onSuccess }
-      ]);
-    } catch (_error) {
+
+      // Get user profile to extract user_id
+      const profileResponse = await fetch(`${API_BASE_URL}/api/auth/profile`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      const profileData = await profileResponse.json();
+      
+      if (!profileData.success) {
+        Alert.alert('Error', 'Failed to get user information');
+        setIsProcessing(false);
+        return;
+      }
+
+      // Single plan system - no plan_id needed (backend will use ₱199 plan)
+      const subscriptionPayload = {
+        payment_method: selectedPaymentMethod.id === 'gcash' ? 'gcash' : 'cash'
+      };
+
+      const subscriptionResponse = await fetch(`${API_BASE_URL}/api/billing/mobile-subscription`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(subscriptionPayload)
+      });
+
+      const subscriptionResult = await subscriptionResponse.json();
+      
+      if (!subscriptionResult.success) {
+        Alert.alert('Error', subscriptionResult.error || 'Failed to create subscription');
+        setIsProcessing(false);
+        return;
+      }
+
+      setSubscriptionData(subscriptionResult);
+
+      // Handle payment method specific logic
+      if (selectedPaymentMethod.id === 'gcash') {
+        await handleGcashPayment(subscriptionResult);
+      } else {
+        // Cash on Collection - Show success message
+        Alert.alert(
+          'Subscription Created!', 
+          subscriptionResult.instructions,
+          [{ text: 'OK', onPress: onSuccess }]
+        );
+      }
+    } catch (error) {
+      console.error('Payment error:', error);
       Alert.alert('Error', 'Failed to process payment. Please try again.');
     }
     setIsProcessing(false);
   };
 
-  // Payment status polling function
-  const pollPaymentStatus = async (sourceId) => {
+  // Enhanced payment status polling with subscription activation
+  const pollPaymentStatus = async (sourceId, subscriptionId) => {
     const maxAttempts = 30; // 5 minutes with 10-second intervals
     
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
@@ -69,9 +162,35 @@ const PaymentPage = ({
         const data = await response.json();
         
         if (data.status === 'completed') {
-          Alert.alert('Payment Successful!', 'Your payment has been processed successfully.', [
-            { text: 'OK', onPress: onSuccess }
-          ]);
+          // Confirm payment and activate subscription
+          const token = await getToken();
+          const confirmResponse = await fetch(`${API_BASE_URL}/api/billing/confirm-gcash-payment`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              source_id: sourceId,
+              subscription_id: subscriptionId
+            })
+          });
+          
+          const confirmData = await confirmResponse.json();
+          
+          if (confirmData.success) {
+            // Clear stored payment data
+            await AsyncStorage.removeItem('pendingPaymentId');
+            await AsyncStorage.removeItem('pendingSubscriptionId');
+            
+            Alert.alert(
+              'Payment Successful!', 
+              'Your subscription has been activated successfully!', 
+              [{ text: 'OK', onPress: onSuccess }]
+            );
+          } else {
+            Alert.alert('Error', 'Payment confirmed but subscription activation failed. Please contact support.');
+          }
           return;
         } else if (data.status === 'failed') {
           Alert.alert('Payment Failed', 'Your payment could not be processed. Please try again.');
@@ -88,7 +207,7 @@ const PaymentPage = ({
     Alert.alert('Payment Timeout', 'Unable to confirm payment status. Please contact support if the amount was deducted.');
   };
 
-  const handleGcashPayment = async () => {
+  const handleGcashPayment = async (subscriptionResult) => {
     try {
       const response = await fetch(`${API_BASE_URL}/api/billing/create-gcash-source`, {
         method: 'POST',
@@ -96,7 +215,9 @@ const PaymentPage = ({
         body: JSON.stringify({ 
           amount: selectedPlanData.priceValue * 100, // Convert to centavos
           description: `Payment for ${selectedPlanData.name} subscription`,
-          isAdmin: false
+          isAdmin: false,
+          subscription_id: subscriptionResult.subscription.id,
+          invoice_id: subscriptionResult.invoice.invoice_id
         })
       });
       
@@ -109,16 +230,17 @@ const PaymentPage = ({
       }
       
       if (data.checkout_url && data.source_id) {
-        // Store source ID for tracking
+        // Store payment tracking data
         await AsyncStorage.setItem('pendingPaymentId', data.source_id);
+        await AsyncStorage.setItem('pendingSubscriptionId', subscriptionResult.subscription.id.toString());
         
         // Open GCash payment page
         await Linking.openURL(data.checkout_url);
         
-        // Start polling for payment status as fallback
+        // Start polling for payment status
         setTimeout(() => {
-          pollPaymentStatus(data.source_id);
-        }, 5000); // Wait 5 seconds before starting to poll
+          pollPaymentStatus(data.source_id, subscriptionResult.subscription.id);
+        }, 5000);
         
       } else {
         const errMsg = data.error ? JSON.stringify(data.error) : 'Failed to initiate GCash payment.';

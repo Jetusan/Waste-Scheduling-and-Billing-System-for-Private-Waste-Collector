@@ -10,8 +10,9 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { API_BASE_URL } from '../config';
 
-const BACKEND_URL = 'http://10.31.191.188:5000'; // <-- Use your local IP, not localhost, for mobile access
+// Note: Use API_BASE_URL for any future fetches
 
 const CSchedule = () => {
   const router = useRouter();

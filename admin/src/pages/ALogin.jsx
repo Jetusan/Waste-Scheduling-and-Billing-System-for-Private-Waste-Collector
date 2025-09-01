@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import '../styles/ALogin.css';
 
 // Admin login API endpoint
@@ -11,13 +11,16 @@ const ALogin = () => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const navigate = useNavigate();
+  const location = useLocation();
+  const params = new URLSearchParams(location.search);
+  const redirect = params.get('redirect');
 
   // Check if already logged in
   useEffect(() => {
     if (sessionStorage.getItem('adminAuth') === 'true') {
-      navigate('/admin/dashboard');
+      navigate(redirect || '/admin/dashboard', { replace: true });
     }
-  }, [navigate]);
+  }, [navigate, redirect]);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -47,9 +50,11 @@ const ALogin = () => {
         // Store admin session and token
         sessionStorage.setItem('adminAuth', 'true');
         sessionStorage.setItem('adminToken', data.token);
+        // Also store in localStorage for API calls that read from localStorage
+        localStorage.setItem('adminToken', data.token);
         sessionStorage.removeItem('tempAdmin'); // Remove temp flag if exists
-        // Redirect to admin dashboard
-        navigate('/admin/dashboard');
+        // Redirect to intended page or dashboard
+        navigate(redirect || '/admin/dashboard', { replace: true });
       } else {
         setError(data.message || 'Invalid admin credentials');
       }

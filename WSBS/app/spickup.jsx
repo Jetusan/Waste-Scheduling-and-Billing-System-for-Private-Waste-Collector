@@ -10,10 +10,12 @@ import {
   StatusBar,
   Platform,
   Image,
+  Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
+import { API_BASE_URL } from './config';
 
 const SPickup = () => {
   const router = useRouter();
@@ -25,9 +27,78 @@ const SPickup = () => {
   const [notes, setNotes] = useState('');
   const [message, setMessage] = useState('');
   const [image, setImage] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = () => {
-    console.log({ wasteType, description, date, time, address, notes, message, image });
+  const handleSubmit = async () => {
+    // Basic validation
+    if (!wasteType || !description || !date || !time || !address) {
+      Alert.alert('Error', 'Please fill in all required fields');
+      return;
+    }
+
+    setIsSubmitting(true);
+    
+    try {
+      // Get user_id from storage or context (you may need to adjust this)
+      // For now, using a placeholder - you should get this from your auth context
+      const user_id = 1; // Replace this with actual user ID from your auth system
+      
+      const requestData = {
+        user_id,
+        waste_type: wasteType,
+        description,
+        pickup_date: date,
+        pickup_time: time,
+        address,
+        notes,
+        image_url: image, // You might want to upload the image first and get a URL
+        message
+      };
+
+      console.log('Sending request:', requestData);
+
+      const response = await fetch(`${API_BASE_URL}/api/special-pickup`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestData),
+      });
+
+      const result = await response.json();
+
+      if (response.ok) {
+        Alert.alert(
+          'Success', 
+          'Special pickup request submitted successfully!',
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                // Clear the form
+                setWasteType('');
+                setDescription('');
+                setDate('');
+                setTime('');
+                setAddress('');
+                setNotes('');
+                setMessage('');
+                setImage(null);
+                // Navigate back or to a confirmation page
+                router.push('/resident/HomePage');
+              }
+            }
+          ]
+        );
+      } else {
+        Alert.alert('Error', result.error || 'Failed to submit request');
+      }
+    } catch (error) {
+      console.error('Error submitting request:', error);
+      Alert.alert('Error', 'Network error. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const pickImage = async () => {
@@ -149,8 +220,14 @@ const SPickup = () => {
 
         <Text style={styles.price}>Est. Price: ₱170.00 (may vary)</Text>
 
-        <TouchableOpacity onPress={handleSubmit} style={styles.submitButton}>
-          <Text style={styles.submitButtonText}>Request Pickup</Text>
+        <TouchableOpacity 
+          onPress={handleSubmit} 
+          style={[styles.submitButton, isSubmitting && styles.submitButtonDisabled]}
+          disabled={isSubmitting}
+        >
+          <Text style={styles.submitButtonText}>
+            {isSubmitting ? 'Submitting...' : 'Request Pickup'}
+          </Text>
         </TouchableOpacity>
       </ScrollView>
     </View>
@@ -252,6 +329,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#4CAF50',
     padding: 15,
     borderRadius: 5,
+  },
+  submitButtonDisabled: {
+    backgroundColor: '#cccccc',
+    opacity: 0.7,
   },
   submitButtonText: {
     color: 'white',
