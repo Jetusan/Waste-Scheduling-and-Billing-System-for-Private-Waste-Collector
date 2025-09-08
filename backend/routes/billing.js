@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const billingController = require('../controller/billingController');
+const subscriptionStatusController = require('../controller/subscriptionStatusController');
 const { authenticateJWT } = require('../middleware/auth');
 const { pool } = require('../config/db');
 
@@ -13,11 +14,67 @@ router.get('/payment-redirect/success', async (req, res) => {
   console.log('✅ Full request URL:', req.originalUrl);
   
   // Attempt to extract the PayMongo source ID from common query params
-  const sourceId = req.query.id || req.query.source || req.query.source_id || req.query.sourceId || req.query.rid || req.query.session_id || req.query.checkout_session_id;
+  let sourceId = req.query.id || req.query.source || req.query.source_id || req.query.sourceId || req.query.rid || req.query.session_id || req.query.checkout_session_id;
+  const subscriptionId = req.query.subscription_id || req.query.subscriptionId;
+
+  // Fallback: if no sourceId but we have subscriptionId, resolve the latest payment_source
+  if (!sourceId && subscriptionId) {
+    try {
+      const fallbackQuery = `
+        WITH latest_unpaid AS (
+          SELECT invoice_id FROM invoices 
+          WHERE subscription_id = $1 AND status = 'unpaid' 
+          ORDER BY created_at DESC 
+          LIMIT 1
+        )
+        SELECT ps.source_id
+        FROM payment_sources ps
+        JOIN latest_unpaid lu ON ps.invoice_id = lu.invoice_id
+        ORDER BY ps.created_at DESC
+        LIMIT 1;
+      `;
+      const fallbackRes = await pool.query(fallbackQuery, [subscriptionId]);
+      if (fallbackRes.rows.length > 0) {
+        sourceId = fallbackRes.rows[0].source_id;
+        console.log('🔎 Fallback resolved sourceId via subscription:', { subscriptionId, sourceId });
+      } else {
+        console.warn('⚠️ Fallback could not resolve sourceId for subscription:', subscriptionId);
+      }
+    } catch (e) {
+      console.error('❌ Error during fallback source resolution:', e.message);
+    }
+  }
   
   if (sourceId) {
     try {
-      await billingController.updatePaymentStatus(sourceId, 'completed');
+      // If subscription_id is present, ensure payment_sources.invoice_id is linked to the latest unpaid invoice
+      if (subscriptionId) {
+        try {
+          const linkRes = await pool.query(
+            `WITH latest_unpaid AS (
+               SELECT invoice_id FROM invoices 
+               WHERE subscription_id = $1 AND status = 'unpaid' 
+               ORDER BY created_at DESC 
+               LIMIT 1
+             )
+             UPDATE payment_sources ps
+             SET invoice_id = lu.invoice_id, updated_at = CURRENT_TIMESTAMP
+             FROM latest_unpaid lu
+             WHERE ps.source_id = $2 AND (ps.invoice_id IS NULL)
+             RETURNING ps.source_id, ps.invoice_id`,
+            [subscriptionId, sourceId]
+          );
+          if (linkRes.rows.length > 0) {
+            console.log('🔗 Linked payment_source to invoice on success redirect:', linkRes.rows[0]);
+          } else {
+            console.warn('⚠️ Could not link payment_source to invoice (maybe already linked or no unpaid invoice).');
+          }
+        } catch (e) {
+          console.error('⚠️ Error linking payment_source to invoice on redirect:', e.message);
+        }
+      }
+
+      await billingController.updatePaymentStatus(sourceId, 'completed', null);
       console.log('✅ Payment status updated to completed for source:', sourceId);
     } catch (error) {
       console.error('Error updating payment status on success redirect:', error);
@@ -142,7 +199,7 @@ router.get('/payment-redirect/failed', async (req, res) => {
   
   if (sourceId) {
     try {
-      await billingController.updatePaymentStatus(sourceId, 'failed');
+      await billingController.updatePaymentStatus(sourceId, 'failed', null);
       console.log('✅ Payment status updated to failed for source:', sourceId);
     } catch (error) {
       console.error('Error updating payment status on failed redirect:', error);
@@ -262,20 +319,22 @@ router.get('/payment-redirect/failed', async (req, res) => {
 // PayMongo webhook endpoint
 router.post('/webhook', async (req, res) => {
   try {
-    console.log('📥 PayMongo webhook received:', req.body);
+    console.log('📥 PayMongo webhook received:', JSON.stringify(req.body, null, 2));
     
-    const event = req.body.data;
-    if (event && event.attributes) {
-      const sourceId = event.attributes.data?.id;
-      const status = event.attributes.type;
+    const event = req.body;
+    if (event && event.data && event.data.attributes) {
+      const sourceId = event.data.id;
+      const eventType = event.data.attributes.type;
       
-      if (sourceId && status) {
-        console.log(`🔄 Updating payment status: ${sourceId} -> ${status}`);
-        
-        if (status === 'source.chargeable') {
-          await billingController.updatePaymentStatus(sourceId, 'completed');
-        } else if (status === 'source.failed') {
-          await billingController.updatePaymentStatus(sourceId, 'failed');
+      console.log(`🔄 Processing webhook: ${eventType} for source: ${sourceId}`);
+      
+      if (sourceId && eventType) {
+        if (eventType === 'source.chargeable') {
+          console.log('✅ Payment successful, updating status to completed');
+          await billingController.updatePaymentStatus(sourceId, 'completed', event);
+        } else if (eventType === 'source.failed' || eventType === 'source.cancelled') {
+          console.log('❌ Payment failed, updating status to failed');
+          await billingController.updatePaymentStatus(sourceId, 'failed', event);
         }
       }
     }
@@ -318,6 +377,11 @@ router.get('/subscription-status/:user_id', billingController.getUserSubscriptio
 // Payment confirmation routes
 router.post('/confirm-gcash-payment', billingController.confirmGcashPayment);
 router.post('/confirm-cash-payment', billingController.confirmCashPayment);
+
+// Invoices routes
+router.get('/invoices', billingController.getAllInvoices);
+router.get('/invoices/:invoiceId', billingController.getInvoiceById);
+router.get('/invoices/:invoiceId/payments', billingController.getPaymentsByInvoiceId);
 
 // Get user's invoice data for mobile app
 router.get('/user-invoice/:user_id', authenticateJWT, async (req, res) => {
@@ -391,6 +455,67 @@ router.get('/pending-cash-subscriptions', async (req, res) => {
   } catch (error) {
     console.error('Error fetching pending cash subscriptions:', error);
     res.status(500).json({ error: 'Failed to fetch pending subscriptions' });
+  }
+});
+
+// Subscription status for mobile app
+router.get('/subscription-status/:user_id', authenticateJWT, subscriptionStatusController.getSubscriptionStatus);
+
+// Fetch latest subscription payment method for multiple users
+// GET /api/billing/subscriptions/payment-methods?user_ids=1,2,3
+router.get('/subscriptions/payment-methods', authenticateJWT, async (req, res) => {
+  try {
+    const { user_ids } = req.query;
+    if (!user_ids) {
+      return res.status(400).json({ success: false, message: 'user_ids query parameter is required' });
+    }
+
+    const ids = String(user_ids)
+      .split(',')
+      .map((s) => parseInt(s.trim(), 10))
+      .filter((n) => Number.isFinite(n));
+
+    if (ids.length === 0) {
+      return res.status(400).json({ success: false, message: 'No valid user_ids provided' });
+    }
+
+    // Pick latest subscription per user via DISTINCT ON, include plan details
+    const query = `
+      SELECT DISTINCT ON (cs.user_id)
+        cs.user_id,
+        cs.subscription_id,
+        cs.payment_method,
+        cs.status,
+        cs.payment_status,
+        cs.payment_confirmed_at,
+        sp.plan_name,
+        sp.price,
+        sp.frequency
+      FROM customer_subscriptions cs
+      JOIN subscription_plans sp ON cs.plan_id = sp.plan_id
+      WHERE cs.user_id = ANY($1::int[])
+      ORDER BY cs.user_id, cs.created_at DESC
+    `;
+
+    const result = await pool.query(query, [ids]);
+
+    // Build a map-like response keyed by user_id
+    const data = result.rows.map((r) => ({
+      user_id: r.user_id,
+      subscription_id: r.subscription_id,
+      payment_method: r.payment_method, // expected values: 'gcash' | 'cash'
+      status: r.status,
+      payment_status: r.payment_status,
+      payment_confirmed_at: r.payment_confirmed_at,
+      plan_name: r.plan_name,
+      price: r.price != null ? parseFloat(r.price) : null,
+      frequency: r.frequency
+    }));
+
+    return res.json({ success: true, data });
+  } catch (error) {
+    console.error('Error fetching payment methods:', error);
+    return res.status(500).json({ success: false, message: 'Failed to fetch payment methods', details: error.message });
   }
 });
 

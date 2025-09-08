@@ -13,6 +13,7 @@ export default function HomePage() {
   const [userName, setUserName] = useState('');
   const [userBarangay, setUserBarangay] = useState('');
   const [hasHomeLocation, setHasHomeLocation] = useState(null); // null=unknown, true/false once fetched
+  const [subscriptionStatus, setSubscriptionStatus] = useState(null); // null=unknown, 'active', 'pending', 'none'
 
   useEffect(() => {
     // Fetch schedules
@@ -99,8 +100,111 @@ export default function HomePage() {
   }, []);
 
   useEffect(() => {
+    // Check user's subscription status
+    const fetchSubscriptionStatus = async () => {
+      console.log('🔥 Starting subscription status check...');
+      try {
+        const token = await getToken();
+        console.log('🔥 Token check result:', token ? 'Token found' : 'No token');
+        if (!token) {
+          console.log('🔥 No token found, setting status to none');
+          setSubscriptionStatus('none');
+          return;
+        }
+        
+        // Get user profile to extract user_id from JWT
+        const profileResponse = await fetch(`${API_BASE_URL}/api/auth/profile`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        
+        if (!profileResponse.ok) {
+          console.log('🔥 Failed to get user profile, setting status to none');
+          setSubscriptionStatus('none');
+          return;
+        }
+        
+        const profileData = await profileResponse.json();
+        // Support different id keys from profile API
+        const userId = profileData.user?.user_id ?? profileData.user?.id ?? profileData.user?.userId;
+        if (!userId) {
+          console.log('🔥 No user_id/id/userId found in profile, setting status to none');
+          setSubscriptionStatus('none');
+          return;
+        }
+        
+        // Call subscription API with actual user_id
+        const subscriptionUrl = `${API_BASE_URL}/api/billing/subscription-status/${userId}`;
+        console.log('🔥 Calling subscription API for user_id:', userId, 'URL:', subscriptionUrl);
+        
+        const res = await fetch(subscriptionUrl, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        console.log('🔥 Subscription API response status:', res.status);
+        
+        if (res.status === 404) {
+          console.log('🔥 404 - No subscription found');
+          setSubscriptionStatus('none');
+          return;
+        }
+        if (!res.ok) {
+          console.log('🔥 API request failed with status:', res.status);
+          setSubscriptionStatus('none');
+          return;
+        }
+        
+        const data = await res.json();
+        console.log('🔥 Subscription API Response:', JSON.stringify(data, null, 2));
+        
+        // Normalize response across two possible backend controllers
+        const hasSub = (data.has_subscription !== undefined) ? data.has_subscription : data.hasSubscription;
+        const uiState = data.uiState; // from subscriptionStatusController
+        const sub = data.subscription || null;
+
+        if (hasSub && sub) {
+          const status = sub.status;
+          // Support both snake_case and camelCase payment status keys
+          const payStatus = sub.payment_status ?? sub.paymentStatus;
+
+          console.log('🔥 Normalized subscription:', { status, payStatus, uiState });
+
+          // Prefer uiState when available
+          if (uiState === 'active' || (status === 'active' && payStatus === 'paid')) {
+            console.log('🔥 Setting subscription status to ACTIVE');
+            setSubscriptionStatus('active');
+          } else if (uiState?.startsWith('pending') || status === 'pending_payment') {
+            console.log('🔥 Setting subscription status to PENDING');
+            setSubscriptionStatus('pending');
+          } else {
+            console.log('🔥 Setting subscription status to NONE (unknown status)');
+            setSubscriptionStatus('none');
+          }
+        } else if (hasSub === false) {
+          console.log('🔥 API reports no subscription for user');
+          setSubscriptionStatus('none');
+        } else {
+          console.log('🔥 No subscription found in response, setting to NONE');
+          setSubscriptionStatus('none');
+        }
+      } catch (error) {
+        console.log('🔥 Error in fetchSubscriptionStatus:', error.message);
+        console.log('🔥 Error stack:', error.stack);
+        setSubscriptionStatus('none');
+      }
+    };
+    
+    // Add a small delay to ensure component is mounted
+    setTimeout(() => {
+      fetchSubscriptionStatus();
+    }, 1000);
+  }, []);
+
+  useEffect(() => {
     console.log('🔥 User barangay changed to:', userBarangay);
   }, [userBarangay]);
+
+  useEffect(() => {
+    console.log('🔥 Current subscriptionStatus state:', subscriptionStatus);
+  }, [subscriptionStatus]);
 
   // Filter schedules for this resident's barangay (RESTORED)
   const filteredSchedules = schedules.filter(evt =>
@@ -110,7 +214,6 @@ export default function HomePage() {
   console.log('🔥 All schedules:', schedules.length);
   console.log('🔥 User barangay for filtering:', userBarangay);
   console.log('🔥 Filtered schedules:', filteredSchedules.length);
-  console.log('🔥 Filtered schedules details:', JSON.stringify(filteredSchedules, null, 2));
 
   // Get today's day name (e.g., 'Saturday')
   const todayDayName = new Date().toLocaleDateString('en-US', { weekday: 'long' });
@@ -278,10 +381,26 @@ export default function HomePage() {
         </Pressable>
         <Pressable 
             style={styles.serviceButton}
-            onPress={() => router.push('/Subscription')}
+            onPress={() => {
+              // Navigate based on subscription status
+              console.log('🔥 Button pressed! Current subscriptionStatus:', subscriptionStatus);
+              if (subscriptionStatus === 'active') {
+                console.log('🔥 Navigating to SubscriptionStatusScreen');
+                router.push('/SubscriptionStatusScreen');
+              } else {
+                console.log('🔥 Navigating to Subscription signup');
+                router.push('/Subscription');
+              }
+            }}
           >
-            <Ionicons name="pricetag-outline" size={32} color="#4CD964" />
-            <Text style={styles.serviceText}>Subscriptions</Text>
+            <Ionicons 
+              name={subscriptionStatus === 'active' ? "checkmark-circle-outline" : "pricetag-outline"} 
+              size={32} 
+              color="#4CD964" 
+            />
+            <Text style={styles.serviceText}>
+              {subscriptionStatus === 'active' ? 'My Subscription' : 'Subscriptions'}
+            </Text>
         </Pressable>
       </View>
       </ScrollView>

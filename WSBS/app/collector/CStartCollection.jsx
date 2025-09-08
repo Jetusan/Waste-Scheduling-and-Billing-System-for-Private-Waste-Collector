@@ -1,10 +1,11 @@
 import React, { useMemo, useState, useCallback, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, TextInput, Alert, Linking, Platform } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { API_BASE_URL } from '../config';
-import { getUserId, getToken } from '../auth';
+import { getUserId, getToken, getCollectorId } from '../auth';
+import * as Location from 'expo-location';
 
 // Fallback sample list shown only if we don't yet have real stops
 const sampleBarangays = [
@@ -27,23 +28,152 @@ const CStartCollection = () => {
   const [residentLocations, setResidentLocations] = useState([]);
   const [selectedResidentLocation, setSelectedResidentLocation] = useState(null);
   const [mapRef, setMapRef] = useState(null);
+  const [collectorLocation, setCollectorLocation] = useState(null);
+  // Cache resolved collector_id (not users.user_id)
+  const [collectorId, setCollectorId] = useState(null);
+  // Payment method + cash-collection state
+  const [paymentInfo, setPaymentInfo] = useState({}); // { [user_id]: { payment_method, subscription_id, plan_name, price } }
+  const [amountInputs, setAmountInputs] = useState({}); // { [user_id]: string }
+  const [confirmingUserId, setConfirmingUserId] = useState(null);
+  const [submittingStopId, setSubmittingStopId] = useState(null);
+  // Catch-ups (auto-rescheduled tasks)
+  const [catchups, setCatchups] = useState([]);
+  const [catchupsLoading, setCatchupsLoading] = useState(false);
 
   const handleMapReady = useCallback((ref) => {
     setMapRef(ref);
-  }, []);
+  }, [resolveCollectorId]);
+
+  // Safely send messages to the WebView by injecting a script that dispatches a MessageEvent
+  const sendToMap = useCallback((obj) => {
+    if (!mapRef || !obj) return;
+    try {
+      const payload = JSON.stringify(obj)
+        .replace(/\\/g, "\\\\")
+        .replace(/`/g, "\\`")
+        .replace(/\u2028|\u2029/g, '');
+      const js = `(() => { try { var ev = new MessageEvent('message', { data: '${payload}' }); window.dispatchEvent(ev); document.dispatchEvent(ev); } catch(e){} })();`;
+      if (typeof mapRef.injectJavaScript === 'function') {
+        mapRef.injectJavaScript(js);
+      } else if (typeof mapRef.postMessage === 'function') {
+        // Fallback to postMessage if supported by this RN WebView version
+        mapRef.postMessage(payload);
+      }
+    } catch (_) { /* noop */ }
+  }, [mapRef]);
+
+  // Fetch today's catch-ups for this collector
+  const fetchCatchups = useCallback(async () => {
+    try {
+      const token = await getToken();
+      const collectorId = await resolveCollectorId();
+      if (!token || !collectorId) return;
+      setCatchupsLoading(true);
+      const url = `${API_BASE_URL}/api/collector/assignments/catchups/today?collector_id=${encodeURIComponent(collectorId)}`;
+      const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data?.success && Array.isArray(data.stops)) {
+        setCatchups(data.stops);
+      } else {
+        setCatchups([]);
+      }
+    } catch {
+      setCatchups([]);
+    } finally {
+      setCatchupsLoading(false);
+    }
+  }, [resolveCollectorId]);
+
+  useEffect(() => {
+    fetchCatchups();
+  }, [fetchCatchups]);
+
+  const handleCatchupCollected = useCallback(async (task) => {
+    try {
+      const token = await getToken();
+      const collectorId = await resolveCollectorId();
+      if (!token || !collectorId) {
+        Alert.alert('Auth Error', 'Missing session. Please re-login.');
+        return;
+      }
+      setSubmittingStopId(task.stop_id || `catchup-${task.task_id}`);
+      const res = await fetch(`${API_BASE_URL}/api/collector/assignments/catchups/complete`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          task_id: task.task_id,
+          user_id: task.user_id,
+          collector_id: collectorId,
+          notes: `Catch-up collected at ${new Date().toISOString()}`
+        })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data?.success) {
+        Alert.alert('Catch-up Collected', `${task.resident_name || 'Resident'} completed.`);
+        // Remove from local catchups
+        setCatchups(prev => prev.filter(s => s.task_id !== task.task_id));
+      } else {
+        Alert.alert('Error', data?.message || 'Failed to complete catch-up.');
+      }
+    } catch (e) {
+      Alert.alert('Error', 'Failed to complete catch-up.');
+    } finally {
+      setSubmittingStopId(null);
+    }
+  }, [resolveCollectorId]);
+
+  // Resolve collectors.collector_id from saved users.user_id, preferring stored collector_id from auth
+  const resolveCollectorId = useCallback(async () => {
+    try {
+      if (collectorId) return collectorId;
+      // Prefer stored collector_id from auth
+      try {
+        const stored = await getCollectorId?.();
+        if (stored) {
+          setCollectorId(stored);
+          return stored;
+        }
+      } catch (_) {}
+      const userId = await getUserId();
+      if (!userId) return null;
+      // Try to fetch collectors and map by user_id
+      const res = await fetch(`${API_BASE_URL}/api/collectors`);
+      if (res.ok) {
+        const list = await res.json();
+        if (Array.isArray(list)) {
+          const byUser = list.filter(c => Number(c.user_id) === Number(userId));
+          if (byUser.length > 0) {
+            byUser.sort((a, b) => Number(b.collector_id) - Number(a.collector_id));
+            const latest = byUser[0];
+            if (latest && latest.collector_id) {
+              setCollectorId(latest.collector_id);
+              return latest.collector_id;
+            }
+          }
+        }
+      }
+      // Fallback: use user_id as collectorId with warning (may return no stops)
+      console.warn('[assignments] Failed to map user_id to collector_id. Falling back to user_id:', userId);
+      setCollectorId(userId);
+      return userId;
+    } catch (e) {
+      console.warn('[assignments] resolveCollectorId error:', e?.message || e);
+      return null;
+    }
+  }, [collectorId]);
 
   useEffect(() => {
     (async () => {
       setLoading(true);
       setError(null);
       try {
-        const collectorId = await getUserId();
-        console.log('Retrieved collector ID:', collectorId);
-        if (!collectorId) throw new Error('Missing collector id');
+        const cid = await resolveCollectorId();
+        console.log('Resolved collector_id:', cid);
+        if (!cid) throw new Error('Missing collector id');
 
         // Try to fetch today's active assignment for this collector.
         // Backend endpoint is suggested; if not present, this will fail and we show the fallback UI.
-        const url = `${API_BASE_URL}/api/collector/assignments/today?collector_id=${encodeURIComponent(collectorId)}`;
+        const url = `${API_BASE_URL}/api/collector/assignments/today?collector_id=${encodeURIComponent(cid)}`;
         console.log('Making API call to:', url);
         const res = await fetch(url);
         console.log('API response status:', res.status, res.statusText);
@@ -127,13 +257,235 @@ const CStartCollection = () => {
     }
   }, [stops, fetchResidentLocations]);
 
+  // Push resident markers to the WebView map whenever locations change
+  useEffect(() => {
+    try {
+      if (!mapRef) return;
+      if (!residentLocations || residentLocations.length === 0) return;
+      const markers = residentLocations
+        .map(loc => ({
+          latitude: Number(loc.latitude),
+          longitude: Number(loc.longitude),
+          name: loc.name || '',
+          address: loc.address || '',
+          user_id: loc.user_id,
+        }))
+        .filter(m => Number.isFinite(m.latitude) && Number.isFinite(m.longitude));
+      if (markers.length === 0) return;
+      sendToMap({ type: 'set_resident_markers', markers });
+    } catch (e) {
+      // no-op
+    }
+  }, [mapRef, residentLocations]);
+
+  // Request and send collector current location to map (best-effort)
+  useEffect(() => {
+    let isMounted = true;
+    (async () => {
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== 'granted') return;
+        const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        if (!isMounted) return;
+        const loc = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
+        setCollectorLocation(loc);
+        if (mapRef && Number.isFinite(loc.latitude) && Number.isFinite(loc.longitude)) {
+          sendToMap({ type: 'set_collector_location', location: loc });
+        }
+      } catch (_) {
+        // ignore
+      }
+    })();
+    return () => { isMounted = false; };
+  }, [mapRef]);
+
+  // Fetch payment methods for current stops
+  useEffect(() => {
+    (async () => {
+      try {
+        if (!stops || stops.length === 0) return;
+        const token = await getToken();
+        if (!token) return;
+        const userIds = stops.map(s => s.user_id).filter(Boolean);
+        if (userIds.length === 0) return;
+        const url = `${API_BASE_URL}/api/billing/subscriptions/payment-methods?user_ids=${userIds.join(',')}`;
+        const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data && data.success && Array.isArray(data.data)) {
+          const map = {};
+          data.data.forEach(row => {
+            if (!row || !row.user_id) return;
+            map[row.user_id] = {
+              payment_method: row.payment_method,
+              subscription_id: row.subscription_id,
+              plan_name: row.plan_name,
+              price: typeof row.price === 'number' ? row.price : (row.price ? parseFloat(row.price) : null),
+              frequency: row.frequency,
+              status: row.status,
+              payment_status: row.payment_status
+            };
+          });
+          setPaymentInfo(map);
+        }
+      } catch (e) {
+        // Silent fail; UI just won't show payment badges
+      }
+    })();
+  }, [stops]);
+
+  const handleConfirmCash = useCallback(async (stop) => {
+    try {
+      const info = paymentInfo[stop.user_id];
+      if (!info || info.payment_method !== 'cash') {
+        Alert.alert('Not Cash', 'This subscriber is not set to Cash on Collection.');
+        return;
+      }
+      const amountStr = amountInputs[stop.user_id];
+      const amountNum = parseFloat(amountStr || `${info.price || ''}`);
+      if (!Number.isFinite(amountNum) || amountNum <= 0) {
+        Alert.alert('Invalid Amount', 'Please enter a valid cash amount.');
+        return;
+      }
+      const collectorId = await resolveCollectorId();
+      const token = await getToken();
+      if (!collectorId || !token) {
+        Alert.alert('Auth Error', 'Missing session. Please re-login.');
+        return;
+      }
+      setConfirmingUserId(stop.user_id);
+      const res = await fetch(`${API_BASE_URL}/api/billing/confirm-cash-payment`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          subscription_id: info.subscription_id,
+          collector_id: collectorId,
+          amount: amountNum,
+          notes: `Cash collected by collector at stop ${stop.stop_id || ''}`
+        })
+      });
+      const data = await res.json();
+      if (data && data.success) {
+        Alert.alert('Cash Confirmed', `₱${amountNum.toFixed(2)} recorded for ${stop.resident_name || 'resident'}.`);
+        // Optionally clear amount input for this user
+        setAmountInputs(prev => ({ ...prev, [stop.user_id]: '' }));
+      } else {
+        Alert.alert('Error', data?.error || 'Failed to confirm cash payment.');
+      }
+    } catch (e) {
+      Alert.alert('Error', 'Failed to confirm cash payment.');
+    } finally {
+      setConfirmingUserId(null);
+    }
+  }, [paymentInfo, amountInputs, resolveCollectorId]);
+
+  const handleCollected = useCallback(async (stop) => {
+    try {
+      const token = await getToken();
+      const collectorId = await resolveCollectorId();
+      if (!token || !collectorId) {
+        Alert.alert('Auth Error', 'Missing session. Please re-login.');
+        return;
+      }
+      setSubmittingStopId(stop.stop_id || `${stop.user_id}-${stop.schedule_id || ''}`);
+      const res = await fetch(`${API_BASE_URL}/api/collector/assignments/stop/collected`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          stop_id: stop.stop_id,
+          schedule_id: stop.schedule_id,
+          user_id: stop.user_id,
+          collector_id: collectorId,
+          notes: `Collected at ${new Date().toISOString()}`
+        })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data?.success) {
+        Alert.alert('Marked Collected', `${stop.resident_name || 'Resident'} has been marked as collected.`);
+        // Optimistically update local stop status
+        setStops(prev => prev.map(s => (
+          (s.user_id === stop.user_id && (s.schedule_id === stop.schedule_id))
+            ? { ...s, latest_action: 'collected', latest_updated_at: new Date().toISOString() }
+            : s
+        )));
+      } else {
+        Alert.alert('Error', data?.message || 'Failed to mark as collected.');
+      }
+    } catch (e) {
+      Alert.alert('Error', 'Failed to mark as collected.');
+    } finally {
+      setSubmittingStopId(null);
+    }
+  }, []);
+
+  const submitMissedWithReason = useCallback(async (stop, missed_reason) => {
+    try {
+      const token = await getToken();
+      const collectorId = await resolveCollectorId();
+      if (!token || !collectorId) {
+        Alert.alert('Auth Error', 'Missing session. Please re-login.');
+        return;
+      }
+      setSubmittingStopId(stop.stop_id || `${stop.user_id}-${stop.schedule_id || ''}`);
+      const res = await fetch(`${API_BASE_URL}/api/collector/assignments/stop/missed`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          stop_id: stop.stop_id,
+          schedule_id: stop.schedule_id,
+          user_id: stop.user_id,
+          collector_id: collectorId,
+          notes: `Missed at ${new Date().toISOString()}`,
+          missed_reason
+        })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data?.success) {
+        const msg = missed_reason === 'collector_fault'
+          ? 'Marked missed. Catch-up will be scheduled for tomorrow.'
+          : 'Marked missed. Will roll over to next regular schedule.';
+        Alert.alert('Marked Missed', msg);
+        // Optimistically update local stop status
+        setStops(prev => prev.map(s => (
+          (s.user_id === stop.user_id && (s.schedule_id === stop.schedule_id))
+            ? { ...s, latest_action: 'missed', latest_updated_at: new Date().toISOString() }
+            : s
+        )));
+      } else {
+        Alert.alert('Error', data?.message || 'Failed to mark as missed.');
+      }
+    } catch (e) {
+      Alert.alert('Error', 'Failed to mark as missed.');
+    } finally {
+      setSubmittingStopId(null);
+    }
+  }, []);
+
+  const handleMissed = useCallback((stop) => {
+    // Prompt for reason: collector fault (auto-catch-up) vs resident fault (rollover)
+    try {
+      Alert.alert(
+        'Mark as Missed',
+        'Select the reason for the missed collection:',
+        [
+          { text: 'Collector issue', onPress: () => submitMissedWithReason(stop, 'collector_fault') },
+          { text: 'Resident unavailable', onPress: () => submitMissedWithReason(stop, 'resident_fault') },
+          { text: 'Cancel', style: 'cancel' }
+        ]
+      );
+    } catch (_) {
+      // Fallback: default to resident fault
+      submitMissedWithReason(stop, 'resident_fault');
+    }
+  }, [submitMissedWithReason]);
+
   const showResidentOnMap = useCallback((userId) => {
     const location = residentLocations.find(loc => loc.user_id === userId);
     
     if (location && mapRef) {
       setSelectedResidentLocation(location);
       // Send location to map via WebView messaging
-      const message = JSON.stringify({
+      sendToMap({
         type: 'show_resident_location',
         location: {
           latitude: location.latitude,
@@ -143,9 +495,28 @@ const CStartCollection = () => {
           user_id: location.user_id
         }
       });
-      mapRef.postMessage(message);
     }
   }, [residentLocations, mapRef]);
+
+  const openExternalNavigation = useCallback((userId) => {
+    try {
+      const loc = residentLocations.find(l => l.user_id === userId);
+      const lat = Number(loc?.latitude);
+      const lng = Number(loc?.longitude);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+        Alert.alert('Location unavailable', 'No valid coordinates for this resident.');
+        return;
+      }
+      const label = encodeURIComponent(loc?.name || 'Resident');
+      // Prefer universal Google Maps directions URL on Android; Apple Maps on iOS
+      const url = Platform.OS === 'ios'
+        ? `http://maps.apple.com/?daddr=${lat},${lng}&dirflg=d&q=${label}`
+        : `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`;
+      Linking.openURL(url);
+    } catch (_) {
+      Alert.alert('Navigation failed', 'Could not open maps for navigation.');
+    }
+  }, [residentLocations]);
 
   // Fetch own profile to get collector's barangay
   useEffect(() => {
@@ -203,6 +574,15 @@ const CStartCollection = () => {
         <MapSection onMapReady={handleMapReady} selectedLocation={selectedResidentLocation} />
       </View>
 
+      {/* Small hint if no resident locations available while there are stops */}
+      {stops && stops.length > 0 && (!residentLocations || residentLocations.length === 0) && (
+        <View style={[styles.card, { marginTop: 8 }]}> 
+          <Text style={{ color: '#555' }}>
+            No pinned resident locations available to show on the map. Residents need to set their Home location.
+          </Text>
+        </View>
+      )}
+
       {/* Content below map: today's schedules by weekday, then assignment-aware */}
       <ScrollView contentContainerStyle={styles.listContainer}>
         {/* Today's schedules section */}
@@ -217,9 +597,10 @@ const CStartCollection = () => {
           ) : (
             (() => {
               const todayName = new Date().toLocaleDateString('en-US', { weekday: 'long' });
-              const todayList = schedules.filter(evt =>
-                (evt.schedule_date || '') === todayName
-              );
+              const todayList = schedules.filter(evt => {
+                const s = (evt.schedule_date || '').toString();
+                return s && s.toLowerCase() === todayName.toLowerCase();
+              });
               if (todayList.length === 0) {
                 return (
                   <Text style={{ marginTop: 6, color: '#666' }}>
@@ -281,16 +662,107 @@ const CStartCollection = () => {
                     {stop.address && <Text style={{ color: '#333' }}>📍 {stop.address}</Text>}
                     {stop.barangay_name && <Text style={{ color: '#666', fontSize: 12 }}>🏘️ {stop.barangay_name}</Text>}
                     {stop.planned_waste_type && <Text style={{ color: '#2e7d32', fontWeight: 'bold' }}>🗑️ {stop.planned_waste_type}</Text>}
+                    {stop.latest_action && (
+                      <View style={{ marginTop: 6, alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, backgroundColor: stop.latest_action === 'collected' ? '#e8f5e9' : '#ffebee', borderWidth: 1, borderColor: stop.latest_action === 'collected' ? '#2e7d32' : '#c62828' }}>
+                        <Text style={{ color: stop.latest_action === 'collected' ? '#2e7d32' : '#c62828', fontWeight: 'bold', fontSize: 12 }}>
+                          {stop.latest_action === 'collected' ? 'Collected' : 'Missed'}
+                        </Text>
+                      </View>
+                    )}
                     <Text style={{ color: '#2e7d32', fontSize: 12, marginTop: 4, fontStyle: 'italic' }}>Tap to show location on map</Text>
                   </TouchableOpacity>
-                  <View style={{ flexDirection: 'row', marginTop: 10 }}>
+                  {/* Navigation to this stop */}
+                  <View style={{ flexDirection: 'row', marginBottom: 6 }}>
+                    <TouchableOpacity
+                      style={[styles.smallBtn, { backgroundColor: '#1976d2' }]}
+                      onPress={() => stop.user_id && openExternalNavigation(stop.user_id)}
+                    >
+                      <Text style={{ color: '#fff', fontWeight: 'bold' }}>Navigate</Text>
+                    </TouchableOpacity>
+                  </View>
+                  {/* Payment method / collection controls */}
+                  {(() => {
+                    const info = paymentInfo[stop.user_id];
+                    if (!info) {
+                      return (
+                        <Text style={{ marginTop: 6, color: '#777', fontSize: 12 }}>Subscription info not available</Text>
+                      );
+                    }
+                    if (info.payment_method === 'gcash') {
+                      return (
+                        <View style={{ marginTop: 8 }}>
+                          <Text style={{ color: '#1976d2', fontWeight: 'bold' }}>Payment Method: GCash</Text>
+                          {typeof info.price === 'number' && (
+                            <Text style={{ color: '#333' }}>Plan: {info.plan_name || 'Plan'} • ₱{info.price.toFixed(2)}</Text>
+                          )}
+                        </View>
+                      );
+                    }
+                    if (info.payment_method === 'cash') {
+                      const boundVal = amountInputs[stop.user_id] ?? (typeof info.price === 'number' ? String(info.price) : '');
+                      return (
+                        <View style={{ marginTop: 8 }}>
+                          <Text style={{ color: '#2e7d32', fontWeight: 'bold' }}>Payment Method: Cash on Collection</Text>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8 }}>
+                            <TextInput
+                              style={{
+                                flex: 1,
+                                borderColor: '#ccc',
+                                borderWidth: 1,
+                                borderRadius: 6,
+                                paddingHorizontal: 10,
+                                height: 40,
+                                backgroundColor: '#fff'
+                              }}
+                              placeholder="Amount (₱)"
+                              keyboardType="numeric"
+                              value={boundVal}
+                              onChangeText={(t) => setAmountInputs(prev => ({ ...prev, [stop.user_id]: t }))}
+                            />
+                            <TouchableOpacity
+                              style={[styles.smallBtn, { backgroundColor: '#2e7d32', marginLeft: 8, paddingHorizontal: 14 }]}
+                              onPress={() => handleConfirmCash(stop)}
+                              disabled={confirmingUserId === stop.user_id}
+                            >
+                              {confirmingUserId === stop.user_id ? (
+                                <ActivityIndicator size="small" color="#fff" />
+                              ) : (
+                                <Text style={{ color: '#fff', fontWeight: 'bold' }}>Confirm Cash</Text>
+                              )}
+                            </TouchableOpacity>
+                          </View>
+                          {typeof info.price === 'number' && (
+                            <Text style={{ color: '#666', marginTop: 4, fontSize: 12 }}>Plan: {info.plan_name || 'Plan'} • Suggested: ₱{info.price.toFixed(2)}</Text>
+                          )}
+                        </View>
+                      );
+                    }
+                    return (
+                      <Text style={{ marginTop: 6, color: '#777', fontSize: 12 }}>Payment method: Unknown</Text>
+                    );
+                  })()}
+
+                  {/* Collection action buttons */}
+                  <View style={{ flexDirection: 'row', marginTop: 12 }}>
                     <TouchableOpacity style={[styles.smallBtn, { backgroundColor: '#2e7d32' }]}
-                      onPress={() => console.log('Collected pressed for stop', stop)}>
-                      <Text style={{ color: '#fff', fontWeight: 'bold' }}>Collected</Text>
+                      onPress={() => handleCollected(stop)}
+                      disabled={submittingStopId === (stop.stop_id || `${stop.user_id}-${stop.schedule_id || ''}`) || ['collected','missed'].includes(stop.latest_action)}
+                    >
+                      {submittingStopId === (stop.stop_id || `${stop.user_id}-${stop.schedule_id || ''}`) ? (
+                        <ActivityIndicator size="small" color="#fff" />
+                      ) : (
+                        <Text style={{ color: '#fff', fontWeight: 'bold' }}>Collected</Text>
+                      )}
                     </TouchableOpacity>
                     <TouchableOpacity style={[styles.smallBtn, { backgroundColor: '#fff', borderColor: '#c62828', borderWidth: 1, marginLeft: 8 }]}
-                      onPress={() => console.log('Missed pressed for stop', stop)}>
-                      <Text style={{ color: '#c62828', fontWeight: 'bold' }}>Missed</Text>
+                      onPress={() => handleMissed(stop)}
+                      disabled={submittingStopId === (stop.stop_id || `${stop.user_id}-${stop.schedule_id || ''}`) || ['collected','missed'].includes(stop.latest_action)}
+                    >
+                      {submittingStopId === (stop.stop_id || `${stop.user_id}-${stop.schedule_id || ''}`) ? (
+                        <ActivityIndicator size="small" color="#c62828" />
+                      ) : (
+                        <Text style={{ color: '#c62828', fontWeight: 'bold' }}>Missed</Text>
+                      )}
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -375,378 +847,35 @@ const MapSection = ({ onMapReady, selectedLocation }) => {
       <head>
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <link href="https://cdn.maplibre.org/maplibre-gl/3.7.0/maplibre-gl.css" rel="stylesheet" />
+        <link href="https://cdn.jsdelivr.net/npm/mapbox-gl@1.13.1/dist/mapbox-gl.css" rel="stylesheet" />
         <style>
           html, body, #map { height: 100%; margin: 0; padding: 0; }
           html, body { background: #e6f0ff; }
           #map { background: #e6f0ff; position: absolute; inset: 0; }
           canvas { background: #e6f0ff !important; display: block; }
-          .marker { background:#2e7d32; color:#fff; padding:6px 8px; border-radius:6px; font-weight:700; font-family: sans-serif; }
         </style>
       </head>
       <body>
         <div id="map"></div>
         <script>
-          (function init() {
-            const post = (obj) => {
-              if (window.ReactNativeWebView) {
-                window.ReactNativeWebView.postMessage(JSON.stringify(obj));
-              }
-            };
-
-            // Basic WebGL capability check
-            try {
-              var c = document.createElement('canvas');
-              var gl = c.getContext('webgl') || c.getContext('experimental-webgl');
-              if (!gl) {
-                post({ type: 'init_error', message: 'WebGL not supported in this WebView. Update Android System WebView/Chrome.' });
-                return;
-              }
-            } catch (e) {
-              post({ type: 'init_error', message: 'WebGL check failed: ' + (e && e.message ? e.message : e) });
-              return;
-            }
-
-            // Minimal embedded raster style (OpenStreetMap tiles)
-            var styleObj = {
-              version: 8,
-              sources: {
-                osm: {
-                  type: 'raster',
-                  tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
-                  tileSize: 256,
-                  attribution: '© OpenStreetMap contributors'
-                }
-              },
-              layers: [
-                { id: 'osm', type: 'raster', source: 'osm' }
-              ]
-            };
-
-            var cb = Date.now();
-            var cdns = [
-              // Official CDN (latest major)
-              'https://cdn.maplibre.org/maplibre-gl/3.7.0/maplibre-gl.js?cb=' + cb,
-              'https://cdn.maplibre.org/maplibre-gl/3.6.1/maplibre-gl.js?cb=' + cb,
-              // jsDelivr UMD builds
-              'https://cdn.jsdelivr.net/npm/maplibre-gl@3.7.0/dist/maplibre-gl.js?cb=' + cb,
-              'https://cdn.jsdelivr.net/npm/maplibre-gl@3.6.1/dist/maplibre-gl.js?cb=' + cb,
-              'https://cdn.jsdelivr.net/npm/maplibre-gl@2.4.0/dist/maplibre-gl.js?cb=' + cb,
-              // unpkg UMD builds
-              'https://unpkg.com/maplibre-gl@3.7.0/dist/maplibre-gl.js?cb=' + cb,
-              'https://unpkg.com/maplibre-gl@3.6.1/dist/maplibre-gl.js?cb=' + cb,
-              'https://unpkg.com/maplibre-gl@2.4.0/dist/maplibre-gl.js?cb=' + cb
-            ];
-
-            const fetchEvaluate = async (url) => {
+          (function () {
+            const post = (obj) => { try { window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify(obj)); } catch (_) {} };
+            try { post({ type: 'boot', message: 'WebView HTML booted' }); } catch(_) {}
+            try { var c = document.createElement('canvas'); var gl = c.getContext('webgl') || c.getContext('experimental-webgl'); if (!gl) { post({ type: 'init_error', message: 'WebGL not supported. Update Android System WebView/Chrome.' }); return; } } catch (e) { post({ type: 'init_error', message: 'WebGL check failed: ' + (e && e.message ? e.message : e) }); return; }
+            const styleObj = { version: 8, sources: { osm: { type: 'raster', tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'], tileSize: 256, attribution: 'OpenStreetMap contributors' } }, layers: [ { id: 'osm', type: 'raster', source: 'osm' } ] };
+            function start() {
               try {
-                const res = await fetch(url);
-                if (!res.ok) throw new Error('HTTP ' + res.status);
-                const code = await res.text();
-                // Evaluate in global scope
-                (0, eval)(code);
-                return true;
-              } catch (e) {
-                post({ type: 'cdn_error', url, message: String(e && e.message || e) });
-                return false;
-              }
-            };
-
-            const loadScriptFrom = (idx) => {
-              if (idx >= cdns.length) {
-                post({ type: 'init_error', message: 'Failed to load MapLibre GL JS from all CDNs' });
-                return;
-              }
-              const url = cdns[idx];
-              post({ type: 'cdn_try', url });
-              const s = document.createElement('script');
-              s.src = url;
-              s.async = true;
-              s.crossOrigin = 'anonymous';
-              let fallbackTimer;
-              const beginWait = () => {
-                let tries = 0;
-                const maxTries = 40;
-                const wait = setInterval(() => {
-                  tries++;
-                  const M = window.maplibregl || window.maplibre;
-                  if (M) {
-                    clearInterval(wait);
-                    try {
-                      const map = new M.Map({
-                        container: 'map',
-                        style: {
-                          version: 8,
-                          sources: {
-                            osm: {
-                              type: 'raster',
-                              tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
-                              tileSize: 256,
-                              attribution: '© OpenStreetMap contributors'
-                            }
-                          },
-                          layers: [ { id: 'osm', type: 'raster', source: 'osm' } ]
-                        },
-                        center: [125.1716, 6.1164],
-                        zoom: 10
-                      });
-                      
-                      let currentMarker = null;
-                      let staticMarkers = [];
-                      
-                      // Listen for messages from React Native
-                      const handleMessage = function(event) {
-                        try {
-                          const data = JSON.parse(event.data);
-                          
-                          if (data.type === 'show_resident_location' && data.location) {
-                            const loc = data.location;
-                            
-                            // Check if MapLibre is loaded
-                            if (typeof M === 'undefined' || !map) {
-                              return;
-                            }
-                            
-                            // Remove existing marker
-                            if (currentMarker) {
-                              currentMarker.remove();
-                              currentMarker = null;
-                            }
-                            
-                            // Validate coordinates
-                            const lng = parseFloat(loc.longitude);
-                            const lat = parseFloat(loc.latitude);
-                            
-                            if (isNaN(lng) || isNaN(lat)) {
-                              return;
-                            }
-                            
-                            // Use simple default marker for better compatibility
-                            currentMarker = new M.Marker({ 
-                              color: '#ff5722',
-                              scale: 1.5
-                            })
-                              .setLngLat([lng, lat])
-                              .setPopup(new M.Popup({ 
-                                offset: 25,
-                                closeButton: false
-                              }).setHTML(
-                                '<div style="font-family: sans-serif; padding: 15px; text-align: center; min-width: 250px;">' +
-                                '<div style="font-size: 18px; font-weight: bold; color: #ff5722; margin-bottom: 8px;">📍 ' + loc.name + '</div>' +
-                                '<div style="font-size: 14px; color: #666; line-height: 1.4;">' + loc.address + '</div>' +
-                                '</div>'
-                              ))
-                              .addTo(map);
-                            
-                            // Fly to location and show popup
-                            map.flyTo({
-                              center: [lng, lat],
-                              zoom: 17,
-                              duration: 1500
-                            });
-                            
-                            setTimeout(() => {
-                              if (currentMarker) {
-                                currentMarker.togglePopup();
-                              }
-                            }, 1600);
-                          }
-                        } catch (e) {
-                          // Silent error handling
-                        }
-                      };
-                      
-                      // Add multiple event listeners for compatibility
-                      window.addEventListener('message', handleMessage);
-                      document.addEventListener('message', handleMessage);
-                      
-                      // Global message handler for React Native WebView
-                      window.onMessage = handleMessage;
-                      
-                      map.on('load', () => {
-                        post({ type: 'loaded' });
-                        
-                        // Add static markers after a short delay to ensure map is fully ready
-                        setTimeout(() => {
-                          try {
-                            // Add static markers from user_locations data
-                            const userLocations = [
-                              {
-                                user_id: 140,
-                                kind: 'home',
-                                latitude: 6.205516,
-                                longitude: 125.121397,
-                                name: 'John Doe',
-                                address: 'Block 7 Lot 6, Dela Cuadra Subdivision, City Heights, General Santos City'
-                              }
-                            ];
-                            
-                            // Create markers for all user locations
-                            userLocations.forEach(location => {
-                              // Create a simple marker with proper anchor positioning
-                              const marker = new M.Marker({ 
-                                color: '#ff5722',
-                                anchor: 'bottom'
-                              })
-                                .setLngLat([parseFloat(location.longitude), parseFloat(location.latitude)])
-                                .addTo(map);
-                              
-                              // Add popup separately
-                              const popup = new M.Popup({ 
-                                offset: 25,
-                                closeButton: false
-                              }).setHTML(
-                                '<div style="font-family: sans-serif; padding: 12px; text-align: center; min-width: 200px;">' +
-                                '<div style="font-size: 16px; font-weight: bold; color: #ff5722; margin-bottom: 6px;">📍 ' + location.name + '</div>' +
-                                '<div style="font-size: 13px; color: #666; line-height: 1.3; margin-bottom: 6px;">' + location.address + '</div>' +
-                                '<div style="font-size: 11px; color: #999; padding: 3px 8px; background: #f0f0f0; border-radius: 10px; display: inline-block;">' + location.kind.toUpperCase() + ' LOCATION</div>' +
-                                '</div>'
-                              );
-                              
-                              marker.setPopup(popup);
-                              staticMarkers.push(marker);
-                            });
-                          } catch (e) {
-                            // If there's an error, try a basic marker with proper anchor
-                            try {
-                              new M.Marker({ anchor: 'bottom' })
-                                .setLngLat([parseFloat(125.121397), parseFloat(6.205516)])
-                                .addTo(map);
-                            } catch (e2) {
-                              // Fallback failed too
-                            }
-                          }
-                        }, 1000);
-                      });
-                      map.on('error', (e) => {
-                        try {
-                          var msg = (e && e.error && e.error.message) || (e && e.message) || (e && e.type) || 'Unknown map error';
-                          post({ type: 'map_error', message: msg });
-                        } catch (_) {
-                          post({ type: 'map_error', message: 'Unknown map error' });
-                        }
-                      });
-                    } catch (err) {
-                      post({ type: 'init_error', message: String(err && err.message || err) });
-                    }
-                  } else if (tries >= maxTries) {
-                    clearInterval(wait);
-                    // Try fetch+eval before moving to next CDN
-                    fetchEvaluate(url).then((ok) => {
-                      if (ok) {
-                        // After eval, try one more short wait
-                        let t2 = 0;
-                        const w2 = setInterval(() => {
-                          t2++;
-                          const M2 = window.maplibregl || window.maplibre;
-                          if (M2) {
-                            clearInterval(w2);
-                            try {
-                              const map = new M2.Map({
-                                container: 'map',
-                                style: {
-                                  version: 8,
-                                  sources: {
-                                    osm: {
-                                      type: 'raster',
-                                      tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
-                                      tileSize: 256,
-                                      attribution: '© OpenStreetMap contributors'
-                                    }
-                                  },
-                                  layers: [ { id: 'osm', type: 'raster', source: 'osm' } ]
-                                },
-                                center: [125.1716, 6.1164],
-                                zoom: 12
-                              });
-                              
-                              let currentMarker2 = null;
-                              
-                              // Listen for messages from React Native (Fallback handler)
-                              document.addEventListener('message', function(event) {
-                                console.log('🗺️ WebView (fallback) received message:', event.data);
-                                try {
-                                  const data = JSON.parse(event.data);
-                                  console.log('🗺️ Fallback parsed message data:', data);
-                                  
-                                  if (data.type === 'show_resident_location' && data.location) {
-                                    console.log('🗺️ Fallback processing show_resident_location:', data.location);
-                                    const loc = data.location;
-                                    
-                                    // Remove existing marker
-                                    if (currentMarker2) {
-                                      console.log('🗺️ Fallback removing existing marker');
-                                      currentMarker2.remove();
-                                    }
-                                    
-                                    console.log('🗺️ Fallback creating new marker at:', loc.longitude, loc.latitude);
-                                    // Add new marker for resident
-                                    currentMarker2 = new M2.Marker({ color: '#ff5722' })
-                                      .setLngLat([loc.longitude, loc.latitude])
-                                      .setPopup(new M2.Popup().setHTML(
-                                        '<div style="font-family: sans-serif;">' +
-                                        '<strong>' + loc.name + '</strong><br>' +
-                                        '<small>' + loc.address + '</small>' +
-                                        '</div>'
-                                      ))
-                                      .addTo(map);
-                                    
-                                    console.log('🗺️ Fallback flying to location');
-                                    // Fly to the location
-                                    map.flyTo({
-                                      center: [loc.longitude, loc.latitude],
-                                      zoom: 16,
-                                      duration: 1500
-                                    });
-                                    
-                                    // Open popup after animation
-                                    setTimeout(() => {
-                                      if (currentMarker2) {
-                                        console.log('🗺️ Fallback opening popup');
-                                        currentMarker2.togglePopup();
-                                      }
-                                    }, 1600);
-                                  } else {
-                                    console.log('🗺️ Fallback message not for location display:', data.type);
-                                  }
-                                } catch (e) {
-                                  console.error('🗺️ Fallback error handling message:', e);
-                                }
-                              });
-                              
-                              map.on('load', () => {
-                                new M2.Marker({ color: '#2e7d32' })
-                                  .setLngLat([125.1716, 6.1164])
-                                  .setPopup(new M2.Popup().setText('Collection Start Point'))
-                                  .addTo(map);
-                                post({ type: 'loaded' });
-                              });
-                            } catch (err) {
-                              post({ type: 'init_error', message: String(err && err.message || err) });
-                            }
-                          } else if (t2 >= 10) {
-                            clearInterval(w2);
-                            const keys = Object.keys(window).filter(k => k.toLowerCase().includes('maplibre'));
-                            post({ type: 'init_error', message: 'MapLibre GL JS global not found after eval (maplibregl/maplibre). Keys: ' + keys.join(', ') });
-                            loadScriptFrom(idx + 1);
-                          }
-                        }, 100);
-                      } else {
-                        loadScriptFrom(idx + 1);
-                      }
-                    });
-                  }
-                }, 100);
-              };
-              s.onload = beginWait;
-              s.onerror = () => {
-                post({ type: 'cdn_error', url });
-                loadScriptFrom(idx + 1);
-              };
-              document.body.appendChild(s);
-            };
-
-            loadScriptFrom(0);
+                const M = window.mapboxgl || window.maplibregl || window.maplibre; if (!M) { post({ type: 'init_error', message: 'Map library missing' }); return; }
+                const map = new M.Map({ container: 'map', style: styleObj, center: [125.1716, 6.1164], zoom: 10 });
+                let popup = null;
+                function handleMessage(event){ try { const data = JSON.parse(event.data); if (data.type === 'set_resident_markers' && Array.isArray(data.markers)) { const fc = { type: 'FeatureCollection', features: data.markers.map(loc => ({ type: 'Feature', geometry: { type: 'Point', coordinates: [parseFloat(loc.longitude), parseFloat(loc.latitude)] }, properties: { name: String(loc.name||'Resident'), address: String(loc.address||''), user_id: loc.user_id } })).filter(f => Number.isFinite(f.geometry.coordinates[0]) && Number.isFinite(f.geometry.coordinates[1])) }; const src = map.getSource('residents'); if (src) src.setData(fc); } else if (data.type === 'set_collector_location' && data.location) { const lng = parseFloat(data.location.longitude), lat = parseFloat(data.location.latitude); if (Number.isFinite(lng) && Number.isFinite(lat)) { const src = map.getSource('collector'); if (src) src.setData({ type: 'FeatureCollection', features: [ { type: 'Feature', geometry: { type: 'Point', coordinates: [lng, lat] }, properties: {} } ] }); } } else if (data.type === 'show_resident_location' && data.location) { const lng = parseFloat(data.location.longitude), lat = parseFloat(data.location.latitude); if (!Number.isFinite(lng) || !Number.isFinite(lat)) return; const src = map.getSource('selected_resident'); if (src) src.setData({ type: 'FeatureCollection', features: [ { type: 'Feature', geometry: { type: 'Point', coordinates: [lng, lat] }, properties: { name: String(data.location.name||'Resident'), address: String(data.location.address||'') } } ] }); map.flyTo({ center: [lng, lat], zoom: 17, duration: 1500 }); setTimeout(() => { try { if (popup) popup.remove(); popup = new M.Popup({ offset: 10, closeButton: false }).setLngLat([lng, lat]).setHTML('<div style="font-family: sans-serif; padding: 12px; min-width: 220px"><div style="font-weight:700;color:#ff5722;margin-bottom:6px">📍 ' + (data.location.name || 'Resident') + '</div><div style="font-size:12px;color:#555">' + (data.location.address || '') + '</div></div>').addTo(map); } catch(_){} }, 1600); } } catch (_) {} }
+                window.addEventListener('message', handleMessage); document.addEventListener('message', handleMessage); window.onMessage = handleMessage;
+                map.on('load', () => { post({ type: 'loaded' }); if (!map.getSource('residents')) map.addSource('residents', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } }); if (!map.getSource('selected_resident')) map.addSource('selected_resident', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } }); if (!map.getSource('collector')) map.addSource('collector', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } }); if (!map.getLayer('residents-layer')) map.addLayer({ id: 'residents-layer', type: 'circle', source: 'residents', paint: { 'circle-radius': 6, 'circle-color': '#ff5722', 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 1 } }); if (!map.getLayer('selected-resident-layer')) map.addLayer({ id: 'selected-resident-layer', type: 'circle', source: 'selected_resident', paint: { 'circle-radius': 8, 'circle-color': '#ff9800', 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 2 } }); if (!map.getLayer('collector-layer')) map.addLayer({ id: 'collector-layer', type: 'circle', source: 'collector', paint: { 'circle-radius': 6, 'circle-color': '#1976d2', 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 1 } }); map.on('click', 'residents-layer', (e) => { try { const f = e.features && e.features[0]; if (!f) return; const [lng, lat] = f.geometry.coordinates; const name = f.properties && f.properties.name; const address = f.properties && f.properties.address; if (popup) popup.remove(); popup = new M.Popup({ offset: 10, closeButton: false }).setLngLat([lng, lat]).setHTML('<div style="font-family: sans-serif; padding: 12px; min-width: 220px"><div style="font-weight:700;color:#ff5722;margin-bottom:6px">📍 ' + (name || 'Resident') + '</div><div style="font-size:12px;color:#555">' + (address || '') + '</div></div>').addTo(map); } catch(_){} }); });
+                map.on('error', (e) => { try { var msg = (e && e.error && e.error.message) || (e && e.message) || (e && e.type) || 'Unknown map error'; post({ type: 'map_error', message: msg }); } catch(_) { post({ type: 'map_error', message: 'Unknown map error' }); } });
+              } catch (err) { post({ type: 'init_error', message: String(err && err.message || err) }); }
+            }
+            if (window.mapboxgl || window.maplibregl || window.maplibre) { start(); } else { var s = document.createElement('script'); s.src = 'https://cdn.jsdelivr.net/npm/mapbox-gl@1.13.1/dist/mapbox-gl.js'; s.async = true; s.crossOrigin = 'anonymous'; s.onload = start; s.onerror = function(){ post({ type: 'init_error', message: 'Failed to load map library' }); }; document.body.appendChild(s); }
+            setTimeout(function(){ if (!(window.mapboxgl || window.maplibregl || window.maplibre)) { post({ type: 'init_error', message: 'Map library failed to load within 5s. Check internet/CDN or update Android System WebView.' }); } }, 5000);
           })();
         </script>
       </body>
@@ -756,11 +885,13 @@ const MapSection = ({ onMapReady, selectedLocation }) => {
   const onMessage = useCallback((event) => {
     try {
       const data = JSON.parse(event.nativeEvent.data);
+      console.log('Map WebView message:', data);
       if (data.type === 'loaded') setLoaded(true);
       if (data.type === 'progress') setProgress(data.message || '');
       if (data.type === 'init_error') setWvError(data.message || 'Unknown init error');
       if (data.type === 'cdn_try') setProgress(`Trying: ${data.url}`);
       if (data.type === 'cdn_error') setProgress(`Failed: ${data.url}`);
+      if (data.type === 'boot') setProgress('Booted');
       // Removed console log display to clean up the WebView
     } catch {
       // ignore

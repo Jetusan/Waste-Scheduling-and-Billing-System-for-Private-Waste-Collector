@@ -34,6 +34,12 @@ const Dashboard = () => {
     routeEfficiency: 0,
     driverPerformance: 0,
   });
+  
+  // New state for schedules and billing
+  const [upcomingSchedules, setUpcomingSchedules] = useState([]);
+  const [recentInvoices, setRecentInvoices] = useState([]);
+  const [overdueInvoices, setOverdueInvoices] = useState([]);
+  
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -42,85 +48,83 @@ const Dashboard = () => {
       setLoading(true);
       setError(null);
       try {
-        // Fetch only essential dashboard stats
-        const dashboardStats = await axios.get(`${API_BASE_URL}/dashboard/stats`).catch(() => ({ 
-          data: { 
-            revenue: { total: 0, monthly: 0, yearly: 0, today: 0 },
-            subscribers: { Basic: 0, Regular: 0, Premium: 0, AllIn: 0, total: 0, inactive: 0 },
-            collections: { 
-              efficiency: 0, 
-              route_efficiency: 0,
-              today: { total: 0, completed: 0, pending: 0, cancelled: 0 },
-              week: { total: 0, completed: 0 },
-              month: { total: 0, completed: 0 },
-              missed: 0 
+        // Parallel API calls for better performance
+        const [dashboardStats, upcomingSchedulesRes, overdueInvoicesRes, recentInvoicesRes] = await Promise.allSettled([
+          axios.get(`${API_BASE_URL}/dashboard/stats`),
+          axios.get(`${API_BASE_URL}/dashboard/upcoming-schedules?limit=5`),
+          axios.get(`${API_BASE_URL}/dashboard/overdue-invoices?limit=5`),
+          axios.get(`${API_BASE_URL}/billing/invoices?limit=10`)
+        ]);
+
+        // Handle dashboard stats
+        if (dashboardStats.status === 'fulfilled') {
+          const stats = dashboardStats.value.data;
+          setMetrics({
+            totalRevenue: stats.revenue?.total || 0,
+            monthlyRevenue: stats.revenue?.monthly || 0,
+            yearlyRevenue: stats.revenue?.yearly || 0,
+            todayRevenue: stats.revenue?.today || 0,
+            missedPickups: {
+              count: stats.collections?.missed || 0,
+              locations: 'Various locations'
             },
-            payments: { 
-              overdue: { count: 0, amount: 0 }, 
-              failed_7d: 0,
-              successful_7d: 0
+            todayPickups: {
+              total: stats.collections?.today?.total || 0,
+              completed: stats.collections?.today?.completed || 0,
+              pending: stats.collections?.today?.pending || 0,
+              cancelled: stats.collections?.today?.cancelled || 0
             },
-            fleet: { total: 0, active: 0, inactive: 0, maintenance: 0 },
-            residents: { total: 0, new_30d: 0 },
-            complaints: { total: 0, pending: 0, resolved: 0 },
-            performance: { driver_avg: 0 }
-          } 
-        }));
+            weekPickups: {
+              total: stats.collections?.week?.total || 0,
+              completed: stats.collections?.week?.completed || 0
+            },
+            monthPickups: {
+              total: stats.collections?.month?.total || 0,
+              completed: stats.collections?.month?.completed || 0
+            },
+            overduePayments: { 
+              count: stats.payments?.overdue?.count || 0, 
+              amount: stats.payments?.overdue?.amount || 0
+            },
+            activeSubscribers: {
+              Basic: stats.subscribers?.Basic || 0,
+              Regular: stats.subscribers?.Regular || 0,
+              Premium: stats.subscribers?.Premium || 0,
+              AllIn: stats.subscribers?.AllIn || 0,
+              total: stats.subscribers?.total || 0
+            },
+            inactiveSubscribers: stats.subscribers?.inactive || 0,
+            failedPayments: stats.payments?.failed_7d || 0,
+            successfulPayments: stats.payments?.successful_7d || 0,
+            totalTrucks: stats.fleet?.total || 0,
+            activeTrucks: stats.fleet?.active || 0,
+            inactiveTrucks: stats.fleet?.inactive || 0,
+            trucksInMaintenance: stats.fleet?.maintenance || 0,
+            totalComplaints: stats.complaints?.total || 0,
+            pendingComplaints: stats.complaints?.pending || 0,
+            resolvedComplaints: stats.complaints?.resolved || 0,
+            totalResidents: stats.residents?.total || 0,
+            newResidents: stats.residents?.new_30d || 0,
+            collectionEfficiency: stats.collections?.efficiency || 0,
+            routeEfficiency: stats.collections?.route_efficiency || 0,
+            driverPerformance: stats.performance?.driver_avg || 0,
+          });
+        }
 
-        console.log('Dashboard stats fetched:', dashboardStats.data);
+        // Handle upcoming schedules
+        if (upcomingSchedulesRes.status === 'fulfilled') {
+          setUpcomingSchedules(upcomingSchedulesRes.value.data || []);
+        }
 
-        const stats = dashboardStats.data;
+        // Handle overdue invoices
+        if (overdueInvoicesRes.status === 'fulfilled') {
+          setOverdueInvoices(overdueInvoicesRes.value.data || []);
+        }
 
-        setMetrics({
-          totalRevenue: stats.revenue?.total || 0,
-          monthlyRevenue: stats.revenue?.monthly || 0,
-          yearlyRevenue: stats.revenue?.yearly || 0,
-          todayRevenue: stats.revenue?.today || 0,
-          missedPickups: {
-            count: stats.collections?.missed || 0,
-            locations: 'Various locations'
-          },
-          todayPickups: {
-            total: stats.collections?.today?.total || 0,
-            completed: stats.collections?.today?.completed || 0,
-            pending: stats.collections?.today?.pending || 0,
-            cancelled: stats.collections?.today?.cancelled || 0
-          },
-          weekPickups: {
-            total: stats.collections?.week?.total || 0,
-            completed: stats.collections?.week?.completed || 0
-          },
-          monthPickups: {
-            total: stats.collections?.month?.total || 0,
-            completed: stats.collections?.month?.completed || 0
-          },
-          overduePayments: { 
-            count: stats.payments?.overdue?.count || 0, 
-            amount: stats.payments?.overdue?.amount || 0
-          },
-          activeSubscribers: {
-            Basic: stats.subscribers?.Basic || 0,
-            Regular: stats.subscribers?.Regular || 0,
-            Premium: stats.subscribers?.Premium || 0,
-            AllIn: stats.subscribers?.AllIn || 0,
-            total: stats.subscribers?.total || 0
-          },
-          inactiveSubscribers: stats.subscribers?.inactive || 0,
-          failedPayments: stats.payments?.failed_7d || 0,
-          successfulPayments: stats.payments?.successful_7d || 0,
-          totalTrucks: stats.fleet?.total || 0,
-          activeTrucks: stats.fleet?.active || 0,
-          inactiveTrucks: stats.fleet?.inactive || 0,
-          trucksInMaintenance: stats.fleet?.maintenance || 0,
-          totalComplaints: stats.complaints?.total || 0,
-          pendingComplaints: stats.complaints?.pending || 0,
-          resolvedComplaints: stats.complaints?.resolved || 0,
-          totalResidents: stats.residents?.total || 0,
-          newResidents: stats.residents?.new_30d || 0,
-          collectionEfficiency: stats.collections?.efficiency || 0,
-          routeEfficiency: stats.collections?.route_efficiency || 0,
-          driverPerformance: stats.performance?.driver_avg || 0,
-        });
+        // Handle recent invoices
+        if (recentInvoicesRes.status === 'fulfilled') {
+          setRecentInvoices(recentInvoicesRes.value.data?.slice(0, 5) || []);
+        }
 
       } catch (err) {
         console.error('Dashboard data fetch error:', err);
@@ -262,23 +266,170 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* Critical Alerts - Simplified */}
-      {(metrics.overduePayments.count > 0 || metrics.missedPickups.count > 0) && (
+      {/* Upcoming Schedules Section */}
+      <div className="dashboard-section">
+        <div className="section-header">
+          <h3><i className="fas fa-calendar-alt"></i> Upcoming Collections</h3>
+          <button 
+            className="view-all-btn"
+            onClick={() => navigate('/admin/operations/schedule')}
+          >
+            View All
+          </button>
+        </div>
+        <div className="schedules-grid">
+          {upcomingSchedules.length > 0 ? (
+            upcomingSchedules.map((schedule, index) => (
+              <div key={schedule.schedule_id || index} className="schedule-card">
+                <div className="schedule-date">
+                  <div className="date-day">
+                    {schedule.next_occurrence ? 
+                      new Date(schedule.next_occurrence).getDate() : 
+                      new Date().getDate()}
+                  </div>
+                  <div className="date-month">
+                    {schedule.next_occurrence ? 
+                      new Date(schedule.next_occurrence).toLocaleDateString('en-US', { month: 'short' }) : 
+                      new Date().toLocaleDateString('en-US', { month: 'short' })}
+                  </div>
+                </div>
+                <div className="schedule-details">
+                  <h4>{schedule.waste_type || 'General Collection'}</h4>
+                  <p className="schedule-time">
+                    <i className="fas fa-clock"></i> {schedule.time_range || 'All Day'}
+                  </p>
+                  <p className="schedule-day">
+                    <i className="fas fa-calendar"></i> Every {schedule.day_of_week || schedule.schedule_date}
+                  </p>
+                  <p className="schedule-locations">
+                    <i className="fas fa-map-marker-alt"></i> 
+                    {schedule.barangays?.map(b => b.barangay_name).join(', ') || 'Multiple Areas'}
+                  </p>
+                  <p className="schedule-truck">
+                    <i className="fas fa-truck"></i> Truck {schedule.truck_number || 'TBD'}
+                  </p>
+                </div>
+                <div className={`schedule-status ${schedule.status?.toLowerCase() || 'scheduled'}`}>
+                  {schedule.status || 'Scheduled'}
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="empty-state">
+              <i className="fas fa-calendar-check"></i>
+              <p>No upcoming collections scheduled</p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Billing & Invoices Section */}
+      <div className="dashboard-section">
+        <div className="section-header">
+          <h3><i className="fas fa-file-invoice-dollar"></i> Billing Overview</h3>
+          <button 
+            className="view-all-btn"
+            onClick={() => navigate('/admin/billing')}
+          >
+            View All
+          </button>
+        </div>
+        
+        {/* Billing Summary Cards */}
+        <div className="billing-summary">
+          <div className="billing-card revenue">
+            <div className="billing-icon">
+              <i className="fas fa-chart-line"></i>
+            </div>
+            <div className="billing-content">
+              <h4>₱{typeof metrics.monthlyRevenue === 'number' ? metrics.monthlyRevenue.toLocaleString() : '0'}</h4>
+              <p>Monthly Revenue</p>
+              <span className="billing-trend positive">+12% from last month</span>
+            </div>
+          </div>
+          
+          <div className="billing-card overdue">
+            <div className="billing-icon">
+              <i className="fas fa-exclamation-circle"></i>
+            </div>
+            <div className="billing-content">
+              <h4>{metrics.overduePayments.count}</h4>
+              <p>Overdue Invoices</p>
+              <span className="billing-amount">₱{typeof metrics.overduePayments.amount === 'number' ? metrics.overduePayments.amount.toLocaleString() : '0'}</span>
+            </div>
+          </div>
+          
+          <div className="billing-card payments">
+            <div className="billing-icon">
+              <i className="fas fa-credit-card"></i>
+            </div>
+            <div className="billing-content">
+              <h4>{metrics.successfulPayments}</h4>
+              <p>Recent Payments</p>
+              <span className="billing-trend neutral">{metrics.failedPayments} failed</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Recent Invoices */}
+        <div className="recent-invoices">
+          <h4>Recent Invoices</h4>
+          <div className="invoices-list">
+            {recentInvoices.length > 0 ? (
+              recentInvoices.map((invoice, index) => (
+                <div key={invoice.id || index} className="invoice-item">
+                  <div className="invoice-info">
+                    <span className="invoice-id">#{invoice.id || invoice.invoice_id}</span>
+                    <span className="invoice-customer">{invoice.subscriber || invoice.username}</span>
+                    <span className="invoice-plan">{invoice.plan || invoice.invoice_type}</span>
+                  </div>
+                  <div className="invoice-amount">
+                    ₱{typeof invoice.amount === 'number' ? invoice.amount.toLocaleString() : 
+                       (typeof invoice.amount === 'string' ? invoice.amount.replace('₱', '').replace(',', '') : '0')}
+                  </div>
+                  <div className={`invoice-status ${invoice.status?.toLowerCase() || 'unpaid'}`}>
+                    {invoice.status || 'Unpaid'}
+                  </div>
+                  <div className="invoice-due">
+                    Due: {invoice.dueDate ? new Date(invoice.dueDate).toLocaleDateString() : 
+                          invoice.due_date ? new Date(invoice.due_date).toLocaleDateString() : 'N/A'}
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="empty-state">
+                <i className="fas fa-file-invoice"></i>
+                <p>No recent invoices</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Critical Alerts - Enhanced */}
+      {(metrics.overduePayments.count > 0 || metrics.missedPickups.count > 0 || overdueInvoices.length > 0) && (
         <div className="simple-alerts">
-          <h3><i className="fas fa-exclamation-triangle"></i> Alerts</h3>
+          <h3><i className="fas fa-exclamation-triangle"></i> Critical Alerts</h3>
           <div className="alerts-list">
             {metrics.overduePayments.count > 0 && (
               <div className="simple-alert warning">
                 <i className="fas fa-clock"></i>
-                <span>{metrics.overduePayments.count} overdue payments</span>
-                <a href="/billing" className="alert-link">View</a>
+                <span>{metrics.overduePayments.count} overdue payments (₱{metrics.overduePayments.amount.toLocaleString()})</span>
+                <button onClick={() => navigate('/admin/billing')} className="alert-link">View</button>
               </div>
             )}
             {metrics.missedPickups.count > 0 && (
               <div className="simple-alert danger">
                 <i className="fas fa-times-circle"></i>
                 <span>{metrics.missedPickups.count} missed collections</span>
-                <a href="/schedules" className="alert-link">View</a>
+                <button onClick={() => navigate('/admin/operations/schedule')} className="alert-link">View</button>
+              </div>
+            )}
+            {overdueInvoices.length > 0 && (
+              <div className="simple-alert urgent">
+                <i className="fas fa-file-invoice"></i>
+                <span>{overdueInvoices.length} urgent invoices require attention</span>
+                <button onClick={() => navigate('/admin/billing')} className="alert-link">Review</button>
               </div>
             )}
           </div>

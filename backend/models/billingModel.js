@@ -114,7 +114,7 @@ const getInvoiceById = async (invoiceId) => {
 };
 
 const createInvoice = async (invoiceData) => {
-  const { user_id, plan_id, due_date, generated_date, notes, amount } = invoiceData;
+  const { user_id, plan_id, due_date, generated_date, notes, amount, subscription_id } = invoiceData;
   
   // Generate invoice number
   const invoiceNumberQuery = 'SELECT COUNT(*) + 1 as next_number FROM invoices';
@@ -130,11 +130,11 @@ const createInvoice = async (invoiceData) => {
   }
 
   const query = `
-    INSERT INTO invoices (invoice_number, user_id, plan_id, due_date, generated_date, notes, amount)
-    VALUES ($1, $2, $3, $4, $5, $6, $7)
+    INSERT INTO invoices (invoice_number, user_id, plan_id, subscription_id, due_date, generated_date, notes, amount)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
     RETURNING *
   `;
-  const result = await pool.query(query, [invoiceNumber, user_id, plan_id, due_date, generated_date, notes, invoiceAmount]);
+  const result = await pool.query(query, [invoiceNumber, user_id, plan_id, subscription_id, due_date, generated_date, notes, invoiceAmount]);
   return result.rows[0];
 };
 
@@ -345,25 +345,59 @@ const activateSubscription = async (subscriptionId, paymentData = null) => {
     
     const subscription = subscriptionResult.rows[0];
     
-    // Update related invoice status to paid
-    const updateInvoiceQuery = `
-      UPDATE invoices 
-      SET status = 'paid', updated_at = CURRENT_TIMESTAMP
-      WHERE subscription_id = $1
+    // Resolve a single target invoice to mark as paid: pick the latest
+    // unpaid/partially_paid/overdue invoice for this subscription.
+    const targetInvoiceQuery = `
+      SELECT invoice_id 
+      FROM invoices 
+      WHERE subscription_id = $1 
+        AND status IN ('unpaid', 'partially_paid', 'overdue')
+      ORDER BY COALESCE(due_date, created_at) DESC, created_at DESC
+      LIMIT 1
     `;
-    await client.query(updateInvoiceQuery, [subscriptionId]);
+    const targetInvoiceRes = await client.query(targetInvoiceQuery, [subscriptionId]);
+    const targetInvoiceId = targetInvoiceRes.rows[0]?.invoice_id || null;
+    
+    if (targetInvoiceId) {
+      const updateInvoiceQuery = `
+        UPDATE invoices 
+        SET status = 'paid', updated_at = CURRENT_TIMESTAMP
+        WHERE invoice_id = $1
+        RETURNING invoice_id
+      `;
+      await client.query(updateInvoiceQuery, [targetInvoiceId]);
+    }
     
     // Create payment record if payment data provided
     if (paymentData) {
       const { amount, payment_method, reference_number, notes } = paymentData;
-      const createPaymentQuery = `
-        INSERT INTO payments (invoice_id, amount, payment_method, payment_date, reference_number, notes)
-        SELECT i.invoice_id, $1, $2, CURRENT_TIMESTAMP, $3, $4
-        FROM invoices i
-        WHERE i.subscription_id = $5
-        RETURNING *
-      `;
-      await client.query(createPaymentQuery, [amount, payment_method, reference_number, notes, subscriptionId]);
+      // If we resolved a specific invoice above, use it; otherwise, fall back to the
+      // most recent invoice for the subscription (to preserve legacy behavior).
+      if (targetInvoiceId) {
+        const createPaymentQuery = `
+          INSERT INTO payments (invoice_id, amount, payment_method, payment_date, reference_number, notes)
+          VALUES ($1, $2, $3, CURRENT_TIMESTAMP, $4, $5)
+          RETURNING *
+        `;
+        await client.query(createPaymentQuery, [targetInvoiceId, amount, payment_method, reference_number, notes]);
+      } else {
+        const fallbackInvoiceQuery = `
+          SELECT invoice_id FROM invoices 
+          WHERE subscription_id = $1
+          ORDER BY created_at DESC
+          LIMIT 1
+        `;
+        const fb = await client.query(fallbackInvoiceQuery, [subscriptionId]);
+        const fbInvoiceId = fb.rows[0]?.invoice_id;
+        if (fbInvoiceId) {
+          const createPaymentQuery = `
+            INSERT INTO payments (invoice_id, amount, payment_method, payment_date, reference_number, notes)
+            VALUES ($1, $2, $3, CURRENT_TIMESTAMP, $4, $5)
+            RETURNING *
+          `;
+          await client.query(createPaymentQuery, [fbInvoiceId, amount, payment_method, reference_number, notes]);
+        }
+      }
     }
     
     await client.query('COMMIT');
@@ -439,7 +473,8 @@ const updatePaymentStatus = async (sourceId, status, webhookData = null) => {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    
+
+    console.log(`🔔 [BillingModel] updatePaymentStatus START sourceId=${sourceId} -> status=${status}`);
     const query = `
       UPDATE payment_sources 
       SET status = $1, webhook_data = $2, updated_at = CURRENT_TIMESTAMP
@@ -449,9 +484,46 @@ const updatePaymentStatus = async (sourceId, status, webhookData = null) => {
     
     const result = await client.query(query, [status, webhookData, sourceId]);
     
+    if (result.rows.length === 0) {
+      console.warn(`⚠️ [BillingModel] No payment_source found for sourceId=${sourceId}`);
+    } else {
+      console.log(`✅ [BillingModel] payment_sources updated: sourceId=${sourceId}, status=${status}`);
+    }
+    
     // If payment completed, also create a payment record and activate subscription
     if (status === 'completed' && result.rows.length > 0) {
-      const paymentSource = result.rows[0];
+      let paymentSource = result.rows[0];
+      console.log(`🔗 [BillingModel] Linking source -> invoice: sourceId=${sourceId}, invoice_id=${paymentSource.invoice_id}`);
+
+      // Fallback: if invoice_id is null, try to resolve to latest unpaid invoice created today
+      if (!paymentSource.invoice_id) {
+        console.warn(`⚠️ [BillingModel] payment_source has NULL invoice_id. Attempting to resolve to latest unpaid invoice created today...`);
+        try {
+          const resolveRes = await client.query(
+            `WITH candidate AS (
+               SELECT invoice_id 
+               FROM invoices 
+               WHERE status = 'unpaid' AND DATE(created_at) = CURRENT_DATE 
+               ORDER BY created_at DESC 
+               LIMIT 1
+             )
+             UPDATE payment_sources ps
+             SET invoice_id = c.invoice_id, updated_at = CURRENT_TIMESTAMP
+             FROM candidate c
+             WHERE ps.source_id = $1 AND ps.invoice_id IS NULL
+             RETURNING ps.*`,
+            [sourceId]
+          );
+          if (resolveRes.rows.length > 0) {
+            paymentSource = resolveRes.rows[0];
+            console.log(`✅ [BillingModel] Fallback linked source to invoice_id=${paymentSource.invoice_id}`);
+          } else {
+            console.warn(`⚠️ [BillingModel] No suitable unpaid invoice found for fallback linking. Skipping invoice and subscription updates.`);
+          }
+        } catch (e) {
+          console.error(`💥 [BillingModel] Error during fallback invoice linking:`, e);
+        }
+      }
       
       // Create payment record
       const paymentData = {
@@ -468,7 +540,7 @@ const updatePaymentStatus = async (sourceId, status, webhookData = null) => {
         VALUES ($1, $2, $3, $4, $5, $6)
         RETURNING *
       `;
-      await client.query(createPaymentQuery, [
+      const paymentInsert = await client.query(createPaymentQuery, [
         paymentData.invoice_id, 
         paymentData.amount, 
         paymentData.payment_method, 
@@ -476,12 +548,25 @@ const updatePaymentStatus = async (sourceId, status, webhookData = null) => {
         paymentData.reference_number, 
         paymentData.notes
       ]);
+      const createdPayment = paymentInsert.rows[0];
+      console.log(`💰 [BillingModel] Payment recorded payment_id=${createdPayment.payment_id} amount=${createdPayment.amount} method=${createdPayment.payment_method}`);
       
-      // Update invoice status to paid
-      await client.query(
-        'UPDATE invoices SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE invoice_id = $2',
-        ['paid', paymentSource.invoice_id]
-      );
+      // Update invoice status to paid (only if we have an invoice_id)
+      if (paymentSource.invoice_id) {
+        const invoiceUpdate = await client.query(
+          'UPDATE invoices SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE invoice_id = $2 RETURNING invoice_id, status',
+          ['paid', paymentSource.invoice_id]
+        );
+        console.log(`🧾 [BillingModel] Invoice updated invoice_id=${invoiceUpdate.rows[0]?.invoice_id} status=${invoiceUpdate.rows[0]?.status}`);
+      }
+      
+      // Determine subscription_id for logging
+      let subscriptionId = null;
+      if (paymentSource.invoice_id) {
+        const subIdResult = await client.query('SELECT subscription_id FROM invoices WHERE invoice_id = $1', [paymentSource.invoice_id]);
+        subscriptionId = subIdResult.rows[0]?.subscription_id;
+      }
+      console.log(`📦 [BillingModel] Resolving subscription to activate subscription_id=${subscriptionId}`);
       
       // Activate the subscription
       const activateSubscriptionQuery = `
@@ -493,15 +578,21 @@ const updatePaymentStatus = async (sourceId, status, webhookData = null) => {
         WHERE subscription_id = (
           SELECT subscription_id FROM invoices WHERE invoice_id = $1
         )
-        RETURNING *
+        RETURNING subscription_id, status, payment_status, payment_confirmed_at
       `;
-      await client.query(activateSubscriptionQuery, [paymentSource.invoice_id]);
+      if (paymentSource.invoice_id) {
+        const subUpdate = await client.query(activateSubscriptionQuery, [paymentSource.invoice_id]);
+        const subRow = subUpdate.rows[0];
+        console.log(`📬 [BillingModel] Subscription activated subscription_id=${subRow?.subscription_id} status=${subRow?.status} payment_status=${subRow?.payment_status} confirmed_at=${subRow?.payment_confirmed_at}`);
+      }
     }
     
     await client.query('COMMIT');
+    console.log(`🏁 [BillingModel] updatePaymentStatus DONE sourceId=${sourceId} -> status=${status}`);
     return result.rows[0];
   } catch (error) {
     await client.query('ROLLBACK');
+    console.error(`💥 [BillingModel] updatePaymentStatus ERROR sourceId=${sourceId} -> status=${status}:`, error);
     throw error;
   } finally {
     client.release();

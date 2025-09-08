@@ -41,6 +41,36 @@ const CollectorLoginScreen = () => {
             const authToken = data.token || `session_${data.user.id}_${Date.now()}`;
             await saveAuth(authToken, data.user.role, data.user?.id);
             console.log('After saveAuth');
+
+            // Resolve and persist collectors.collector_id for this user to speed up future screens
+            try {
+              const colRes = await fetch(`${API_BASE_URL}/api/collectors`);
+              if (colRes.ok) {
+                const list = await colRes.json();
+                // Prefer mapping by user_id; if multiple rows exist, pick the latest by highest collector_id
+                let match = null;
+                if (Array.isArray(list)) {
+                  const byUserId = list.filter(c => Number(c.user_id) === Number(data.user?.id));
+                  if (byUserId.length > 0) {
+                    byUserId.sort((a, b) => Number(b.collector_id) - Number(a.collector_id));
+                    match = byUserId[0];
+                  } else {
+                    // Fallback: by username
+                    const byUsername = list.filter(c => c.username === data.user?.username);
+                    if (byUsername.length > 0) {
+                      byUsername.sort((a, b) => Number(b.collector_id) - Number(a.collector_id));
+                      match = byUsername[0];
+                    }
+                  }
+                }
+                if (match && match.collector_id) {
+                  await saveAuth(authToken, data.user.role, data.user?.id, match.collector_id);
+                  console.log('Saved collector_id:', match.collector_id);
+                }
+              }
+            } catch (mapErr) {
+              console.warn('Could not resolve collector_id at login:', mapErr?.message || mapErr);
+            }
           } catch (e) {
             console.error('Error in saveAuth:', e);
           }

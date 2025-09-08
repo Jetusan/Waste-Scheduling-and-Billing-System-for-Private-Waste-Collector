@@ -4,6 +4,7 @@ import ALogin from './pages/ALogin';
 import Dashboard from './pages/MDashboard';
 import CollectionSchedule from './pages/CollectionSchedule';
 import Layout from './pages/Layout';
+import Assignments from './pages/Assignments';
 import UsersCollectors from './pages/UserCollector';
 import Reports from './pages/Reports';
 import Notifications from './pages/Notifications';
@@ -63,6 +64,7 @@ const App = () => {
             <Route index element={<Navigate to="schedule" replace />} />
             <Route path="schedule" element={<CollectionSchedule />} />
             <Route path="subscribers" element={<UsersCollectors />} />
+            <Route path="assignments" element={<Assignments />} />
           </Route>
           
           {/* Billing Routes */}

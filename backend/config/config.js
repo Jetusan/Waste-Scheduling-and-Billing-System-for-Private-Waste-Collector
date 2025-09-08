@@ -4,7 +4,7 @@ const LOCAL_IP = '172.16.151.188';
 const PORT = 5000;
 
 // NGROK URL - Update this when you restart ngrok
-const NGROK_URL = process.env.NGROK_URL || 'https://d9bcbd3056f9.ngrok-free.app';
+const NGROK_URL = process.env.NGROK_URL || 'https://e0e2c2de8d4e.ngrok-free.app';
 
 // Base URLs for different environments
 const BASE_URL = `http://${LOCAL_IP}:${PORT}`;

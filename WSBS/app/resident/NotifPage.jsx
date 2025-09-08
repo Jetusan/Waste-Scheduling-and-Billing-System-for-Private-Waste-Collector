@@ -1,93 +1,62 @@
-import React from 'react';
-import { View, Text, StyleSheet, FlatList } from 'react-native';
+import React, { useEffect, useState, useCallback } from 'react';
+import { View, Text, StyleSheet, FlatList, ActivityIndicator, RefreshControl } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { API_BASE_URL } from '../config';
+import { getToken } from '../auth';
 
 export default function NotifPage() {
-  const notifications = [
-    {
-      id: '1',
-      message: 'Your waste pickup is scheduled for tomorrow at 7:00 AM.',
-      time: '2m ago',
-      count: 1,
-      icon: 'ios-trash-bin',
-    },
-    {
-      id: '2',
-      message: 'New collection route assigned for your area. Check the updated schedule.',
-      time: '10m ago',
-      count: 2,
-      icon: 'map-outline',
-    },
-    {
-      id: '3',
-      message: 'Billing reminder: Your monthly waste collection fee is due.',
-      time: '30m ago',
-      count: 1,
-      icon: 'card-outline',
-    },
-    {
-      id: '4',
-      message: 'Waste collection completed successfully in your area.',
-      time: '1h ago',
-      count: 0,
-      icon: 'checkmark-done-outline',
-    },
-    {
-      id: '5',
-      message: 'Promo: Refer a neighbor and get 10% off your next bill!',
-      time: '3h ago',
-      count: 0,
-      icon: 'gift-outline',
-    },
-    {
-      id: '6',
-      message: 'Important: Collection delays expected tomorrow due to road repairs.',
-      time: '5h ago',
-      count: 1,
-      icon: 'alert-circle-outline',
-    },
-    {
-      id: '7',
-      message: 'You earned 5 eco points for segregating your waste properly!',
-      time: '8h ago',
-      count: 0,
-      icon: 'leaf-outline',
-    },
-    {
-      id: '8',
-      message: 'Thank you for your payment of ₱350.00 for this month’s waste services.',
-      time: '12h ago',
-      count: 0,
-      icon: 'cash-outline',
-    },
-    {
-      id: '9',
-      message: 'New recycling program launched! Join and earn extra eco points.',
-      time: '1d ago',
-      count: 1,
-      icon: 'recycle-outline',
-    },
-    {
-      id: '10',
-      message: 'Survey: Rate our waste collection services and help us improve.',
-      time: '2d ago',
-      count: 0,
-      icon: 'chatbubble-ellipses-outline',
-    },
-  ];
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState(null);
+  const [notifications, setNotifications] = useState([]);
+
+  const fetchNotifications = useCallback(async () => {
+    setError(null);
+    try {
+      const token = await getToken();
+      if (!token) {
+        setNotifications([]);
+        setLoading(false);
+        return;
+      }
+      const res = await fetch(`${API_BASE_URL}/api/notifications/me`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data?.success && Array.isArray(data.notifications)) {
+        setNotifications(data.notifications);
+      } else {
+        setError(data?.message || 'Failed to load notifications');
+      }
+    } catch (e) {
+      setError('Failed to load notifications');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchNotifications();
+  }, [fetchNotifications]);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await fetchNotifications();
+    setRefreshing(false);
+  }, [fetchNotifications]);
 
   const renderItem = ({ item }) => (
     <View style={styles.notificationItem}>
       <View style={styles.avatar}>
-        <Ionicons name={item.icon} size={22} color="#4CD964" />
+        <Ionicons name={item.is_read ? 'notifications-outline' : 'notifications'} size={22} color="#4CD964" />
       </View>
       <View style={styles.notificationContent}>
-        <Text style={styles.notificationText}>{item.message}</Text>
-        <Text style={styles.timeText}>{item.time}</Text>
+        <Text style={styles.notificationText}>{item.title || 'Notification'}</Text>
+        <Text style={styles.timeText}>{item.message}</Text>
       </View>
-      {item.count > 0 && (
+      {!item.is_read && (
         <View style={styles.badgeContainer}>
-          <Text style={styles.badgeText}>{item.count}</Text>
+          <Text style={styles.badgeText}>New</Text>
         </View>
       )}
     </View>
@@ -101,13 +70,25 @@ export default function NotifPage() {
       </View>
 
       {/* Notification List */}
-      <FlatList
-        data={notifications}
-        renderItem={renderItem}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.notificationList}
-        ItemSeparatorComponent={() => <View style={styles.separator} />}
-      />
+      {loading ? (
+        <View style={{ padding: 20 }}>
+          <ActivityIndicator size="small" color="#4CD964" />
+        </View>
+      ) : error ? (
+        <View style={{ padding: 20 }}>
+          <Text style={{ color: '#c62828' }}>{error}</Text>
+        </View>
+      ) : (
+        <FlatList
+          data={notifications}
+          renderItem={renderItem}
+          keyExtractor={(item) => String(item.notification_id)}
+          contentContainerStyle={styles.notificationList}
+          ItemSeparatorComponent={() => <View style={styles.separator} />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+          ListEmptyComponent={<Text style={{ color: '#666', padding: 20 }}>No notifications yet.</Text>}
+        />
+      )}
     </View>
   );
 }

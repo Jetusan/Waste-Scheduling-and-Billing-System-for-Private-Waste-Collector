@@ -3,26 +3,27 @@ const router = express.Router();
 const pool = require('../config/dbAdmin');
 const bcrypt = require('bcrypt');
 
-// GET all collectors
+// GET all collectors (users with role_id=2 that have a collectors row)
 router.get('/', async (req, res) => {
   try {
     console.log('Fetching collectors...');
     const query = `
       SELECT 
-        u.user_id, 
-        u.user_id as collector_id, 
+        u.user_id,
+        c.collector_id,
         u.username,
-        n.first_name, 
-        n.middle_name, 
+        n.first_name,
+        n.middle_name,
         n.last_name,
-        u.contact_number, 
+        u.contact_number,
         u.email,
-        'active' as employment_status,
+        c.status as employment_status,
         'Collection Department' as department,
-        u.created_at 
-      FROM users u 
-      LEFT JOIN user_names n ON u.name_id = n.name_id 
-      WHERE u.role_id = 2 
+        u.created_at
+      FROM users u
+      JOIN collectors c ON c.user_id = u.user_id
+      LEFT JOIN user_names n ON u.name_id = n.name_id
+      WHERE u.role_id = 2
       ORDER BY u.created_at DESC
     `;
     const result = await pool.query(query);

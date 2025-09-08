@@ -162,6 +162,26 @@ const getUpcomingSchedules = async (req, res) => {
   try {
     const limit = req.query.limit || 5;
     
+    // Get current day of week and upcoming days
+    const today = new Date();
+    const currentDayIndex = today.getDay(); // 0 = Sunday, 1 = Monday, etc.
+    const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    
+    // Calculate next occurrence dates for each day
+    const getNextOccurrence = (dayName) => {
+      const targetDayIndex = daysOfWeek.indexOf(dayName);
+      if (targetDayIndex === -1) return null;
+      
+      let daysUntilTarget = targetDayIndex - currentDayIndex;
+      if (daysUntilTarget <= 0) {
+        daysUntilTarget += 7; // Next week
+      }
+      
+      const nextDate = new Date(today);
+      nextDate.setDate(today.getDate() + daysUntilTarget);
+      return nextDate;
+    };
+    
     const query = `
       SELECT 
         cs.*,
@@ -170,20 +190,31 @@ const getUpcomingSchedules = async (req, res) => {
             'barangay_id', b.barangay_id,
             'barangay_name', b.barangay_name
           )
-        ) as barangays,
-        t.truck_number
+        ) as barangays
       FROM collection_schedules cs
       LEFT JOIN schedule_barangays sb ON cs.schedule_id = sb.schedule_id
       LEFT JOIN barangays b ON sb.barangay_id = b.barangay_id
-      LEFT JOIN trucks t ON cs.truck_id = t.truck_id
-      WHERE cs.schedule_date >= CURRENT_DATE
-      GROUP BY cs.schedule_id, t.truck_number
-      ORDER BY cs.schedule_date ASC
+      GROUP BY cs.schedule_id, cs.schedule_date, cs.created_at, cs.waste_type, cs.time_range
+      ORDER BY cs.schedule_date, cs.time_range
       LIMIT $1
     `;
 
     const result = await pool.query(query, [limit]);
-    res.json(result.rows);
+    
+    // Transform the data to include actual next occurrence dates
+    const transformedSchedules = result.rows.map(schedule => {
+      const nextDate = getNextOccurrence(schedule.schedule_date);
+      return {
+        ...schedule,
+        next_occurrence: nextDate ? nextDate.toISOString().split('T')[0] : null,
+        actual_schedule_date: nextDate,
+        day_of_week: schedule.schedule_date,
+        status: 'Scheduled' // Default status for upcoming schedules
+      };
+    }).filter(schedule => schedule.next_occurrence) // Only include valid dates
+      .sort((a, b) => new Date(a.next_occurrence) - new Date(b.next_occurrence)); // Sort by next occurrence
+
+    res.json(transformedSchedules);
 
   } catch (error) {
     console.error('Error fetching upcoming schedules:', error);

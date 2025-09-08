@@ -5,6 +5,7 @@ const path = require('path');
 const collectionSchedulesRouter = require('./routes/collectionSchedules');
 const authRouter = require('./routes/auth');
 const billingRouter = require('./routes/billing');
+const dashboardRouter = require('./routes/dashboard'); // Add dashboard routes
 const barangaysRouter = require('./routes/barangays-fixed'); // Enable barangays route
 const specialPickupRouter = require('./routes/specialPickup'); // Special pickup route
 // UserCollector related routes
@@ -13,6 +14,7 @@ const collectorsRouter = require('./routes/collectors');
 const trucksRouter = require('./routes/trucks');
 const collectorAssignmentsRouter = require('./routes/collectorAssignments');
 const debugAssignmentsRouter = require('./routes/debugAssignments');
+const assignmentsRouter = require('./routes/assignments');
 // const adminAuthRouter = require('./routes/adminAuth'); // Temporarily commented out
 
 // Add this near your other route imports
@@ -44,6 +46,7 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use('/api/collection-schedules', collectionSchedulesRouter);
 app.use('/api/auth', authRouter);
 app.use('/api/billing', billingRouter);
+app.use('/api/dashboard', dashboardRouter); // Add dashboard routes
 app.use('/api/barangays', barangaysRouter); // Enable barangays route
 app.use('/api/special-pickup', specialPickupRouter); // Special pickup route
 // UserCollector related routes - all enabled
@@ -55,6 +58,7 @@ app.use('/api/admin/registrations', adminRegistrationsRouter);
 app.use('/api/debug', debugAssignmentsRouter);
 app.use('/api/test-email', testEmailRouter);
 app.use('/api/notifications', notificationsRouter);
+app.use('/api/assignments', assignmentsRouter);
 // app.use('/api/admin/auth', adminAuthRouter); // Temporarily commented out
 
 // Temporary admin auth route

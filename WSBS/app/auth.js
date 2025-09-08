@@ -3,8 +3,9 @@ import * as SecureStore from 'expo-secure-store';
 const TOKEN_KEY = 'userToken';
 const ROLE_KEY = 'userRole';
 const USER_ID_KEY = 'userId';
+const COLLECTOR_ID_KEY = 'collectorId';
 
-export async function saveAuth(token, role, userId) {
+export async function saveAuth(token, role, userId, collectorId) {
   console.log('Saving auth - token:', token ? 'present' : 'missing', 'role:', role);
   
   if (token) {
@@ -18,6 +19,11 @@ export async function saveAuth(token, role, userId) {
   // Save userId if provided
   if (userId !== undefined && userId !== null) {
     await SecureStore.setItemAsync(USER_ID_KEY, String(userId));
+  }
+
+  // Save collectorId if provided
+  if (collectorId !== undefined && collectorId !== null) {
+    await SecureStore.setItemAsync(COLLECTOR_ID_KEY, String(collectorId));
   }
 }
 
@@ -34,8 +40,14 @@ export async function getUserId() {
   return id ? Number(id) : null;
 }
 
+export async function getCollectorId() {
+  const id = await SecureStore.getItemAsync(COLLECTOR_ID_KEY);
+  return id ? Number(id) : null;
+}
+
 export async function logout() {
   await SecureStore.deleteItemAsync(TOKEN_KEY);
   await SecureStore.deleteItemAsync(ROLE_KEY);
   await SecureStore.deleteItemAsync(USER_ID_KEY);
+  await SecureStore.deleteItemAsync(COLLECTOR_ID_KEY);
 }

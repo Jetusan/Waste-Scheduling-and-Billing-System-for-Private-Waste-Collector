@@ -15,7 +15,8 @@ const navConfig = [
     key: 'operations',
     items: [
       { title: 'Collection Schedule', icon: 'fas fa-calendar-alt', path: '/admin/operations/schedule' },
-      { title: 'Users',          icon: 'fas fa-users',         path: '/admin/operations/subscribers' }
+      { title: 'Users',          icon: 'fas fa-users',         path: '/admin/operations/subscribers' },
+      { title: 'Assignments',    icon: 'fas fa-user-check',    path: '/admin/operations/assignments' }
     ]
   },
   {
@@ -50,6 +51,7 @@ const pageTitles = {
   '/admin/dashboard': 'Waste Scheduling and Billing System',
   '/admin/operations/schedule': 'Collection Schedule',
   '/admin/operations/subscribers': 'Users',
+  '/admin/operations/assignments': 'Collector Assignments',
   '/admin/billing': 'Billing Management',
   '/admin/billing-history': 'Billing History',
   '/admin/insights/reports': 'Reports',

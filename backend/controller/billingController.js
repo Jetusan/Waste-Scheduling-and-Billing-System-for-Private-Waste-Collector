@@ -471,6 +471,7 @@ const createMobileSubscription = async (req, res) => {
       const invoiceData = {
         user_id: user_id,
         plan_id: plan.plan_id,
+        subscription_id: subscription.subscription_id,
         due_date: due_date.toISOString().split('T')[0],
         generated_date: new Date().toISOString().split('T')[0],
         notes: `Initial invoice for ${plan.plan_name} subscription`
@@ -556,9 +557,9 @@ const createMobileSubscription = async (req, res) => {
 };
 
 // Payment Status Methods for GCash Integration
-const updatePaymentStatus = async (sourceId, status) => {
+const updatePaymentStatus = async (sourceId, status, webhookData = null) => {
   try {
-    return await billingModel.updatePaymentStatus(sourceId, status);
+    return await billingModel.updatePaymentStatus(sourceId, status, webhookData);
   } catch (error) {
     console.error('Error updating payment status:', error);
     throw error;
@@ -607,18 +608,16 @@ const createGcashSource = async (req, res) => {
       ? process.env.ADMIN_FAILED_URL || config.ADMIN_PAYMENT_REDIRECT.FAILED
       : process.env.FRONTEND_FAILED_URL || config.PAYMENT_REDIRECT.FAILED;
     
-    // Add subscription_id to success URL for mobile app
-    const successUrl = subscription_id ? `${baseSuccessUrl}?subscription_id=${subscription_id}` : baseSuccessUrl;
-    const failedUrl = subscription_id ? `${baseFailedUrl}?subscription_id=${subscription_id}` : baseFailedUrl;
-
-    // Create PayMongo GCash Source
+    // Create PayMongo GCash Source first to get the source ID
     const paymongoData = {
       data: {
         attributes: {
           amount: parseInt(amount), // Amount in centavos
           redirect: {
-            success: successUrl,
-            failed: failedUrl
+            // Important: include subscription_id (if available) so the success redirect carries it,
+            // allowing server to resolve source_id via DB if PayMongo doesn't append it.
+            success: subscription_id ? `${baseSuccessUrl}?subscription_id=${subscription_id}` : baseSuccessUrl,
+            failed: subscription_id ? `${baseFailedUrl}?subscription_id=${subscription_id}` : baseFailedUrl
           },
           type: 'gcash',
           currency: 'PHP',
@@ -652,11 +651,40 @@ const createGcashSource = async (req, res) => {
 
     const source = paymongoResult.data;
     
+    // Now create proper redirect URLs with source ID
+    const successUrl = subscription_id 
+      ? `${baseSuccessUrl}?source_id=${source.id}&subscription_id=${subscription_id}` 
+      : `${baseSuccessUrl}?source_id=${source.id}`;
+    const failedUrl = subscription_id 
+      ? `${baseFailedUrl}?source_id=${source.id}&subscription_id=${subscription_id}` 
+      : `${baseFailedUrl}?source_id=${source.id}`;
+    
+    // Resolve invoice_id if not provided using subscription_id (latest unpaid invoice)
+    let resolvedInvoiceId = invoice_id;
+    try {
+      if (!resolvedInvoiceId && subscription_id) {
+        const invRes = await pool.query(
+          `SELECT invoice_id FROM invoices 
+           WHERE subscription_id = $1 AND status = 'unpaid' 
+           ORDER BY created_at DESC LIMIT 1`,
+          [subscription_id]
+        );
+        if (invRes.rows.length > 0) {
+          resolvedInvoiceId = invRes.rows[0].invoice_id;
+          console.log('🔗 Resolved invoice_id from subscription_id:', resolvedInvoiceId);
+        } else {
+          console.warn('⚠️ No unpaid invoice found for subscription_id:', subscription_id);
+        }
+      }
+    } catch (e) {
+      console.error('⚠️ Error resolving invoice_id from subscription_id:', e.message);
+    }
+
     // Store payment source in database for tracking
     try {
       const paymentData = {
         source_id: source.id,
-        invoice_id: invoice_id, // Link to specific invoice
+        invoice_id: resolvedInvoiceId, // Link to specific invoice
         amount: parseInt(amount),
         currency: 'PHP',
         payment_method: 'gcash',
@@ -667,6 +695,9 @@ const createGcashSource = async (req, res) => {
 
       await billingModel.createPaymentSource(paymentData);
       console.log('✅ Payment source stored in database:', source.id);
+      if (!resolvedInvoiceId) {
+        console.warn('⚠️ Payment source saved WITHOUT invoice_id. Downstream updates (invoice/subscription activation) will not occur until linked.');
+      }
     } catch (dbError) {
       console.error('⚠️ Database error while creating payment source:', dbError);
       // Continue anyway, as the main functionality should work
