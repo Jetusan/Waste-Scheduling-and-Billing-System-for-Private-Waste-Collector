@@ -48,66 +48,73 @@ const Dashboard = () => {
       setLoading(true);
       setError(null);
       try {
+        const token = localStorage.getItem('adminToken') || sessionStorage.getItem('adminToken');
+        const headers = token ? { Authorization: `Bearer ${token}` } : {};
         // Parallel API calls for better performance
         const [dashboardStats, upcomingSchedulesRes, overdueInvoicesRes, recentInvoicesRes] = await Promise.allSettled([
-          axios.get(`${API_BASE_URL}/dashboard/stats`),
-          axios.get(`${API_BASE_URL}/dashboard/upcoming-schedules?limit=5`),
-          axios.get(`${API_BASE_URL}/dashboard/overdue-invoices?limit=5`),
-          axios.get(`${API_BASE_URL}/billing/invoices?limit=10`)
+          axios.get(`${API_BASE_URL}/dashboard/stats`, { headers }),
+          axios.get(`${API_BASE_URL}/dashboard/upcoming-schedules?limit=5`, { headers }),
+          axios.get(`${API_BASE_URL}/dashboard/overdue-invoices?limit=5`, { headers }),
+          axios.get(`${API_BASE_URL}/billing/invoices?limit=10`, { headers })
         ]);
 
         // Handle dashboard stats
         if (dashboardStats.status === 'fulfilled') {
-          const stats = dashboardStats.value.data;
+          const stats = dashboardStats.value.data || {};
+          const todayTotal = stats.collections?.today?.total || 0;
+          const todayCompleted = stats.collections?.today?.completed || 0;
+          const todayPending = Math.max(0, todayTotal - todayCompleted);
+          const fleetTotal = stats.fleet?.total || 0;
+          const fleetActive = stats.fleet?.active || 0;
           setMetrics({
-            totalRevenue: stats.revenue?.total || 0,
-            monthlyRevenue: stats.revenue?.monthly || 0,
-            yearlyRevenue: stats.revenue?.yearly || 0,
-            todayRevenue: stats.revenue?.today || 0,
+            totalRevenue: Number(stats.revenue?.total) || 0,
+            monthlyRevenue: Number(stats.revenue?.monthly) || 0,
+            yearlyRevenue: Number(stats.revenue?.yearly) || 0,
+            todayRevenue: Number(stats.revenue?.today) || 0,
             missedPickups: {
-              count: stats.collections?.missed || 0,
+              count: Number(stats.collections?.missed) || 0,
               locations: 'Various locations'
             },
             todayPickups: {
-              total: stats.collections?.today?.total || 0,
-              completed: stats.collections?.today?.completed || 0,
-              pending: stats.collections?.today?.pending || 0,
-              cancelled: stats.collections?.today?.cancelled || 0
+              total: todayTotal,
+              completed: todayCompleted,
+              pending: todayPending,
+              cancelled: 0
             },
             weekPickups: {
-              total: stats.collections?.week?.total || 0,
-              completed: stats.collections?.week?.completed || 0
+              total: Number(stats.collections?.week?.total) || 0,
+              completed: Number(stats.collections?.week?.completed) || 0
             },
             monthPickups: {
-              total: stats.collections?.month?.total || 0,
-              completed: stats.collections?.month?.completed || 0
+              total: Number(stats.collections?.month?.total) || 0,
+              completed: Number(stats.collections?.month?.completed) || 0
             },
             overduePayments: { 
-              count: stats.payments?.overdue?.count || 0, 
-              amount: stats.payments?.overdue?.amount || 0
+              count: Number(stats.payments?.overdue?.count) || 0, 
+              amount: Number(stats.payments?.overdue?.amount) || 0
             },
             activeSubscribers: {
-              Basic: stats.subscribers?.Basic || 0,
-              Regular: stats.subscribers?.Regular || 0,
-              Premium: stats.subscribers?.Premium || 0,
-              AllIn: stats.subscribers?.AllIn || 0,
-              total: stats.subscribers?.total || 0
+              Basic: Number(stats.subscribers?.Basic) || 0,
+              Regular: Number(stats.subscribers?.Regular) || 0,
+              Premium: Number(stats.subscribers?.Premium) || 0,
+              AllIn: Number(stats.subscribers?.AllIn) || 0,
+              total: Number(stats.subscribers?.total) || 0
             },
-            inactiveSubscribers: stats.subscribers?.inactive || 0,
-            failedPayments: stats.payments?.failed_7d || 0,
-            successfulPayments: stats.payments?.successful_7d || 0,
-            totalTrucks: stats.fleet?.total || 0,
-            activeTrucks: stats.fleet?.active || 0,
-            inactiveTrucks: stats.fleet?.inactive || 0,
-            trucksInMaintenance: stats.fleet?.maintenance || 0,
-            totalComplaints: stats.complaints?.total || 0,
-            pendingComplaints: stats.complaints?.pending || 0,
-            resolvedComplaints: stats.complaints?.resolved || 0,
-            totalResidents: stats.residents?.total || 0,
-            newResidents: stats.residents?.new_30d || 0,
-            collectionEfficiency: stats.collections?.efficiency || 0,
-            routeEfficiency: stats.collections?.route_efficiency || 0,
-            driverPerformance: stats.performance?.driver_avg || 0,
+            inactiveSubscribers: Number(stats.subscribers?.inactive) || 0,
+            failedPayments: Number(stats.payments?.failed_7d) || 0,
+            successfulPayments: Number(stats.payments?.successful_7d) || 0,
+            totalTrucks: fleetTotal,
+            activeTrucks: fleetActive,
+            inactiveTrucks: Math.max(0, fleetTotal - fleetActive),
+            trucksInMaintenance: Number(stats.fleet?.maintenance) || 0,
+            totalComplaints: Number(stats.complaints?.total) || 0,
+            pendingComplaints: Number(stats.complaints?.pending) || 0,
+            resolvedComplaints: Number(stats.complaints?.resolved) || 0,
+            totalResidents: Number(stats.residents?.total) || 0,
+            newResidents: Number(stats.residents?.new_30d) || 0,
+            collectionEfficiency: Number(stats.collections?.efficiency) || 0,
+            routeEfficiency: Number(stats.collections?.route_efficiency) || Number(stats.collections?.efficiency) || 0,
+            driverPerformance: Number(stats.performance?.driver_avg) || 0,
           });
         }
 
@@ -126,6 +133,12 @@ const Dashboard = () => {
           setRecentInvoices(recentInvoicesRes.value.data?.slice(0, 5) || []);
         }
 
+        // If all four failed, surface a user-visible error
+        const allFailed = [dashboardStats, upcomingSchedulesRes, overdueInvoicesRes, recentInvoicesRes]
+          .every(r => r.status === 'rejected');
+        if (allFailed) {
+          setError('Failed to load dashboard data. Please check your server and admin login.');
+        }
       } catch (err) {
         console.error('Dashboard data fetch error:', err);
         let errorMsg = 'Failed to load dashboard data.';
@@ -154,21 +167,6 @@ const Dashboard = () => {
 
   return (
     <div className="main-dashboard">
-      {/* Simplified Header */}
-      <div className="dashboard-header">
-        <div>
-          <h3>Waste management overview</h3>
-        </div>
-        <div className="header-actions">
-          <button 
-            className="refresh-btn" 
-            onClick={() => window.location.reload()}
-            title="Refresh"
-          >
-            <i className="fas fa-sync-alt"></i>
-          </button>
-        </div>
-      </div>
 
       {/* Simplified Key Metrics */}
       <div className="overview-section">
@@ -185,14 +183,14 @@ const Dashboard = () => {
             </div>
           </div>
 
-          {/* Total Subscribers */}
+          {/* Total Residents */}
           <div className="simple-metric-card info">
             <div className="metric-icon">
               <i className="fas fa-users"></i>
             </div>
             <div className="metric-content">
-              <h3>{metrics.activeSubscribers.total}</h3>
-              <p>Subscriber</p>
+              <h3>{metrics.totalResidents}</h3>
+              <p>Residents</p>
             </div>
           </div>
 
@@ -261,7 +259,7 @@ const Dashboard = () => {
           </button>
           <button className="simple-action-btn" onClick={() => navigate('/admin/operations/subscribers')}>
             <i className="fas fa-users"></i>
-            <span>Users</span>
+            <span>Residents</span>
           </button>
         </div>
       </div>
@@ -333,42 +331,6 @@ const Dashboard = () => {
           >
             View All
           </button>
-        </div>
-        
-        {/* Billing Summary Cards */}
-        <div className="billing-summary">
-          <div className="billing-card revenue">
-            <div className="billing-icon">
-              <i className="fas fa-chart-line"></i>
-            </div>
-            <div className="billing-content">
-              <h4>₱{typeof metrics.monthlyRevenue === 'number' ? metrics.monthlyRevenue.toLocaleString() : '0'}</h4>
-              <p>Monthly Revenue</p>
-              <span className="billing-trend positive">+12% from last month</span>
-            </div>
-          </div>
-          
-          <div className="billing-card overdue">
-            <div className="billing-icon">
-              <i className="fas fa-exclamation-circle"></i>
-            </div>
-            <div className="billing-content">
-              <h4>{metrics.overduePayments.count}</h4>
-              <p>Overdue Invoices</p>
-              <span className="billing-amount">₱{typeof metrics.overduePayments.amount === 'number' ? metrics.overduePayments.amount.toLocaleString() : '0'}</span>
-            </div>
-          </div>
-          
-          <div className="billing-card payments">
-            <div className="billing-icon">
-              <i className="fas fa-credit-card"></i>
-            </div>
-            <div className="billing-content">
-              <h4>{metrics.successfulPayments}</h4>
-              <p>Recent Payments</p>
-              <span className="billing-trend neutral">{metrics.failedPayments} failed</span>
-            </div>
-          </div>
         </div>
 
         {/* Recent Invoices */}

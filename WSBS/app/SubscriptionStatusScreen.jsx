@@ -42,6 +42,52 @@ const SubscriptionStatusScreen = () => {
     };
   };
 
+  const handleCancelSubscription = async () => {
+    try {
+      const token = await getToken();
+      if (!token) {
+        Alert.alert('Error', 'Please login again');
+        router.push('/resident/Login');
+        return;
+      }
+      Alert.alert(
+        'Cancel Subscription',
+        'Are you sure you want to cancel your subscription? This may stop future collections until you subscribe again.',
+        [
+          { text: 'No', style: 'cancel' },
+          { 
+            text: 'Yes, Cancel', 
+            style: 'destructive', 
+            onPress: async () => {
+              try {
+                const res = await fetch(`${API_BASE_URL}/api/billing/cancel-subscription`, {
+                  method: 'POST',
+                  headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                  },
+                  body: JSON.stringify({ reason: 'User requested cancellation from mobile app' })
+                });
+                const data = await res.json();
+                if (!res.ok || !data?.success) {
+                  throw new Error(data?.error || 'Failed to cancel subscription');
+                }
+                Alert.alert('Cancelled', 'Your subscription has been cancelled. You can reactivate anytime.');
+                // Refresh UI
+                await fetchSubscriptionStatus();
+              } catch (e) {
+                Alert.alert('Error', e.message || 'Failed to cancel subscription. Please try again.');
+              }
+            }
+          }
+        ]
+      );
+    } catch (e) {
+      Alert.alert('Error', 'Unexpected error. Please try again.');
+    }
+  };
+  
+
   // Helpers: schedule/cancel due notifications
   const cancelDueNotifications = async () => {
     try {
@@ -244,14 +290,7 @@ const SubscriptionStatusScreen = () => {
         Alert.alert('Not Due Yet', 'You are not due yet. Please go back and check again closer to your next billing date.');
         break;
       case 'cancel_subscription':
-        Alert.alert(
-          'Cancel Subscription',
-          'Are you sure you want to cancel your subscription? This may stop future collections until you subscribe again.',
-          [
-            { text: 'No', style: 'cancel' },
-            { text: 'Yes, Cancel', style: 'destructive', onPress: () => Alert.alert('Requested', 'Cancellation request recorded (placeholder).') }
-          ]
-        );
+        await handleCancelSubscription();
         break;
       case 'contact_support':
         Linking.openURL('tel:+639123456789');

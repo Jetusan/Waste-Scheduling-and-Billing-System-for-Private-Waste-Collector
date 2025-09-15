@@ -106,20 +106,13 @@ async function main() {
     // Apply changes inside a transaction
     await pool.query('BEGIN');
 
-    // Clear latest_* fields on assignment_stop_status
+    // Remove status rows entirely to avoid NOT NULL constraint on latest_action
     const clearSql = `
-      UPDATE assignment_stop_status
-      SET
-        latest_action = NULL,
-        latest_notes = NULL,
-        latest_amount = NULL,
-        latest_lat = NULL,
-        latest_lng = NULL,
-        updated_at = NOW()
+      DELETE FROM assignment_stop_status
       ${whereClause}
     `;
     const clearRes = await pool.query(clearSql, params);
-    console.log(`✅ Cleared status on assignment_stop_status: ${clearRes.rowCount} rows updated.`);
+    console.log(`✅ Removed status rows from assignment_stop_status: ${clearRes.rowCount} rows deleted.`);
 
     // Optionally delete events
     if (opts.includeEvents) {

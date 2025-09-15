@@ -221,6 +221,9 @@ async function handleEvent(req, res, action) {
 
     const event = { action, stop_id, schedule_id, user_id: parseInt(user_id, 10), collector_id: parseInt(collector_id, 10), notes: composedNotes, amount, lat, lng };
 
+    // Extras to include in response body for client hints
+    const responseExtras = {};
+
     try {
       await recordEventDb(event);
     } catch (dbErr) {
@@ -228,7 +231,7 @@ async function handleEvent(req, res, action) {
       backupWrite(event);
     }
 
-    // If missed and collector_fault, create a catch-up task for tomorrow (Asia/Manila)
+    // If missed and collector_fault, create a catch-up task (currently next day, Asia/Manila)
     if (action === 'missed' && missed_reason === 'collector_fault') {
       try {
         const nowManila = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Manila' }));
@@ -245,10 +248,17 @@ async function handleEvent(req, res, action) {
           [parseInt(user_id, 10), schedule_id || null, dateStr, `Auto catch-up from missed (collector fault). ${composedNotes || ''}`.trim()]
         );
 
-        // Notify resident: catch-up scheduled
-        await notifyResident(user_id, 'Collection missed — catch-up scheduled', 'We missed your collection today due to an operational issue. We will return tomorrow.');
+        // Notify resident: catch-up planned (non-committal)
+        await notifyResident(
+          user_id,
+          'Collection missed — catch-up planned',
+          'We missed your collection today due to an operational issue. We will notify you once your catch-up pickup is scheduled.'
+        );
         // Notify admins
         await notifyAdmins('Missed (Ops)', `Collector-fault missed for user ${user_id}. Catch-up scheduled for ${dateStr}. Collector #${collector_id}.`);
+
+        // Include tentative date for client to show as tentative info
+        responseExtras.next_catchup_date = dateStr;
       } catch (e) {
         console.warn('Failed to insert reschedule_tasks:', e.message);
       }
@@ -264,7 +274,7 @@ async function handleEvent(req, res, action) {
       await notifyAdmins('Collected', `Collected by collector #${collector_id} for user ${user_id} (schedule ${schedule_id || 'N/A'}).`);
     }
 
-    return res.json({ success: true });
+    return res.json({ success: true, ...responseExtras });
   } catch (error) {
     console.error(`Error handling ${action} event:`, error);
     return res.status(500).json({ success: false, message: 'Failed to record event', details: error.message });

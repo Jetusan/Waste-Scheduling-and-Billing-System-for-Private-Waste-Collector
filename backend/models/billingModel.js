@@ -2,9 +2,17 @@ const { pool } = require('../config/db');
 
 // Subscription Plans
 const getAllSubscriptionPlans = async () => {
-  const query = 'SELECT * FROM subscription_plans WHERE status = $1 ORDER BY plan_name';
-  const result = await pool.query(query, ['active']);
-  return result.rows;
+  // Prefer active plans if status column is used; otherwise, fall back to all plans
+  const activeQuery = 'SELECT * FROM subscription_plans WHERE status = $1 ORDER BY plan_name';
+  try {
+    const activeResult = await pool.query(activeQuery, ['active']);
+    if (activeResult.rows && activeResult.rows.length > 0) return activeResult.rows;
+  } catch (e) {
+    // If the status column doesn't exist or query fails, fall through to full fetch
+  }
+  const allQuery = 'SELECT * FROM subscription_plans ORDER BY plan_name';
+  const allResult = await pool.query(allQuery);
+  return allResult.rows;
 };
 
 const getSubscriptionPlanById = async (planId) => {
@@ -67,6 +75,14 @@ const getCustomerSubscriptionById = async (subscriptionId) => {
 const createCustomerSubscription = async (subscriptionData) => {
   const { user_id, plan_id, billing_start_date, payment_method } = subscriptionData;
   
+  // Calculate next billing date (30 days from start)
+  const nextBillingDate = new Date(billing_start_date);
+  nextBillingDate.setDate(nextBillingDate.getDate() + 30);
+  
+  // Calculate grace period end (7 days after next billing)
+  const gracePeriodEnd = new Date(nextBillingDate);
+  gracePeriodEnd.setDate(gracePeriodEnd.getDate() + 7);
+  
   // Determine initial status based on payment method
   const initialStatus = payment_method.toLowerCase() === 'gcash' ? 'pending_payment' : 'pending_payment';
   const paymentStatus = 'pending';
@@ -74,22 +90,31 @@ const createCustomerSubscription = async (subscriptionData) => {
   const query = `
     INSERT INTO customer_subscriptions (
       user_id, plan_id, billing_start_date, payment_method, 
-      status, payment_status, subscription_created_at
+      status, payment_status, subscription_created_at, next_billing_date, grace_period_end,
+      billing_cycle_count
     )
-    VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)
+    VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP, $7, $8, 0)
     RETURNING *
   `;
-  const result = await pool.query(query, [user_id, plan_id, billing_start_date, payment_method, initialStatus, paymentStatus]);
+  const result = await pool.query(query, [
+    user_id, plan_id, billing_start_date, payment_method, 
+    initialStatus, paymentStatus, nextBillingDate.toISOString().split('T')[0], 
+    gracePeriodEnd.toISOString().split('T')[0]
+  ]);
   return result.rows[0];
 };
 
 // Invoices
 const getAllInvoices = async (filters = {}) => {
-  // Fetch all invoices and join users for username
+  // Fetch invoices and join users for username and plans for plan_name
   const query = `
-    SELECT i.*, u.username
+    SELECT 
+      i.*, 
+      u.username,
+      sp.plan_name
     FROM invoices i
     LEFT JOIN users u ON i.user_id = u.user_id
+    LEFT JOIN subscription_plans sp ON i.plan_id = sp.plan_id
   `;
   const result = await pool.query(query);
   return result.rows;
@@ -321,18 +346,21 @@ const generateMonthlyInvoices = async () => {
   return newInvoices;
 };
 
-// Subscription Status Management
+// Enhanced subscription status management
 const activateSubscription = async (subscriptionId, paymentData = null) => {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
     
-    // Update subscription status to active
+    // Update subscription status to active with enhanced fields
     const updateSubscriptionQuery = `
       UPDATE customer_subscriptions 
       SET status = 'active', 
           payment_status = 'paid',
           payment_confirmed_at = CURRENT_TIMESTAMP,
+          last_payment_date = CURRENT_DATE,
+          billing_cycle_count = billing_cycle_count + 1,
+          reactivated_at = CASE WHEN status IN ('suspended', 'cancelled') THEN CURRENT_TIMESTAMP ELSE reactivated_at END,
           updated_at = CURRENT_TIMESTAMP
       WHERE subscription_id = $1
       RETURNING *
@@ -345,8 +373,26 @@ const activateSubscription = async (subscriptionId, paymentData = null) => {
     
     const subscription = subscriptionResult.rows[0];
     
-    // Resolve a single target invoice to mark as paid: pick the latest
-    // unpaid/partially_paid/overdue invoice for this subscription.
+    // Update next billing date
+    const nextBillingDate = new Date();
+    nextBillingDate.setDate(nextBillingDate.getDate() + 30);
+    
+    const updateBillingQuery = `
+      UPDATE customer_subscriptions 
+      SET next_billing_date = $1,
+          grace_period_end = $2
+      WHERE subscription_id = $3
+    `;
+    const gracePeriodEnd = new Date(nextBillingDate);
+    gracePeriodEnd.setDate(gracePeriodEnd.getDate() + 7);
+    
+    await client.query(updateBillingQuery, [
+      nextBillingDate.toISOString().split('T')[0],
+      gracePeriodEnd.toISOString().split('T')[0],
+      subscriptionId
+    ]);
+    
+    // Resolve a single target invoice to mark as paid
     const targetInvoiceQuery = `
       SELECT invoice_id 
       FROM invoices 
@@ -369,39 +415,67 @@ const activateSubscription = async (subscriptionId, paymentData = null) => {
     }
     
     // Create payment record if payment data provided
-    if (paymentData) {
+    if (paymentData && targetInvoiceId) {
       const { amount, payment_method, reference_number, notes } = paymentData;
-      // If we resolved a specific invoice above, use it; otherwise, fall back to the
-      // most recent invoice for the subscription (to preserve legacy behavior).
-      if (targetInvoiceId) {
-        const createPaymentQuery = `
-          INSERT INTO payments (invoice_id, amount, payment_method, payment_date, reference_number, notes)
-          VALUES ($1, $2, $3, CURRENT_TIMESTAMP, $4, $5)
-          RETURNING *
-        `;
-        await client.query(createPaymentQuery, [targetInvoiceId, amount, payment_method, reference_number, notes]);
-      } else {
-        const fallbackInvoiceQuery = `
-          SELECT invoice_id FROM invoices 
-          WHERE subscription_id = $1
-          ORDER BY created_at DESC
-          LIMIT 1
-        `;
-        const fb = await client.query(fallbackInvoiceQuery, [subscriptionId]);
-        const fbInvoiceId = fb.rows[0]?.invoice_id;
-        if (fbInvoiceId) {
-          const createPaymentQuery = `
-            INSERT INTO payments (invoice_id, amount, payment_method, payment_date, reference_number, notes)
-            VALUES ($1, $2, $3, CURRENT_TIMESTAMP, $4, $5)
-            RETURNING *
-          `;
-          await client.query(createPaymentQuery, [fbInvoiceId, amount, payment_method, reference_number, notes]);
-        }
-      }
+      const createPaymentQuery = `
+        INSERT INTO payments (invoice_id, amount, payment_method, payment_date, reference_number, notes)
+        VALUES ($1, $2, $3, CURRENT_TIMESTAMP, $4, $5)
+        RETURNING *
+      `;
+      await client.query(createPaymentQuery, [targetInvoiceId, amount, payment_method, reference_number, notes]);
     }
     
     await client.query('COMMIT');
     return subscription;
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
+// Cancel latest non-cancelled subscription for a user
+const cancelSubscriptionByUserId = async (userId, reason = 'User requested cancellation') => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // Find latest subscription that is not already cancelled
+    const findQuery = `
+      SELECT subscription_id, status
+      FROM customer_subscriptions
+      WHERE user_id = $1
+      ORDER BY created_at DESC
+      LIMIT 1
+    `;
+    const subRes = await client.query(findQuery, [userId]);
+    if (subRes.rows.length === 0) {
+      throw new Error('No subscription found for user');
+    }
+
+    const sub = subRes.rows[0];
+    if (sub.status === 'cancelled') {
+      await client.query('COMMIT');
+      return {
+        ...sub,
+        alreadyCancelled: true
+      };
+    }
+
+    const updateQuery = `
+      UPDATE customer_subscriptions
+      SET status = 'cancelled',
+          cancelled_at = CURRENT_TIMESTAMP,
+          cancellation_reason = $1,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE subscription_id = $2
+      RETURNING *
+    `;
+    const updRes = await client.query(updateQuery, [reason, sub.subscription_id]);
+
+    await client.query('COMMIT');
+    return updRes.rows[0];
   } catch (error) {
     await client.query('ROLLBACK');
     throw error;
@@ -426,6 +500,119 @@ const getSubscriptionByUserId = async (userId) => {
   `;
   const result = await pool.query(query, [userId]);
   return result.rows[0];
+};
+
+// New function: Get only active subscriptions
+const getActiveSubscriptionByUserId = async (userId) => {
+  const query = `
+    SELECT 
+      cs.*,
+      sp.plan_name,
+      sp.price,
+      sp.frequency,
+      sp.description
+    FROM customer_subscriptions cs
+    JOIN subscription_plans sp ON cs.plan_id = sp.plan_id
+    WHERE cs.user_id = $1 AND cs.status = 'active'
+    ORDER BY cs.created_at DESC
+    LIMIT 1
+  `;
+  const result = await pool.query(query, [userId]);
+  return result.rows[0];
+};
+
+// New function: Expire overdue subscriptions
+const expireOverdueSubscriptions = async () => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    
+    // Mark subscriptions as suspended after grace period
+    const suspendQuery = `
+      UPDATE customer_subscriptions 
+      SET status = 'suspended',
+          suspended_at = CURRENT_TIMESTAMP,
+          suspension_reason = 'Payment overdue - grace period expired'
+      WHERE status = 'active' 
+        AND grace_period_end < CURRENT_DATE
+        AND suspended_at IS NULL
+      RETURNING subscription_id, user_id
+    `;
+    const suspendedResult = await client.query(suspendQuery);
+    
+    // Mark subscriptions as cancelled after 30 days of suspension
+    const cancelQuery = `
+      UPDATE customer_subscriptions 
+      SET status = 'cancelled',
+          cancelled_at = CURRENT_TIMESTAMP,
+          cancellation_reason = 'Extended non-payment - auto-cancelled'
+      WHERE status = 'suspended' 
+        AND suspended_at < CURRENT_DATE - INTERVAL '30 days'
+        AND cancelled_at IS NULL
+      RETURNING subscription_id, user_id
+    `;
+    const cancelledResult = await client.query(cancelQuery);
+    
+    await client.query('COMMIT');
+    
+    return {
+      suspended: suspendedResult.rows,
+      cancelled: cancelledResult.rows
+    };
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
+// New function: Reactivate subscription for re-subscription
+const reactivateSubscription = async (userId, paymentData) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    
+    // Find the most recent subscription for this user
+    const findSubscriptionQuery = `
+      SELECT * FROM customer_subscriptions 
+      WHERE user_id = $1 
+      ORDER BY created_at DESC 
+      LIMIT 1
+    `;
+    const subResult = await client.query(findSubscriptionQuery, [userId]);
+    
+    if (subResult.rows.length === 0) {
+      throw new Error('No subscription found for user');
+    }
+    
+    const subscription = subResult.rows[0];
+    
+    // Reactivate the subscription
+    const reactivateQuery = `
+      UPDATE customer_subscriptions 
+      SET status = 'active',
+          payment_status = 'paid',
+          payment_confirmed_at = CURRENT_TIMESTAMP,
+          last_payment_date = CURRENT_DATE,
+          reactivated_at = CURRENT_TIMESTAMP,
+          billing_cycle_count = billing_cycle_count + 1,
+          next_billing_date = CURRENT_DATE + INTERVAL '30 days',
+          grace_period_end = CURRENT_DATE + INTERVAL '37 days',
+          updated_at = CURRENT_TIMESTAMP
+      WHERE subscription_id = $1
+      RETURNING *
+    `;
+    const reactivatedResult = await client.query(reactivateQuery, [subscription.subscription_id]);
+    
+    await client.query('COMMIT');
+    return reactivatedResult.rows[0];
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
 };
 
 const updateSubscriptionPaymentStatus = async (subscriptionId, paymentStatus) => {
@@ -574,6 +761,9 @@ const updatePaymentStatus = async (sourceId, status, webhookData = null) => {
         SET status = 'active', 
             payment_status = 'paid',
             payment_confirmed_at = CURRENT_TIMESTAMP,
+            last_payment_date = CURRENT_DATE,
+            billing_cycle_count = billing_cycle_count + 1,
+            reactivated_at = CASE WHEN status IN ('suspended', 'cancelled') THEN CURRENT_TIMESTAMP ELSE reactivated_at END,
             updated_at = CURRENT_TIMESTAMP
         WHERE subscription_id = (
           SELECT subscription_id FROM invoices WHERE invoice_id = $1
@@ -655,6 +845,10 @@ module.exports = {
   activateSubscription,
   getSubscriptionByUserId,
   updateSubscriptionPaymentStatus,
+  getActiveSubscriptionByUserId,
+  expireOverdueSubscriptions,
+  reactivateSubscription,
+  cancelSubscriptionByUserId,
   
   // Invoices
   getAllInvoices,

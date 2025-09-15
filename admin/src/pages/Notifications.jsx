@@ -26,9 +26,25 @@ const Notifications = () => {
 
   // Fetch notifications from backend on mount
   useEffect(() => {
-    axios.get(`${API_BASE_URL}/notifications`)
+    const token = localStorage.getItem('adminToken') || sessionStorage.getItem('adminToken');
+    axios.get(`${API_BASE_URL}/notifications`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {}
+    })
       .then(res => {
-        setNotifications(res.data);
+        // Backend shape: { success: true, notifications: [{ notification_id, title, message, is_read, created_at }] }
+        const rows = Array.isArray(res.data?.notifications) ? res.data.notifications : [];
+        // Map to UI shape expected by the table
+        const mapped = rows.map(r => ({
+          id: r.notification_id,
+          recipient: r.title || 'Admin',
+          message: r.message,
+          channels: [], // No channel info from backend
+          priority: 'normal', // Default priority
+          status: 'Sent', // Treat fetched notifications as sent
+          readStatus: r.is_read ? 'Read' : 'Unread',
+          timestamp: r.created_at ? new Date(r.created_at).toLocaleString() : ''
+        }));
+        setNotifications(mapped);
       })
       .catch(err => {
         console.error('Failed to fetch notifications:', err);
@@ -68,14 +84,30 @@ const Notifications = () => {
     e.preventDefault();
     try {
       // Send to backend
+      const token = localStorage.getItem('adminToken') || sessionStorage.getItem('adminToken');
       await axios.post(`${API_BASE_URL}/notifications`, {
-        email: form.email,
-        title: form.recipient, // Using recipient as title for now, adjust as needed
-        message: form.message
-      });
+          email: form.email,
+          title: form.recipient, // Using recipient as title for now, adjust as needed
+          message: form.message
+        },
+        { headers: token ? { Authorization: `Bearer ${token}` } : {} }
+      );
       // Refetch notifications
-      const res = await axios.get(`${API_BASE_URL}/notifications`);
-      setNotifications(res.data);
+      const res = await axios.get(`${API_BASE_URL}/notifications`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
+      const rows = Array.isArray(res.data?.notifications) ? res.data.notifications : [];
+      const mapped = rows.map(r => ({
+        id: r.notification_id,
+        recipient: r.title || 'Admin',
+        message: r.message,
+        channels: [],
+        priority: 'normal',
+        status: 'Sent',
+        readStatus: r.is_read ? 'Read' : 'Unread',
+        timestamp: r.created_at ? new Date(r.created_at).toLocaleString() : ''
+      }));
+      setNotifications(mapped);
       setShowModal(false);
       setForm({
         recipient: 'Collector',
@@ -90,10 +122,22 @@ const Notifications = () => {
     }
   };
 
-  const toggleReadStatus = (id) => {
-    setNotifications(prev => prev.map(n => 
-      n.id === id ? { ...n, readStatus: n.readStatus === 'Read' ? 'Unread' : 'Read' } : n
-    ));
+  const toggleReadStatus = async (id) => {
+    // Only support marking unread -> read, as per backend route semantics
+    const target = notifications.find(n => n.id === id);
+    if (!target || target.readStatus === 'Read') return;
+    try {
+      const token = localStorage.getItem('adminToken') || sessionStorage.getItem('adminToken');
+      await axios.put(`${API_BASE_URL}/notifications/${id}/read`, {}, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
+      setNotifications(prev => prev.map(n => (
+        n.id === id ? { ...n, readStatus: 'Read' } : n
+      )));
+    } catch (err) {
+      console.error('Failed to mark notification as read:', err);
+      alert('Failed to mark as read.');
+    }
   };
 
   const getChannelIcon = (channel) => {

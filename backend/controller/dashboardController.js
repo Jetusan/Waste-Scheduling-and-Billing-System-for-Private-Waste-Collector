@@ -1,152 +1,207 @@
-const pool = require('../config/db');
+const { pool } = require('../config/db');
 
 const getDashboardStats = async (req, res) => {
   try {
     console.log('📊 Fetching dashboard statistics...');
-    const client = await pool.connect();
-    
-    try {
-      // Get current date for filtering
-      const today = new Date();
-      const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-      const startOfWeek = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+    // Get current date for filtering
+    const today = new Date();
+    const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+    const startOfWeek = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
 
-      // 1. Revenue Statistics
-      const revenueQuery = `
+    // 1. Revenue Statistics (detect available timestamp columns)
+    const invCols = await pool.query(`
+      SELECT column_name FROM information_schema.columns WHERE table_name = 'invoices'
+    `);
+    const invColSet = new Set(invCols.rows.map(r => r.column_name));
+    const hasCreated = invColSet.has('created_at');
+    // Build revenue query parts based on available columns
+    const monthlyFilter = hasCreated ? `AND i.created_at >= $1` : ``;
+    const todayFilter = hasCreated ? `AND i.created_at::date = CURRENT_DATE` : ``;
+    const yearlyFilter = hasCreated ? `AND date_part('year', i.created_at) = date_part('year', CURRENT_DATE)` : ``;
+    const revenueQuery = `
+      SELECT 
+        COALESCE(SUM(CASE WHEN i.status ILIKE 'paid' THEN i.amount ELSE 0 END), 0)::numeric as total_revenue,
+        ${hasCreated ? `COALESCE(SUM(CASE WHEN i.status ILIKE 'paid' ${monthlyFilter} THEN i.amount ELSE 0 END), 0)::numeric` : `0::numeric`} as monthly_revenue,
+        ${hasCreated ? `COALESCE(SUM(CASE WHEN i.status ILIKE 'paid' ${todayFilter} THEN i.amount ELSE 0 END), 0)::numeric` : `0::numeric`} as today_revenue,
+        ${hasCreated ? `COALESCE(SUM(CASE WHEN i.status ILIKE 'paid' ${yearlyFilter} THEN i.amount ELSE 0 END), 0)::numeric` : `0::numeric`} as yearly_revenue
+      FROM invoices i
+    `;
+    const revenueResult = await pool.query(revenueQuery, hasCreated ? [startOfMonth] : []);
+
+    // 2. Active Subscribers by Plan
+    const subscribersQuery = `
+      SELECT 
+        sp.plan_name,
+        COUNT(cs.subscription_id) as count
+      FROM customer_subscriptions cs
+      JOIN subscription_plans sp ON cs.plan_id = sp.plan_id
+      WHERE cs.status = 'active'
+      GROUP BY sp.plan_name
+    `;
+    const subscribersResult = await pool.query(subscribersQuery);
+
+    // 3. Collection Statistics (do not rely on non-existent status on collection_schedules)
+    const todayName = new Date().toLocaleDateString('en-US', { weekday: 'long' });
+    const collectionQuery = `
+      WITH
+      cs_total AS (
+        SELECT COUNT(*) AS total_schedules FROM collection_schedules
+      ),
+      cs_today AS (
+        SELECT COUNT(*) AS today_schedules
+        FROM collection_schedules cs
+        WHERE LOWER(TRIM(cs.schedule_date)) = LOWER($1)
+          OR (
+            cs.schedule_date ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+            AND to_date(cs.schedule_date, 'YYYY-MM-DD') = CURRENT_DATE
+          )
+      ),
+      collected_30 AS (
+        SELECT COUNT(*) AS completed_schedules
+        FROM assignment_stop_status
+        WHERE latest_action = 'collected'
+          AND updated_at >= CURRENT_DATE - INTERVAL '30 days'
+      ),
+      collected_today AS (
+        SELECT COUNT(*) AS today_completed
+        FROM assignment_stop_status
+        WHERE latest_action = 'collected'
+          AND updated_at::date = CURRENT_DATE
+      ),
+      missed_30 AS (
+        SELECT COUNT(*) AS missed_pickups
+        FROM assignment_stop_status
+        WHERE latest_action = 'missed'
+          AND updated_at >= CURRENT_DATE - INTERVAL '30 days'
+      )
+      SELECT 
+        (SELECT total_schedules FROM cs_total) AS total_schedules,
+        (SELECT completed_schedules FROM collected_30) AS completed_schedules,
+        (SELECT today_schedules FROM cs_today) AS today_schedules,
+        (SELECT today_completed FROM collected_today) AS today_completed,
+        (SELECT missed_pickups FROM missed_30) AS missed_pickups
+    `;
+    const collectionResult = await pool.query(collectionQuery, [todayName]);
+
+    // 4. Payment Statistics (robust casing and timestamps)
+    const paymentQuery = `
+      WITH inv AS (
         SELECT 
-          COALESCE(SUM(CASE WHEN i.status = 'Paid' THEN i.amount ELSE 0 END), 0) as total_revenue,
-          COALESCE(SUM(CASE WHEN i.status = 'Paid' AND i.updated_at >= $1 THEN i.amount ELSE 0 END), 0) as monthly_revenue
+          i.amount,
+          i.status,
+          ${hasCreated ? 'i.created_at' : 'NULL::timestamp as created_at'},
+          CASE 
+            WHEN i.due_date::text ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' THEN to_date(i.due_date::text, 'YYYY-MM-DD')
+            ELSE i.due_date::date
+          END AS due_dt
         FROM invoices i
-      `;
-      const revenueResult = await client.query(revenueQuery, [startOfMonth]);
+      )
+      SELECT 
+        COUNT(CASE WHEN (due_dt < CURRENT_DATE AND (status IS NULL OR status NOT ILIKE 'paid')) OR status ILIKE 'overdue' THEN 1 END) as overdue_count,
+        COALESCE(SUM(CASE WHEN (due_dt < CURRENT_DATE AND (status IS NULL OR status NOT ILIKE 'paid')) OR status ILIKE 'overdue' THEN amount ELSE 0 END), 0) as overdue_amount,
+        ${hasCreated ? `COUNT(CASE WHEN status ILIKE 'failed' AND created_at >= $1 THEN 1 END)` : `0`} as failed_payments_7d
+      FROM inv
+    `;
+    const paymentResult = await pool.query(paymentQuery, hasCreated ? [startOfWeek] : []);
 
-      // 2. Active Subscribers by Plan
-      const subscribersQuery = `
-        SELECT 
-          sp.plan_name,
-          COUNT(cs.subscription_id) as count
-        FROM customer_subscriptions cs
-        JOIN subscription_plans sp ON cs.plan_id = sp.plan_id
-        WHERE cs.status = 'active'
-        GROUP BY sp.plan_name
-      `;
-      const subscribersResult = await client.query(subscribersQuery);
-
-      // 3. Collection Statistics
-      const collectionQuery = `
-        SELECT 
-          COUNT(*) as total_schedules,
-          COUNT(CASE WHEN status = 'Completed' THEN 1 END) as completed_schedules,
-          COUNT(CASE WHEN schedule_date::date = CURRENT_DATE THEN 1 END) as today_schedules,
-          COUNT(CASE WHEN schedule_date::date = CURRENT_DATE AND status = 'Completed' THEN 1 END) as today_completed,
-          COUNT(CASE WHEN schedule_date < CURRENT_DATE AND status != 'Completed' THEN 1 END) as missed_pickups
-        FROM collection_schedules
-        WHERE schedule_date >= CURRENT_DATE - INTERVAL '30 days'
-      `;
-      const collectionResult = await client.query(collectionQuery);
-
-      // 4. Payment Statistics
-      const paymentQuery = `
-        SELECT 
-          COUNT(CASE WHEN status = 'Overdue' OR (due_date < CURRENT_DATE AND status = 'Unpaid') THEN 1 END) as overdue_count,
-          COALESCE(SUM(CASE WHEN status = 'Overdue' OR (due_date < CURRENT_DATE AND status = 'Unpaid') THEN amount ELSE 0 END), 0) as overdue_amount,
-          COUNT(CASE WHEN status = 'Failed' AND created_at >= $1 THEN 1 END) as failed_payments_7d
-        FROM invoices
-      `;
-      const paymentResult = await client.query(paymentQuery, [startOfWeek]);
-
-      // 5. Fleet Statistics
+    // 5. Fleet Statistics (robust if trucks.status doesn't exist)
+    let fleetResult;
+    try {
       const fleetQuery = `
         SELECT 
           COUNT(*) as total_trucks,
           COUNT(CASE WHEN status = 'active' THEN 1 END) as active_trucks
         FROM trucks
       `;
-      const fleetResult = await client.query(fleetQuery);
-
-      // 6. Resident Count
-      const residentsQuery = `
-        SELECT COUNT(*) as total_residents
-        FROM users u
-        JOIN roles r ON u.role_id = r.role_id
-        WHERE r.role_name = 'resident'
+      fleetResult = await pool.query(fleetQuery);
+    } catch (e) {
+      const fleetFallbackQuery = `
+        SELECT COUNT(*) as total_trucks, 0::int as active_trucks
+        FROM trucks
       `;
-      const residentsResult = await client.query(residentsQuery);
-
-      // 7. Recent Complaints (if complaints table exists)
-      let complaintsStats = { total: 0, pending: 0 };
-      try {
-        const complaintsQuery = `
-          SELECT 
-            COUNT(*) as total,
-            COUNT(CASE WHEN status = 'pending' THEN 1 END) as pending
-          FROM complaints
-          WHERE created_at >= $1
-        `;
-        const complaintsResult = await client.query(complaintsQuery, [startOfMonth]);
-        complaintsStats = complaintsResult.rows[0];
-      } catch (e) {
-        // Complaints table might not exist
-      }
-
-      // Format response data
-      const revenue = revenueResult.rows[0];
-      const collection = collectionResult.rows[0];
-      const payment = paymentResult.rows[0];
-      const fleet = fleetResult.rows[0];
-      const residents = residentsResult.rows[0];
-
-      // Process subscribers data
-      const subscribersData = { Basic: 0, Regular: 0, AllIn: 0, total: 0 };
-      subscribersResult.rows.forEach(row => {
-        const planName = row.plan_name;
-        subscribersData[planName] = parseInt(row.count);
-        subscribersData.total += parseInt(row.count);
-      });
-
-      // Calculate collection efficiency
-      const totalSchedules = parseInt(collection.total_schedules);
-      const completedSchedules = parseInt(collection.completed_schedules);
-      const collectionEfficiency = totalSchedules > 0 ? 
-        Math.round((completedSchedules / totalSchedules) * 100) : 0;
-
-      const stats = {
-        revenue: {
-          total: parseFloat(revenue.total_revenue),
-          monthly: parseFloat(revenue.monthly_revenue)
-        },
-        subscribers: subscribersData,
-        collections: {
-          efficiency: collectionEfficiency,
-          today: {
-            total: parseInt(collection.today_schedules),
-            completed: parseInt(collection.today_completed)
-          },
-          missed: parseInt(collection.missed_pickups)
-        },
-        payments: {
-          overdue: {
-            count: parseInt(payment.overdue_count),
-            amount: parseFloat(payment.overdue_amount)
-          },
-          failed_7d: parseInt(payment.failed_payments_7d)
-        },
-        fleet: {
-          total: parseInt(fleet.total_trucks),
-          active: parseInt(fleet.active_trucks)
-        },
-        residents: {
-          total: parseInt(residents.total_residents)
-        },
-        complaints: complaintsStats,
-        last_updated: new Date().toISOString()
-      };
-
-      res.json(stats);
-
-    } finally {
-      client.release();
+      fleetResult = await pool.query(fleetFallbackQuery);
     }
+
+    // 6. Resident Count (role_id = 3 means resident)
+    const residentsQuery = `
+      SELECT COUNT(*) as total_residents
+      FROM users
+      WHERE role_id = 3
+    `;
+    const residentsResult = await pool.query(residentsQuery);
+
+    // 7. Recent Complaints (if complaints table exists)
+    let complaintsStats = { total: 0, pending: 0 };
+    try {
+      const complaintsQuery = `
+        SELECT 
+          COUNT(*) as total,
+          COUNT(CASE WHEN status = 'pending' THEN 1 END) as pending
+        FROM complaints
+        WHERE created_at >= $1
+      `;
+      const complaintsResult = await pool.query(complaintsQuery, [startOfMonth]);
+      complaintsStats = complaintsResult.rows[0];
+    } catch (e) {
+      // Complaints table might not exist
+    }
+
+    // Format response data
+    const revenue = revenueResult.rows[0];
+    const collection = collectionResult.rows[0];
+    const payment = paymentResult.rows[0];
+    const fleet = fleetResult.rows[0];
+    const residents = residentsResult.rows[0];
+
+    // Process subscribers data
+    const subscribersData = { Basic: 0, Regular: 0, AllIn: 0, total: 0 };
+    subscribersResult.rows.forEach(row => {
+      const planName = row.plan_name;
+      subscribersData[planName] = parseInt(row.count);
+      subscribersData.total += parseInt(row.count);
+    });
+
+    // Calculate collection efficiency
+    const totalSchedules = parseInt(collection.total_schedules);
+    const completedSchedules = parseInt(collection.completed_schedules);
+    const collectionEfficiency = totalSchedules > 0 ? 
+      Math.round((completedSchedules / totalSchedules) * 100) : 0;
+
+    const stats = {
+      revenue: {
+        total: parseFloat(revenue.total_revenue),
+        monthly: parseFloat(revenue.monthly_revenue),
+        today: parseFloat(revenue.today_revenue || 0),
+        yearly: parseFloat(revenue.yearly_revenue || 0),
+      },
+      subscribers: subscribersData,
+      collections: {
+        efficiency: collectionEfficiency,
+        today: {
+          total: parseInt(collection.today_schedules),
+          completed: parseInt(collection.today_completed)
+        },
+        missed: parseInt(collection.missed_pickups)
+      },
+      payments: {
+        overdue: {
+          count: parseInt(payment.overdue_count),
+          amount: parseFloat(payment.overdue_amount)
+        },
+        failed_7d: parseInt(payment.failed_payments_7d)
+      },
+      fleet: {
+        total: parseInt(fleet.total_trucks),
+        active: parseInt(fleet.active_trucks)
+      },
+      residents: {
+        total: parseInt(residents.total_residents)
+      },
+      complaints: complaintsStats,
+      last_updated: new Date().toISOString()
+    };
+
+    res.json(stats);
 
   } catch (error) {
     console.error('Error fetching dashboard stats:', error);
@@ -225,21 +280,30 @@ const getUpcomingSchedules = async (req, res) => {
   }
 };
 
-// Get overdue invoices for dashboard
+// Get overdue invoices for dashboard (true overdue: due_date < today and not paid)
 const getOverdueInvoices = async (req, res) => {
   try {
     const limit = req.query.limit || 5;
     
     const query = `
-      SELECT 
-        i.*,
-        u.username,
-        CONCAT(un.first_name, ' ', un.last_name) as customer_name
-      FROM invoices i
-      LEFT JOIN users u ON i.user_id = u.user_id
-      LEFT JOIN user_names un ON u.name_id = un.name_id
-      WHERE i.due_date >= CURRENT_DATE AND i.status != 'Paid'
-      ORDER BY i.due_date ASC
+      WITH parsed AS (
+        SELECT 
+          i.*,
+          u.username,
+          CONCAT(un.first_name, ' ', un.last_name) as customer_name,
+          CASE 
+            WHEN i.due_date::text ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' THEN to_date(i.due_date::text, 'YYYY-MM-DD')
+            ELSE i.due_date::date
+          END AS due_dt
+        FROM invoices i
+        LEFT JOIN users u ON i.user_id = u.user_id
+        LEFT JOIN user_names un ON u.name_id = un.name_id
+      )
+      SELECT *
+      FROM parsed
+      WHERE due_dt < CURRENT_DATE
+        AND (status IS NULL OR status NOT ILIKE 'paid')
+      ORDER BY due_dt ASC
       LIMIT $1
     `;
 

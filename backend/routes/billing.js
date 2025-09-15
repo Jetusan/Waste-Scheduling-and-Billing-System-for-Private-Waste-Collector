@@ -83,112 +83,68 @@ router.get('/payment-redirect/success', async (req, res) => {
     console.warn('⚠️ No sourceId found in success redirect query params:', Object.keys(req.query));
   }
   
-  res.send(`
-    <html>
+  // Try to find source_id from database if not in URL params
+  if (!sourceId && subscriptionId) {
+    try {
+      console.log('🔍 Trying to find source_id from database for subscription:', subscriptionId);
+      const sourceQuery = await pool.query(`
+        SELECT ps.source_id 
+        FROM payment_sources ps
+        JOIN invoices i ON ps.invoice_id = i.invoice_id
+        WHERE i.subscription_id = $1 
+        ORDER BY ps.created_at DESC 
+        LIMIT 1
+      `, [subscriptionId]);
+      
+      if (sourceQuery.rows.length > 0) {
+        sourceId = sourceQuery.rows[0].source_id;
+        console.log('✅ Found source_id from database:', sourceId);
+      }
+    } catch (error) {
+      console.error('❌ Error finding source_id from database:', error.message);
+    }
+  }
+
+  // Generate receipt with available data
+  if (sourceId) {
+    res.redirect(`/api/receipt/generate?source_id=${sourceId}${subscriptionId ? `&subscription_id=${subscriptionId}` : ''}`);
+  } else if (subscriptionId) {
+    res.redirect(`/api/receipt/generate?subscription_id=${subscriptionId}`);
+  } else {
+    // Create a simple success page
+    res.send(`
+      <!DOCTYPE html>
+      <html>
       <head>
         <title>Payment Successful</title>
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <style>
-          body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            text-align: center;
-            padding: 50px 20px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            margin: 0;
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-          }
-          .container {
-            background: rgba(255, 255, 255, 0.95);
-            color: #333;
-            padding: 40px;
-            border-radius: 15px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
-            max-width: 500px;
-            width: 100%;
-          }
-          .success-icon {
-            font-size: 4rem;
-            margin-bottom: 20px;
-          }
-          h1 {
-            color: #28a745;
-            margin-bottom: 20px;
-          }
-          .countdown {
-            font-weight: bold;
-            color: #007bff;
-            margin-top: 20px;
-          }
-          .close-btn {
-            background: #28a745;
-            color: white;
-            border: none;
-            padding: 12px 24px;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 16px;
-            margin-top: 20px;
-          }
-          .close-btn:hover {
-            background: #218838;
-          }
+          body { font-family: Arial, sans-serif; text-align: center; padding: 50px; background: #f5f5f5; }
+          .container { background: white; padding: 40px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); max-width: 500px; margin: 0 auto; }
+          .success { color: #28a745; font-size: 24px; margin-bottom: 20px; }
+          .message { color: #666; font-size: 16px; line-height: 1.5; }
+          .btn { background: #007bff; color: white; padding: 12px 24px; border: none; border-radius: 5px; text-decoration: none; display: inline-block; margin-top: 20px; cursor: pointer; }
         </style>
       </head>
       <body>
         <div class="container">
-          <div class="success-icon">✅</div>
-          <h1>Payment Successful!</h1>
-          <p>Your GCash payment has been processed successfully.</p>
-          <p>Your subscription is now active.</p>
-          <div class="countdown">This window will close automatically in <span id="timer">5</span> seconds</div>
-          <button class="close-btn" onclick="closeWindow()">Close Now</button>
+          <div class="success">✅ Payment Successful!</div>
+          <div class="message">
+            Your GCash payment has been processed successfully. Your subscription is now active.
+            <br><br>
+            Your receipt will be available in your account shortly.
+          </div>
+          <button class="btn" onclick="window.close()">Close</button>
         </div>
         <script>
-          let countdown = 5;
-          const timer = document.getElementById('timer');
-          
-          function updateTimer() {
-            timer.textContent = countdown;
-            countdown--;
-            
-            if (countdown < 0) {
-              closeWindow();
-            }
-          }
-          
-          function closeWindow() {
-            try {
-              window.close();
-            } catch (e) {
-              // If window.close() fails, redirect to a safe page
-              window.location.href = 'about:blank';
-            }
-          }
-          
-          // Update timer every second
-          const interval = setInterval(updateTimer, 1000);
-          updateTimer();
-          
-          // Also try to communicate with parent window if in iframe
-          try {
-            if (window.parent && window.parent !== window) {
-              window.parent.postMessage({
-                type: 'PAYMENT_SUCCESS',
-                sourceId: '${sourceId || 'unknown'}'
-              }, '*');
-            }
-          } catch (e) {
-            console.log('Could not communicate with parent window');
-          }
+          setTimeout(() => {
+            if (window.opener) window.close();
+          }, 5000);
         </script>
       </body>
-    </html>
-  `);
+      </html>
+    `);
+  }
 });
 
 router.get('/payment-redirect/failed', async (req, res) => {
@@ -369,6 +325,12 @@ router.post('/update-payment-status', async (req, res) => {
   }
 });
 
+// Subscription plans (used by admin Billing.jsx)
+router.get('/subscription-plans', billingController.getAllSubscriptionPlans);
+
+// Customer subscriptions (used by admin Billing.jsx)
+router.get('/subscriptions', billingController.getAllCustomerSubscriptions);
+
 // Mobile subscription management routes
 router.post('/create-mobile-subscription', authenticateJWT, billingController.createMobileSubscription);
 router.post('/mobile-subscription', authenticateJWT, billingController.createMobileSubscription); // Alternative endpoint for mobile app
@@ -378,10 +340,19 @@ router.get('/subscription-status/:user_id', billingController.getUserSubscriptio
 router.post('/confirm-gcash-payment', billingController.confirmGcashPayment);
 router.post('/confirm-cash-payment', billingController.confirmCashPayment);
 
+// Manual cancellation route (mobile app)
+router.post('/cancel-subscription', authenticateJWT, billingController.cancelSubscription);
+
 // Invoices routes
 router.get('/invoices', billingController.getAllInvoices);
 router.get('/invoices/:invoiceId', billingController.getInvoiceById);
 router.get('/invoices/:invoiceId/payments', billingController.getPaymentsByInvoiceId);
+
+// Update invoice late fees (used by admin Billing.jsx)
+router.put('/invoices/:invoiceId/late-fees', billingController.addLateFees);
+
+// Create payment for an invoice (used by admin Billing.jsx)
+router.post('/payments', billingController.createPayment);
 
 // Get user's invoice data for mobile app
 router.get('/user-invoice/:user_id', authenticateJWT, async (req, res) => {
@@ -518,5 +489,8 @@ router.get('/subscriptions/payment-methods', authenticateJWT, async (req, res) =
     return res.status(500).json({ success: false, message: 'Failed to fetch payment methods', details: error.message });
   }
 });
+
+// Billing history (used by admin BillingHistory.jsx)
+router.get('/history', billingController.getBillingHistory);
 
 module.exports = router;

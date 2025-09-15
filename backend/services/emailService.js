@@ -1,5 +1,6 @@
 // backend/services/emailService.js
 const nodemailer = require('nodemailer');
+const API_CONFIG = require('../config/config');
 
 // Create transporter using Brevo SMTP
 const createTransporter = () => {
@@ -118,9 +119,10 @@ const getRejectionEmailTemplate = (firstName, lastName, reason) => {
 };
 
 const sendVerificationEmail = async (email, name, verificationToken) => {
-  // Use backend endpoint for verification
-  const verificationLink = `http://localhost:5000/api/verify-email?token=${verificationToken}`;
-  
+  // Build verification link using PUBLIC_URL so it's reachable outside localhost
+  const baseUrl = API_CONFIG?.PUBLIC_URL || API_CONFIG?.LOCALHOST_URL || 'http://localhost:5000';
+  const verificationLink = `${baseUrl}/api/verify-email?token=${verificationToken}`;
+
   try {
     const transporter = nodemailer.createTransport({
       host: 'smtp-relay.brevo.com',

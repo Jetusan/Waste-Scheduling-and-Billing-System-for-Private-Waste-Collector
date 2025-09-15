@@ -129,7 +129,7 @@ const getAllInvoices = async (req, res) => {
     const transformedInvoices = invoices.map(invoice => ({
       id: invoice.invoice_id,
       subscriber: invoice.username, // Use username from users table
-      plan: invoice.invoice_type, // Or use plan_name if available
+      plan: invoice.plan_name || invoice.invoice_type, // prefer plan_name if joined
       amount: invoice.amount,
       dueDate: invoice.due_date,
       status: invoice.status,
@@ -411,15 +411,54 @@ const createMobileSubscription = async (req, res) => {
       });
     }
 
-    // Check if user already has an active subscription
-    const existingSubscription = await billingModel.getSubscriptionByUserId(user_id);
+    // Check if user already has an active subscription (not expired/cancelled)
+    const activeSubscription = await billingModel.getActiveSubscriptionByUserId(user_id);
     let subscription = null;
     
-    if (existingSubscription) {
-      console.log('⚠️ User already has subscription, creating new billing cycle');
-      // Use existing subscription for renewal/new billing cycle
-      subscription = existingSubscription;
+    if (activeSubscription) {
+      console.log('⚠️ User already has active subscription, creating new billing cycle');
+      // Use existing active subscription for renewal/new billing cycle
+      subscription = activeSubscription;
     } else {
+      // Check if user has any previous subscription (for reactivation)
+      const existingSubscription = await billingModel.getSubscriptionByUserId(user_id);
+      
+      if (existingSubscription && (existingSubscription.status === 'suspended' || existingSubscription.status === 'cancelled')) {
+        console.log('🔄 Checking reactivation type for previous subscription');
+        
+        // Import enhanced reactivation module
+        const { enhancedReactivation, shouldUseEnhancedReactivation } = require('../models/enhancedReactivation');
+        
+        // Determine if enhanced reactivation is needed
+        const needsEnhanced = await shouldUseEnhancedReactivation(user_id);
+        
+        if (needsEnhanced) {
+          console.log('🔄 Using enhanced reactivation (long-term cancellation)');
+          const reactivationResult = await enhancedReactivation(user_id, {
+            amount: 199,
+            payment_method: payment_method,
+            reference_number: `ENHANCED-REACTIVATION-${Date.now()}`,
+            notes: 'Enhanced subscription reactivation'
+          });
+          
+          subscription = reactivationResult.subscription;
+          
+          // Add reactivation metadata to response
+          subscription.reactivation_type = reactivationResult.reactivationType;
+          subscription.days_since_cancellation = reactivationResult.daysSinceCancellation;
+          subscription.archived_old_invoices = reactivationResult.archivedInvoices;
+          
+        } else {
+          console.log('🔄 Using standard reactivation');
+          // Standard reactivation for recent cancellations
+          subscription = await billingModel.reactivateSubscription(user_id, {
+            amount: 199,
+            payment_method: payment_method,
+            reference_number: `REACTIVATION-${Date.now()}`,
+            notes: 'Standard subscription reactivation'
+          });
+        }
+      } else {
       // Get the single ₱199 plan (Full Plan)
       const plans = await billingModel.getAllSubscriptionPlans();
       const plan = plans.find(p => p.price == 199);
@@ -435,10 +474,12 @@ const createMobileSubscription = async (req, res) => {
         user_id,
         plan_id: plan.plan_id,
         billing_start_date,
-        payment_method
+        payment_method,
+        user_id: user_id // Add user_id to subscriptionData
       };
 
-      subscription = await billingModel.createCustomerSubscription(subscriptionData);
+        subscription = await billingModel.createCustomerSubscription(subscriptionData);
+      }
     }
 
     // Get plan details for invoice generation
@@ -447,7 +488,9 @@ const createMobileSubscription = async (req, res) => {
       subscription_id: subscription.subscription_id,
       user_id: user_id,
       plan: plan.plan_name,
-      amount: `₱${plan.price}`
+      amount: `₱${plan.price}`,
+      status: subscription.status,
+      payment_status: subscription.payment_status
     });
 
     // Check for recent unpaid invoice to avoid duplicates during testing
@@ -474,7 +517,9 @@ const createMobileSubscription = async (req, res) => {
         subscription_id: subscription.subscription_id,
         due_date: due_date.toISOString().split('T')[0],
         generated_date: new Date().toISOString().split('T')[0],
-        notes: `Initial invoice for ${plan.plan_name} subscription`
+        notes: subscription.reactivated_at ? 
+          `Reactivation invoice for ${plan.plan_name} subscription` :
+          `Initial invoice for ${plan.plan_name} subscription`
       };
 
       console.log('🔄 GENERATING NEW INVOICE...');
@@ -482,7 +527,8 @@ const createMobileSubscription = async (req, res) => {
         user_id: user_id,
         plan: plan.plan_name,
         amount: `₱${plan.price}`,
-        due_date: invoiceData.due_date
+        due_date: invoiceData.due_date,
+        type: subscription.reactivated_at ? 'reactivation' : 'initial'
       });
 
       newInvoice = await billingModel.createInvoice(invoiceData);
@@ -501,26 +547,32 @@ const createMobileSubscription = async (req, res) => {
       due_date: newInvoice.due_date || 'N/A',
       status: newInvoice.status || 'unpaid',
       plan: plan.plan_name,
+      subscription_status: subscription.status,
+      payment_status: subscription.payment_status,
       created_at: new Date().toISOString()
     });
 
     // Determine subscription success indication based on payment method
-    let subscriptionStatus = 'pending_payment';
-    let paymentStatus = 'pending';
+    let subscriptionStatus = subscription.status || 'pending_payment';
+    let paymentStatus = subscription.payment_status || 'pending';
     let nextStep = '';
     
     if (payment_method.toLowerCase() === 'gcash') {
       nextStep = 'complete_gcash_payment';
-      paymentStatus = 'awaiting_gcash';
+      paymentStatus = paymentStatus === 'paid' ? 'paid' : 'awaiting_gcash';
     } else if (payment_method.toLowerCase() === 'cash') {
       nextStep = 'await_collection_payment';
-      paymentStatus = 'awaiting_cash';
+      paymentStatus = paymentStatus === 'paid' ? 'paid' : 'awaiting_cash';
     }
 
     // Return comprehensive response with clear next steps
     const response = {
       success: true,
-      message: existingSubscription ? 'New billing cycle created for existing subscription' : 'Subscription created successfully',
+      message: subscription.reactivated_at ? 
+        'Subscription reactivated successfully' :
+        activeSubscription ? 
+          'New billing cycle created for existing subscription' : 
+          'Subscription created successfully',
       subscription: {
         id: subscription.subscription_id,
         plan_name: plan.plan_name,
@@ -528,7 +580,10 @@ const createMobileSubscription = async (req, res) => {
         billing_start_date: subscription.billing_start_date,
         payment_method: subscription.payment_method,
         status: subscriptionStatus,
-        payment_status: paymentStatus
+        payment_status: paymentStatus,
+        next_billing_date: subscription.next_billing_date,
+        billing_cycle_count: subscription.billing_cycle_count || 0,
+        reactivated: !!subscription.reactivated_at
       },
       invoice: {
         id: newInvoice.invoice_number,
@@ -853,6 +908,27 @@ const getPendingCashSubscriptions = async () => {
   }
 };
 
+// Cancel subscription (manual user-initiated)
+const cancelSubscription = async (req, res) => {
+  try {
+    // Default to the authenticated user's id
+    const authUserId = req.user?.userId || req.user?.user_id;
+    const { user_id, reason } = req.body || {};
+
+    // Allow admin to specify a user_id, otherwise use auth user
+    const targetUserId = user_id || authUserId;
+    if (!targetUserId) {
+      return res.status(400).json({ error: 'Missing user context' });
+    }
+
+    const updated = await billingModel.cancelSubscriptionByUserId(targetUserId, reason || 'User requested cancellation');
+    return res.json({ success: true, subscription: updated });
+  } catch (error) {
+    console.error('Error cancelling subscription:', error);
+    return res.status(500).json({ error: 'Failed to cancel subscription', details: error.message });
+  }
+};
+
 module.exports = {
   // Subscription Plans
   getAllSubscriptionPlans,
@@ -894,5 +970,8 @@ module.exports = {
   getPaymentStatus,
   
   // GCash Integration
-  createGcashSource
+  createGcashSource,
+
+  // Manual cancellation
+  cancelSubscription
 }; 

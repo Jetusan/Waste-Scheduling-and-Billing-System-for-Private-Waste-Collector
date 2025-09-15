@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useCallback, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, TextInput, Alert, Linking, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, TextInput, Alert } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -441,8 +441,11 @@ const CStartCollection = () => {
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok && data?.success) {
+        const tentative = data?.next_catchup_date;
         const msg = missed_reason === 'collector_fault'
-          ? 'Marked missed. Catch-up will be scheduled for tomorrow.'
+          ? (tentative
+              ? `Marked missed. Tentative catch-up: ${tentative} (subject to change).`
+              : 'Marked missed. Catch-up will be scheduled and you will be notified.')
           : 'Marked missed. Will roll over to next regular schedule.';
         Alert.alert('Marked Missed', msg);
         // Optimistically update local stop status
@@ -497,26 +500,6 @@ const CStartCollection = () => {
       });
     }
   }, [residentLocations, mapRef]);
-
-  const openExternalNavigation = useCallback((userId) => {
-    try {
-      const loc = residentLocations.find(l => l.user_id === userId);
-      const lat = Number(loc?.latitude);
-      const lng = Number(loc?.longitude);
-      if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-        Alert.alert('Location unavailable', 'No valid coordinates for this resident.');
-        return;
-      }
-      const label = encodeURIComponent(loc?.name || 'Resident');
-      // Prefer universal Google Maps directions URL on Android; Apple Maps on iOS
-      const url = Platform.OS === 'ios'
-        ? `http://maps.apple.com/?daddr=${lat},${lng}&dirflg=d&q=${label}`
-        : `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`;
-      Linking.openURL(url);
-    } catch (_) {
-      Alert.alert('Navigation failed', 'Could not open maps for navigation.');
-    }
-  }, [residentLocations]);
 
   // Fetch own profile to get collector's barangay
   useEffect(() => {
@@ -671,15 +654,7 @@ const CStartCollection = () => {
                     )}
                     <Text style={{ color: '#2e7d32', fontSize: 12, marginTop: 4, fontStyle: 'italic' }}>Tap to show location on map</Text>
                   </TouchableOpacity>
-                  {/* Navigation to this stop */}
-                  <View style={{ flexDirection: 'row', marginBottom: 6 }}>
-                    <TouchableOpacity
-                      style={[styles.smallBtn, { backgroundColor: '#1976d2' }]}
-                      onPress={() => stop.user_id && openExternalNavigation(stop.user_id)}
-                    >
-                      <Text style={{ color: '#fff', fontWeight: 'bold' }}>Navigate</Text>
-                    </TouchableOpacity>
-                  </View>
+                  {/* Navigation button removed as requested */}
                   {/* Payment method / collection controls */}
                   {(() => {
                     const info = paymentInfo[stop.user_id];

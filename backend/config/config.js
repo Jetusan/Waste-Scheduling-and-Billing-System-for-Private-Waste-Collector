@@ -1,10 +1,10 @@
 // Backend Configuration File
 // Change this IP address only when your local network changes
-const LOCAL_IP = '172.16.151.188';
+const LOCAL_IP = '10.63.136.188';
 const PORT = 5000;
 
 // NGROK URL - Update this when you restart ngrok
-const NGROK_URL = process.env.NGROK_URL || 'https://e0e2c2de8d4e.ngrok-free.app';
+const NGROK_URL = process.env.NGROK_URL || 'https://8ffd85a79d91.ngrok-free.app';
 
 // Base URLs for different environments
 const BASE_URL = `http://${LOCAL_IP}:${PORT}`;

@@ -42,11 +42,15 @@ app.use((req, res, next) => {
 // This makes them accessible at http://localhost:<PORT>/uploads/<filename>
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// Routes - only the essential ones
-app.use('/api/collection-schedules', collectionSchedulesRouter);
+// Routes
 app.use('/api/auth', authRouter);
 app.use('/api/billing', billingRouter);
-app.use('/api/dashboard', dashboardRouter); // Add dashboard routes
+app.use('/api/receipt', require('./routes/receipt'));
+app.use('/api/transactions', require('./routes/transactions'));
+app.use('/api/collection-schedules', collectionSchedulesRouter);
+app.use('/api/dashboard', dashboardRouter);
+app.use('/api/special-pickup', specialPickupRouter);
+app.use('/api/admin', require('./routes/adminAuth')); // Add admin auth routes
 app.use('/api/barangays', barangaysRouter); // Enable barangays route
 app.use('/api/special-pickup', specialPickupRouter); // Special pickup route
 // UserCollector related routes - all enabled
