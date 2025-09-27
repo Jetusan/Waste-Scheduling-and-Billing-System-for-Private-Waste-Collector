@@ -1,12 +1,13 @@
 const express = require('express');
 const router = express.Router();
 const specialPickupController = require('../controller/specialPickupController');
+const upload = require('../middleware/upload');
 
 // GET /api/special-pickup - Get all special pickup requests (with optional status filter)
 router.get('/', specialPickupController.getAllRequests);
 
-// POST /api/special-pickup - Create a new special pickup request
-router.post('/', specialPickupController.createRequest);
+// POST /api/special-pickup - Create a new special pickup request with image upload
+router.post('/', upload.single('image'), specialPickupController.createRequest);
 
 // GET /api/special-pickup/user/:user_id - Get requests by user
 router.get('/user/:user_id', specialPickupController.getRequestsByUser);

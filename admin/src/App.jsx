@@ -1,10 +1,12 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import Welcome from './pages/Welcome';
 import ALogin from './pages/ALogin';
 import Dashboard from './pages/MDashboard';
 import CollectionSchedule from './pages/CollectionSchedule';
-import Layout from './pages/Layout';
+import ModernLayout from './pages/ModernLayout';
 import Assignments from './pages/Assignments';
+import RouteIssues from './pages/RouteIssues';
 import UsersCollectors from './pages/UserCollector';
 import Reports from './pages/Reports';
 import Notifications from './pages/Notifications';
@@ -12,52 +14,34 @@ import Preferences from './pages/Preferences';
 import Billing from './pages/Billing';
 import BillingHistory from './pages/BillingHistory';
 import Profile from './pages/Profile';
+import SpecialPickup from './pages/SpecialPickup';
 import ProtectedRoute from './components/ProtectedRoute';
-import { useEffect, useRef } from "react";
 
 const App = () => {
-  const mapRef = useRef(null);
-
-  useEffect(() => {
-    // Only initialize if not already initialized
-    if (window.L && !mapRef.current) {
-      mapRef.current = window.L.map('map').setView([51.505, -0.09], 13);
-      window.L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-      }).addTo(mapRef.current);
-      window.L.marker([51.5, -0.09]).addTo(mapRef.current)
-        .bindPopup('A pretty CSS popup.<br> Easily customizable.')
-        .openPopup();
-    }
-    // Cleanup function to remove the map instance
-    return () => {
-      if (mapRef.current) {
-        mapRef.current.remove();
-        mapRef.current = null;
-      }
-    };
-  }, []);
 
   return (
     <Router>
       <Routes>
+        {/* Welcome page - Landing */}
+        <Route path="/" element={<Welcome />} />
+        
         {/* Public route - Login */}
         <Route path="/login" element={<ALogin />} />
-        
-        {/* Redirect root to login */}
-        <Route path="/" element={<Navigate to="/login" replace />} />
 
         {/* Protected Admin Routes */}
         <Route path="/admin" element={
           <ProtectedRoute>
-            <Layout />
+            <ModernLayout />
           </ProtectedRoute>
         }>
-          {/* Redirect /admin to /admin/dashboard */}
-          <Route index element={<Navigate to="/admin/dashboard" replace />} />
+          {/* Redirect /admin to /admin/home */}
+          <Route index element={<Navigate to="/admin/home" replace />} />
           
-          {/* Dashboard */}
-          <Route path="dashboard" element={<Dashboard />} />
+          {/* Home */}
+          <Route path="home" element={<Dashboard />} />
+          
+          {/* Redirect old dashboard route to home */}
+          <Route path="dashboard" element={<Navigate to="/admin/home" replace />} />
           
           {/* Operations Routes */}
           <Route path="operations">
@@ -65,6 +49,8 @@ const App = () => {
             <Route path="schedule" element={<CollectionSchedule />} />
             <Route path="subscribers" element={<UsersCollectors />} />
             <Route path="assignments" element={<Assignments />} />
+            <Route path="route-issues" element={<RouteIssues />} />
+            <Route path="special-pickup" element={<SpecialPickup />} />
           </Route>
           
           {/* Billing Routes */}
@@ -91,7 +77,6 @@ const App = () => {
         {/* Catch all unknown routes and redirect to login */}
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
-      <div id="map" style={{ height: "400px", width: "100%" }}></div>
     </Router>
   );
 };

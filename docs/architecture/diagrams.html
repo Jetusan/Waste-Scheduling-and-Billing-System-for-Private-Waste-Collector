@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>WSBS Architecture Diagrams</title>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <style>
+    body { font-family: Inter, Segoe UI, Arial, sans-serif; margin: 20px; color: #1f2937; }
+    h1 { margin-bottom: 8px; }
+    h2 { margin: 28px 0 8px; }
+    .note { color: #374151; background: #f3f4f6; border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px; }
+    .wrap { max-width: 1200px; margin: 0 auto; }
+    .mermaid { background: white; border: 1px solid #e5e7eb; border-radius: 10px; padding: 14px; }
+    .legend { font-size: 14px; color: #4b5563; margin-top: 6px; }
+  </style>
+  <script>mermaid.initialize({ startOnLoad: true, theme: 'default' });</script>
+</head>
+<body>
+  <div class="wrap">
+    <h1>WSBS Architecture Diagrams</h1>
+    <p class="note">
+      These visuals are generated from your current backend routes and data flows. If anything changes in code,
+      re-run this generator to refresh the diagrams.
+    </p>
+
+    <h2>1) Context Diagram</h2>
+    <div class="mermaid">
+flowchart LR
+  subgraph External_Actors
+    ResidentApp["Resident Mobile App (WSBS)"]
+    CollectorApp["Collector Mobile App (WSBS)"]
+    AdminWeb["Admin Dashboard (React)"]
+  end
+
+  subgraph External_Services
+    PayMongo["PayMongo (GCash)"]
+    SMTP["SMTP Server (Emails)"]
+    MapTiles["Map/Tile CDN (MapLibre in WebView)"]
+  end
+
+  Backend["WSBS Backend API (Express)"]
+  DB["PostgreSQL Database"]
+
+  ResidentApp <--> Backend
+  CollectorApp <--> Backend
+  AdminWeb <--> Backend
+
+  Backend <--> DB
+
+  Backend <-. webhooks/redirects .-> PayMongo
+  Backend --> SMTP
+  CollectorApp --> MapTiles
+
+  %% Key flows
+  ResidentApp -. auth, schedules, notifications, billing .-> Backend
+  CollectorApp -. assignments, stop events, issues .-> Backend
+  AdminWeb -. dashboard, approvals, billing, notifications .-> Backend
+    </div>
+
+    <h2>2) DFD Level 0</h2>
+    <div class="mermaid">
+flowchart TB
+  %% External entities
+  Resident["Resident"]
+  Collector["Collector"]
+  Admin["Admin"]
+
+  %% Core processes based on routes/logic
+  P1["P1: Auth & Profiles\n(routes/auth.js, controller/authController.js)"]
+  P2["P2: Schedules & Assignments\n(routes/collectionSchedules.js, routes/collectorAssignments.js)"]
+  P3["P3: Collection Events (start/collected/missed)\n(routes/collectorAssignments.js -> recordEventDb, assignment_stop_status, notifications)"]
+  P4["P4: Missed Handling & Next Schedule\n(routes/nextScheduleCalculator.js -> handleMissedCollectionWithNextSchedule,\nresident_next_collections, notifications, reschedule_tasks)"]
+  P5["P5: Collector Issues Lifecycle\n(routes/collectorIssues.js, collectorIssuesAdmin.js -> approve/reject,\nreschedule_tasks, notifications)"]
+  P6["P6: Billing & Payments (GCash/Cash)\n(routes/billing.js, controller/billingController.js,\nPayMongo redirect & webhook, receipts)"]
+  P7["P7: Notifications API\n(routes/notifications.js)"]
+  P8["P8: Dashboard Stats\n(routes/dashboard.js, controller/dashboardController.js)"]
+
+  %% Data stores
+  DS_Users[("users, roles, user_names")]
+  DS_Address[("addresses, barangays, schedule_barangays")]
+  DS_Schedule[("collection_schedules, collector_assignments")]
+  DS_AssignStops[("assignment_stop_status, collection_stop_events")]
+  DS_Reschedule[("reschedule_tasks, resident_next_collections")]
+  DS_Issues[("collector_issues")]
+  DS_Notifs[("notifications")]
+  DS_Billing[("subscription_plans, customer_subscriptions, invoices, payments, payment_sources")]
+
+  %% External service
+  PayMongo["PayMongo"]
+
+  %% Flows from actors
+  Resident --> P1
+  Collector --> P1
+  Admin --> P1
+
+  Resident --> P2
+  Collector --> P2
+  Collector --> P3
+  Collector --> P5
+  Admin --> P5
+  Resident --> P6
+  Admin --> P6
+  Admin --> P8
+  Admin --> P7
+  Resident --> P7
+
+  %% Process <-> Data Stores
+  P1 <--> DS_Users
+  P2 <--> DS_Schedule
+  P2 <--> DS_Address
+
+  P3 --> DS_AssignStops
+  P3 --> DS_Notifs
+
+  P4 <--> DS_Reschedule
+  P4 --> DS_Notifs
+  P4 <--> DS_Schedule
+  P4 <--> DS_Address
+  P4 <--> DS_Users
+
+  P5 <--> DS_Issues
+  P5 --> DS_Reschedule
+  P5 --> DS_Notifs
+
+  P6 <--> DS_Billing
+  P6 --> DS_Notifs
+
+  %% External service interactions
+  P6 <-. webhook/redirect .-> PayMongo
+    </div>
+
+    <h2>3) Use Case Diagram (by actor)</h2>
+    <div class="mermaid">
+flowchart LR
+  %% Actors
+  A1(("Resident"))
+  A2(("Collector"))
+  A3(("Admin"))
+
+  %% Resident use cases
+  UC_R1((("Register/Login")))
+  UC_R2((("View Next Collection / Schedules")))
+  UC_R3((("Set Home Location")))
+  UC_R4((("View/Pay Invoices (GCash/Cash)")))
+  UC_R5((("Receive Notifications")))
+
+  %% Collector use cases
+  UC_C1((("Login")))
+  UC_C2((("View Today's Assignment")))
+  UC_C3((("Mark Stop Collected")))
+  UC_C4((("Mark Stop Missed (reasoned)")))
+  UC_C5((("View/Complete Catch-up Tasks")))
+  UC_C6((("Report Route Issue")))
+
+  %% Admin use cases
+  UC_A1((("Login")))
+  UC_A2((("View Dashboard Stats")))
+  UC_A3((("Manage Residents (Approve/Reject)")))
+  UC_A4((("Review Collector Issues (Approve/Reject)")))
+  UC_A5((("Manage Schedules/Assignments")))
+  UC_A6((("Billing Management (Subscriptions, Invoices, Payments)")))
+  UC_A7((("Manage Notifications")))
+
+  %% Bindings
+  A1 --- UC_R1
+  A1 --- UC_R2
+  A1 --- UC_R3
+  A1 --- UC_R4
+  A1 --- UC_R5
+
+  A2 --- UC_C1
+  A2 --- UC_C2
+  A2 --- UC_C3
+  A2 --- UC_C4
+  A2 --- UC_C5
+  A2 --- UC_C6
+
+  A3 --- UC_A1
+  A3 --- UC_A2
+  A3 --- UC_A3
+  A3 --- UC_A4
+  A3 --- UC_A5
+  A3 --- UC_A6
+  A3 --- UC_A7
+    </div>
+
+    <h2>4) Key Scenario – Missed Collection (Resident Fault)</h2>
+    <p class="legend">How the system rolls over to the next schedule and informs stakeholders.</p>
+    <div class="mermaid">
+sequenceDiagram
+  participant CollectorApp
+  participant Backend
+  participant DB as PostgreSQL
+  participant Notifs as Notifications
+  participant ResidentApp
+
+  CollectorApp->>Backend: POST /api/collector/assignments/stop/missed
+  Backend->>DB: INSERT collection_stop_events, UPSERT assignment_stop_status
+  Backend->>Backend: handleMissedCollectionWithNextSchedule()
+  Backend->>DB: SELECT next regular schedule (barangay + waste_type)
+  Backend-->>CollectorApp: { success, next_collection }
+  Backend->>DB: INSERT resident_next_collections (upsert)
+  Backend->>Notifs: INSERT notifications (user_id)
+  Notifs-->>ResidentApp: Shows "Collection missed — next pickup scheduled"
+    </div>
+
+    <h2>5) Quick Text Summary</h2>
+    <div class="note">
+      <p><strong>Residents</strong> use the mobile app to login, see next collection, pay invoices (GCash/Cash), and receive notifications.</p>
+      <p><strong>Collectors</strong> fetch today's assignment, mark stops as collected/missed, see catch-up tasks, and report route issues.</p>
+      <p><strong>Admins</strong> manage residents, approve/reject collector issues (creating reschedules and notifications), manage billing, and view the dashboard.</p>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,17 +1,77 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, StatusBar, ScrollView,ImageBackground } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, StatusBar, ScrollView, ImageBackground, ActivityIndicator, RefreshControl } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Fontisto, Feather } from '@expo/vector-icons';
+import { API_BASE_URL } from '../config';
+import { getToken, getCollectorId } from '../auth';
 
 
 const CHome = () => {
   const router = useRouter();
+  const [stats, setStats] = useState({
+    today_pickups: 'N/A',
+    hours_worked: 'N/A',
+    distance_covered: 'N/A',
+    waste_collected: 'N/A'
+  });
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState(null);
+
+  const fetchDashboardStats = useCallback(async () => {
+    try {
+      const token = await getToken();
+      const collectorId = await getCollectorId();
+      
+      if (!token || !collectorId) {
+        setError('Authentication required');
+        return;
+      }
+
+      const response = await fetch(`${API_BASE_URL}/api/collector/dashboard/stats?collector_id=${collectorId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      const data = await response.json();
+      
+      if (data.success) {
+        setStats(data.stats);
+        setError(null);
+      } else {
+        setError(data.error || 'Failed to fetch stats');
+      }
+    } catch (err) {
+      console.error('Error fetching dashboard stats:', err);
+      setError('Network error');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchDashboardStats();
+  }, [fetchDashboardStats]);
+
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    fetchDashboardStats();
+  }, [fetchDashboardStats]);
 
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" />
       
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        contentContainerStyle={styles.scrollContent} 
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      >
         {/* Header Section */}
         <View style={styles.header}>
             <Text style={styles.welcomeText}>Welcome Collector!</Text>
@@ -49,19 +109,36 @@ const CHome = () => {
         {/* Today’s Pickup Info */}
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Today&#39;s Pickup</Text>
-          <Text style={styles.cardValueGreen}>N/A</Text>
+          {loading ? (
+            <ActivityIndicator size="small" color="#4CAF50" />
+          ) : (
+            <Text style={styles.cardValueGreen}>{stats.today_pickups}</Text>
+          )}
+          {error && <Text style={styles.errorText}>{error}</Text>}
         </View>
 
         {/* Stats Card */}
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Today&#39;s Hour Worked</Text>
-          <Text style={styles.cardValue}>N/A</Text>
+          {loading ? (
+            <ActivityIndicator size="small" color="#4CAF50" />
+          ) : (
+            <Text style={styles.cardValue}>{stats.hours_worked} hrs</Text>
+          )}
 
           <Text style={styles.cardTitle}>Today&#39;s Distance Covered</Text>
-          <Text style={styles.cardValue}>N/A</Text>
+          {loading ? (
+            <ActivityIndicator size="small" color="#4CAF50" />
+          ) : (
+            <Text style={styles.cardValue}>{stats.distance_covered} km</Text>
+          )}
 
           <Text style={styles.cardTitle}>Today&#39;s Waste Collected</Text>
-          <Text style={styles.cardValue}>N/A</Text>
+          {loading ? (
+            <ActivityIndicator size="small" color="#4CAF50" />
+          ) : (
+            <Text style={styles.cardValue}>{stats.waste_collected} kg</Text>
+          )}
         </View>
 
         {/* Buttons */}
@@ -178,5 +255,10 @@ const styles = StyleSheet.create({
   buttonText: {
     color: '#fff',
     fontWeight: 'bold',
+  },
+  errorText: {
+    color: 'red',
+    fontSize: 12,
+    marginTop: 4,
   },
 });

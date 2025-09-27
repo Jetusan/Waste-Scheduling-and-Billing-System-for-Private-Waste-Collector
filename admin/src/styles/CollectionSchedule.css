@@ -1,15 +1,20 @@
+@import './shared-variables.css';
+
 /* CollectionSchedule.css */
 
 /* ── Base Styles ── */
 .collection-schedule {
-  background: #ffffff;
-  padding: 24px;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  color: #1e293b;
-  margin: 16px auto;
-  max-width: 1000px;
+  background: var(--wsbs-gray-50);
+  padding: 0;
+  font-family: var(--wsbs-font-family);
+  color: var(--wsbs-gray-900);
+  min-height: 100vh;
+}
+
+.schedule-wrapper {
+  padding: var(--wsbs-spacing-6);
+  max-width: 1200px;
+  margin: 0 auto;
 }
 
 /* ── Header ── */
@@ -18,36 +23,44 @@
   flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
-  gap: 12px;
+  margin-bottom: var(--wsbs-spacing-8);
+  background: var(--wsbs-white);
+  padding: var(--wsbs-spacing-6);
+  border-radius: var(--wsbs-radius-xl);
+  box-shadow: var(--wsbs-shadow-sm);
+  border: 1px solid var(--wsbs-gray-200);
+  gap: var(--wsbs-spacing-4);
 }
 .schedule-header h3 {
   margin: 0;
-  font-size: 1.5rem;
-  font-weight: 600;
+  font-size: var(--wsbs-font-size-2xl);
+  font-weight: var(--wsbs-font-weight-bold);
+  color: var(--wsbs-gray-900);
 }
 .header-left {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: var(--wsbs-spacing-4);
 }
 .schedule-header input {
-  padding: 8px 12px;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
-  font-size: 0.9rem;
+  padding: var(--wsbs-spacing-3) var(--wsbs-spacing-4);
+  border: 1px solid var(--wsbs-gray-300);
+  border-radius: var(--wsbs-radius-lg);
+  font-size: var(--wsbs-font-size-sm);
+  font-family: var(--wsbs-font-family);
   width: 200px;
-  transition: border-color 0.2s;
+  transition: border-color var(--wsbs-transition-fast);
 }
 .schedule-header input:focus {
-  border-color: #3b82f6;
+  border-color: var(--wsbs-primary);
   outline: none;
+  box-shadow: 0 0 0 3px var(--wsbs-primary-alpha);
 }
 .add-schedule-btn {
-  background: #4ade80;
-  color: #ffffff;
+  background: var(--wsbs-primary);
+  color: var(--wsbs-white);
   border: none;
-  padding: 8px 16px;
+  padding: var(--wsbs-spacing-3) var(--wsbs-spacing-4);
   font-size: 0.9rem;
   border-radius: 6px;
   cursor: pointer;

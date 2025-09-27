@@ -1,11 +1,16 @@
+@import './shared-variables.css';
+
 /* Main Container Styles */
 .billing-content {
-  padding: 20px;
-  background: #fff;
-  border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  color: #333;
+  padding: 0;
+  background: var(--wsbs-gray-50);
+  font-family: var(--wsbs-font-family);
+  color: var(--wsbs-gray-900);
+  min-height: 100vh;
+}
+
+.billing-wrapper {
+  padding: var(--wsbs-spacing-6);
   max-width: 1200px;
   margin: 0 auto;
 }
@@ -15,61 +20,82 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 24px;
+  margin-bottom: var(--wsbs-spacing-8);
+  background: var(--wsbs-white);
+  padding: var(--wsbs-spacing-6);
+  border-radius: var(--wsbs-radius-xl);
+  box-shadow: var(--wsbs-shadow-sm);
+  border: 1px solid var(--wsbs-gray-200);
 }
 
 .billing-header h2 {
-  font-size: 24px;
-  color: #333;
+  font-size: var(--wsbs-font-size-2xl);
+  color: var(--wsbs-gray-900);
+  font-weight: var(--wsbs-font-weight-bold);
   margin: 0;
 }
 
 /* Button Styles */
 .btn {
-  padding: 8px 16px;
-  border-radius: 4px;
+  padding: var(--wsbs-spacing-3) var(--wsbs-spacing-4);
+  border-radius: var(--wsbs-radius-lg);
   border: none;
   cursor: pointer;
-  font-weight: 500;
-  transition: all 0.3s ease;
+  font-weight: var(--wsbs-font-weight-medium);
+  font-size: var(--wsbs-font-size-sm);
+  transition: all var(--wsbs-transition-fast);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--wsbs-spacing-2);
 }
 
 .new-invoice {
-  background-color: #3498db;
-  color: white;
+  background-color: var(--wsbs-primary);
+  color: var(--wsbs-white);
 }
 
 .new-invoice:hover {
-  background-color: #2980b9;
+  background-color: var(--wsbs-primary-dark);
+  transform: translateY(-1px);
+  box-shadow: var(--wsbs-shadow-md);
 }
 
 .auto-generate {
-  background-color: #2ecc71;
-  color: white;
-  margin-right: 10px;
+  background-color: var(--wsbs-success);
+  color: var(--wsbs-white);
+  margin-right: var(--wsbs-spacing-3);
 }
 
 .auto-generate:hover {
-  background-color: #27ae60;
+  background-color: var(--wsbs-success);
+  filter: brightness(0.9);
+  transform: translateY(-1px);
+  box-shadow: var(--wsbs-shadow-md);
 }
 
 .send-reminders {
-  background-color: #f39c12;
-  color: white;
-  margin-right: 10px;
+  background-color: var(--wsbs-warning);
+  color: var(--wsbs-white);
+  margin-right: var(--wsbs-spacing-3);
 }
 
 .send-reminders:hover {
-  background-color: #d35400;
+  background-color: var(--wsbs-warning);
+  filter: brightness(0.9);
+  transform: translateY(-1px);
+  box-shadow: var(--wsbs-shadow-md);
 }
 
 .apply-filters {
-  background-color: #9b59b6;
-  color: white;
+  background-color: var(--wsbs-info);
+  color: var(--wsbs-white);
 }
 
 .apply-filters:hover {
-  background-color: #8e44ad;
+  background-color: var(--wsbs-info);
+  filter: brightness(0.9);
+  transform: translateY(-1px);
+  box-shadow: var(--wsbs-shadow-md);
 }
 
 .view-controls {
@@ -128,43 +154,61 @@
 .billing-table {
   width: 100%;
   border-collapse: collapse;
-  margin-top: 16px;
+  background: var(--wsbs-white);
+  border-radius: var(--wsbs-radius-xl);
+  overflow: hidden;
+  box-shadow: var(--wsbs-shadow-sm);
+  border: 1px solid var(--wsbs-gray-200);
+  margin-top: var(--wsbs-spacing-4);
 }
 
 .billing-table th,
 .billing-table td {
-  padding: 12px;
+  padding: var(--wsbs-spacing-4);
   text-align: left;
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid var(--wsbs-gray-200);
 }
 
 .billing-table th {
-  background: #f8f9fa;
-  font-weight: 600;
-  color: #333;
+  background: var(--wsbs-gray-50);
+  font-weight: var(--wsbs-font-weight-semibold);
+  color: var(--wsbs-gray-700);
+  font-size: var(--wsbs-font-size-sm);
+}
+
+.billing-table tbody tr:hover {
+  background: var(--wsbs-gray-50);
+}
+
+.billing-table tbody tr:last-child td {
+  border-bottom: none;
 }
 
 /* Status Badges */
 .status-badge {
-  padding: 4px 8px;
-  border-radius: 12px;
-  font-size: 12px;
-  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  padding: var(--wsbs-spacing-1) var(--wsbs-spacing-3);
+  border-radius: var(--wsbs-radius-xl);
+  font-size: var(--wsbs-font-size-xs);
+  font-weight: var(--wsbs-font-weight-medium);
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
 }
 
 .status-badge.paid {
-  background: #e6f4ea;
-  color: #1e7e34;
+  background: var(--wsbs-success-light);
+  color: var(--wsbs-success);
 }
 
 .status-badge.partially-paid {
-  background: #fff3cd;
-  color: #856404;
+  background: var(--wsbs-warning-light);
+  color: var(--wsbs-warning);
 }
 
 .status-badge.unpaid {
-  background: #f8d7da;
-  color: #721c24;
+  background: var(--wsbs-error-light);
+  color: var(--wsbs-error);
 }
 
 /* Late Fee Indicator */

@@ -1,6 +1,13 @@
 const billingModel = require('../models/billingModel');
 const config = require('../config/config');
 const { pool } = require('../config/db');
+const {
+  notifySubscriptionActivated,
+  notifyPaymentConfirmed,
+  notifyInvoiceGenerated,
+  notifyLateFeeAdded,
+  notifyMonthlyInvoicesGenerated
+} = require('../services/subscriptionNotificationService');
 
 // Subscription Plans Controllers
 const getAllSubscriptionPlans = async (req, res) => {
@@ -248,6 +255,17 @@ const addLateFees = async (req, res) => {
       return res.status(404).json({ error: 'Invoice not found' });
     }
     
+    // Send late fee notification
+    try {
+      await notifyLateFeeAdded(updatedInvoice.user_id, {
+        invoice_number: updatedInvoice.invoice_number,
+        late_fee: lateFees,
+        new_total: parseFloat(updatedInvoice.amount) + parseFloat(lateFees)
+      });
+    } catch (notifError) {
+      console.error('⚠️ Failed to send late fee notification:', notifError);
+    }
+    
     res.json(updatedInvoice);
   } catch (error) {
     console.error('Error adding late fees:', error);
@@ -345,6 +363,16 @@ const getBillingHistory = async (req, res) => {
 const generateMonthlyInvoices = async (req, res) => {
   try {
     const newInvoices = await billingModel.generateMonthlyInvoices();
+    
+    // Calculate total amount and send admin notification
+    const totalAmount = newInvoices.reduce((sum, invoice) => sum + parseFloat(invoice.amount || 0), 0);
+    
+    try {
+      await notifyMonthlyInvoicesGenerated(newInvoices.length, totalAmount.toFixed(2));
+    } catch (notifError) {
+      console.error('⚠️ Failed to send monthly invoice notification:', notifError);
+    }
+    
     res.json({ 
       message: `Generated ${newInvoices.length} new invoices`,
       invoices: newInvoices 
@@ -535,6 +563,17 @@ const createMobileSubscription = async (req, res) => {
       
       console.log('✨ NEW INVOICE CREATED! ✅');
       console.log('🎯 Invoice Number:', newInvoice.invoice_number);
+      
+      // Send invoice generation notification
+      try {
+        await notifyInvoiceGenerated(user_id, {
+          invoice_number: newInvoice.invoice_number,
+          amount: newInvoice.amount || plan.price,
+          due_date: invoiceData.due_date
+        });
+      } catch (notifError) {
+        console.error('⚠️ Failed to send invoice notification:', notifError);
+      }
     }
     
     console.log('🧾 INVOICE GENERATION COMPLETE! ✅');
@@ -809,6 +848,23 @@ const confirmGcashPayment = async (req, res) => {
     // Update payment source status
     await billingModel.updatePaymentStatus(source_id, 'completed');
 
+    // Send notifications
+    try {
+      await notifyPaymentConfirmed(activatedSubscription.user_id, {
+        amount: paymentData.amount,
+        method: 'GCash',
+        reference_number: source_id
+      });
+      
+      await notifySubscriptionActivated(activatedSubscription.user_id, {
+        plan_name: activatedSubscription.plan_name || 'Full Plan',
+        price: paymentData.amount,
+        next_collection_date: 'TBD'
+      });
+    } catch (notifError) {
+      console.error('⚠️ Failed to send notifications:', notifError);
+    }
+
     res.json({
       success: true,
       message: 'Subscription activated successfully',
@@ -844,6 +900,23 @@ const confirmCashPayment = async (req, res) => {
     };
 
     const activatedSubscription = await billingModel.activateSubscription(subscription_id, paymentData);
+
+    // Send notifications
+    try {
+      await notifyPaymentConfirmed(activatedSubscription.user_id, {
+        amount: paymentData.amount,
+        method: 'Cash',
+        reference_number: paymentData.reference_number
+      });
+      
+      await notifySubscriptionActivated(activatedSubscription.user_id, {
+        plan_name: activatedSubscription.plan_name || 'Full Plan',
+        price: paymentData.amount,
+        next_collection_date: 'TBD'
+      });
+    } catch (notifError) {
+      console.error('⚠️ Failed to send notifications:', notifError);
+    }
 
     res.json({
       success: true,

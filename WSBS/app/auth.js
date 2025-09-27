@@ -51,3 +51,13 @@ export async function logout() {
   await SecureStore.deleteItemAsync(USER_ID_KEY);
   await SecureStore.deleteItemAsync(COLLECTOR_ID_KEY);
 }
+
+// Default export to fix route warning
+export default {
+  saveAuth,
+  getToken,
+  getRole,
+  getUserId,
+  getCollectorId,
+  logout
+};

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,55 +7,64 @@ import {
   StatusBar,
   ScrollView,
   TextInput,
+  ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { API_BASE_URL } from '../config';
-
-// Note: Use API_BASE_URL for any future fetches
+import { getToken, getCollectorId } from '../auth';
 
 const CSchedule = () => {
   const router = useRouter();
   const [searchText, setSearchText] = useState('');
+  const [schedules, setSchedules] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState(null);
 
-  // Example schedule data (you can replace this with real API data)
-  const schedules = [
-    {
-      id: 'CL-002',
-      location: 'Agan Ligaya',
-      truck: 'TR-001',
-      date: 'August 1, 2024',
-      time: '08:00 AM',
-    },
-    {
-      id: 'CL-001',
-      location: 'Agan Laggao',
-      truck: 'TR-002',
-      date: 'August 1, 2024',
-      time: '08:00 AM',
-    },
-    {
-      id: 'WC-003',
-      location: 'East District',
-      team: 'Team Gamma',
-      day: 'Wednesday',
-      time: '07:00 AM',
-    },
-    {
-      id: 'WC-004',
-      location: 'West District',
-      team: 'Team Delta',
-      day: 'Thursday',
-      time: '10:00 AM',
-    },
-    {
-      id: 'WC-005',
-      location: 'Central District',
-      team: 'Team Epsilon',
-      day: 'Friday',
-      time: '08:30 AM',
-    },
-  ];
+  const fetchSchedules = useCallback(async () => {
+    try {
+      const token = await getToken();
+      const collectorId = await getCollectorId();
+      
+      if (!token || !collectorId) {
+        setError('Authentication required');
+        return;
+      }
+
+      const response = await fetch(`${API_BASE_URL}/api/collector/schedules?collector_id=${collectorId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      const data = await response.json();
+      
+      if (data.success) {
+        setSchedules(data.schedules);
+        setError(null);
+      } else {
+        setError(data.error || 'Failed to fetch schedules');
+      }
+    } catch (err) {
+      console.error('Error fetching schedules:', err);
+      setError('Network error');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchSchedules();
+  }, [fetchSchedules]);
+
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    fetchSchedules();
+  }, [fetchSchedules]);
 
   // Filter by search text (optional)
   const filteredSchedules = schedules.filter((item) =>
@@ -85,17 +94,57 @@ const CSchedule = () => {
       </View>
 
       {/* Schedule List */}
-      <ScrollView showsVerticalScrollIndicator={false}>
-        {filteredSchedules.map((item) => (
-          <View key={item.id} style={styles.card}>
-            <Text style={styles.cardTitle}>{item.id}</Text>
-            <Text>{item.location}</Text>
-            {item.truck && <Text>{item.truck}</Text>}
-            {item.date && <Text>{item.date}</Text>}
-            {item.day && <Text>{item.day}</Text>}
-            <Text>{item.time}</Text>
+      <ScrollView 
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      >
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#4CAF50" />
+            <Text style={styles.loadingText}>Loading schedules...</Text>
           </View>
-        ))}
+        ) : error ? (
+          <View style={styles.errorContainer}>
+            <Text style={styles.errorText}>{error}</Text>
+            <TouchableOpacity style={styles.retryButton} onPress={fetchSchedules}>
+              <Text style={styles.retryText}>Retry</Text>
+            </TouchableOpacity>
+          </View>
+        ) : filteredSchedules.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <Ionicons name="calendar-outline" size={64} color="#ccc" />
+            <Text style={styles.emptyTitle}>No Schedules Found</Text>
+            <Text style={styles.emptyText}>You don't have any schedules assigned yet.</Text>
+          </View>
+        ) : (
+          filteredSchedules.map((item) => (
+            <View key={item.id} style={styles.card}>
+              <Text style={styles.cardTitle}>{item.id}</Text>
+              <View style={styles.scheduleInfo}>
+                <Ionicons name="location-outline" size={16} color="#666" />
+                <Text style={styles.scheduleText}>{item.location}</Text>
+              </View>
+              {item.waste_type && (
+                <View style={styles.scheduleInfo}>
+                  <Ionicons name="trash-outline" size={16} color="#666" />
+                  <Text style={styles.scheduleText}>{item.waste_type}</Text>
+                </View>
+              )}
+              {item.day && (
+                <View style={styles.scheduleInfo}>
+                  <Ionicons name="calendar-outline" size={16} color="#666" />
+                  <Text style={styles.scheduleText}>{item.day}</Text>
+                </View>
+              )}
+              <View style={styles.scheduleInfo}>
+                <Ionicons name="time-outline" size={16} color="#666" />
+                <Text style={styles.scheduleText}>{item.time}</Text>
+              </View>
+            </View>
+          ))
+        )}
       </ScrollView>
     </View>
   );
@@ -144,6 +193,70 @@ const styles = StyleSheet.create({
   },
   cardTitle: {
     fontWeight: 'bold',
+    marginBottom: 8,
+    fontSize: 16,
+    color: '#333',
+  },
+  scheduleInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
     marginBottom: 4,
+  },
+  scheduleText: {
+    marginLeft: 8,
+    color: '#666',
+    fontSize: 14,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
+  loadingText: {
+    marginTop: 12,
+    color: '#666',
+    fontSize: 16,
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
+  errorText: {
+    color: 'red',
+    fontSize: 16,
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  retryButton: {
+    backgroundColor: '#4CAF50',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  retryText: {
+    color: 'white',
+    fontWeight: 'bold',
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 60,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#666',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  emptyText: {
+    fontSize: 14,
+    color: '#888',
+    textAlign: 'center',
+    paddingHorizontal: 32,
   },
 });

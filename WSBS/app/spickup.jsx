@@ -1,33 +1,77 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
-  TouchableOpacity,
   TextInput,
-  ScrollView,
+  TouchableOpacity,
   StyleSheet,
+  Alert,
+  ScrollView,
   SafeAreaView,
   StatusBar,
-  Platform,
   Image,
-  Alert,
+  Platform,
 } from 'react-native';
-import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import { useRouter } from 'expo-router';
+import { getToken, getUserId } from './auth';
 import { API_BASE_URL } from './config';
 
 const SPickup = () => {
   const router = useRouter();
   const [wasteType, setWasteType] = useState('');
   const [description, setDescription] = useState('');
-  const [date, setDate] = useState('');
-  const [time, setTime] = useState('');
+  const [date, setDate] = useState(null);
+  const [time, setTime] = useState(null);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showTimePicker, setShowTimePicker] = useState(false);
   const [address, setAddress] = useState('');
   const [notes, setNotes] = useState('');
   const [message, setMessage] = useState('');
   const [image, setImage] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState(null);
+  const [userProfile, setUserProfile] = useState(null);
+
+  // Get current user info on component mount
+  useEffect(() => {
+    const fetchUserInfo = async () => {
+      try {
+        const userId = await getUserId();
+        const token = await getToken();
+        
+        if (userId) {
+          setCurrentUserId(userId);
+        }
+
+        // Get user profile for address prefill
+        if (token) {
+          const response = await fetch(`${API_BASE_URL}/api/auth/profile`, {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+            },
+          });
+          
+          if (response.ok) {
+            const data = await response.json();
+            if (data.success && data.user) {
+              setUserProfile(data.user);
+              // Pre-fill address if available
+              if (data.user.full_address) {
+                setAddress(data.user.full_address);
+              }
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching user info:', error);
+      }
+    };
+
+    fetchUserInfo();
+  }, []);
 
   const handleSubmit = async () => {
     // Basic validation
@@ -36,33 +80,50 @@ const SPickup = () => {
       return;
     }
 
+    if (!currentUserId) {
+      Alert.alert('Error', 'User not authenticated. Please log in again.');
+      return;
+    }
+
     setIsSubmitting(true);
     
     try {
-      // Get user_id from storage or context (you may need to adjust this)
-      // For now, using a placeholder - you should get this from your auth context
-      const user_id = 1; // Replace this with actual user ID from your auth system
+      const token = await getToken();
       
-      const requestData = {
-        user_id,
-        waste_type: wasteType,
-        description,
-        pickup_date: date,
-        pickup_time: time,
-        address,
-        notes,
-        image_url: image, // You might want to upload the image first and get a URL
-        message
-      };
+      // Create FormData for file upload
+      const formData = new FormData();
+      formData.append('user_id', currentUserId);
+      formData.append('waste_type', wasteType);
+      formData.append('description', description);
+      formData.append('pickup_date', date ? date.toISOString().split('T')[0] : '');
+      formData.append('pickup_time', time ? time.toTimeString().split(' ')[0].substring(0, 5) : '');
+      formData.append('address', address);
+      formData.append('notes', notes);
+      formData.append('message', message);
 
-      console.log('Sending request:', requestData);
+      // Add image if selected
+      if (image) {
+        const imageUri = image;
+        const filename = imageUri.split('/').pop();
+        const match = /\.(\w+)$/.exec(filename);
+        const type = match ? `image/${match[1]}` : 'image';
+
+        formData.append('image', {
+          uri: imageUri,
+          name: filename,
+          type,
+        });
+      }
+
+      console.log('Sending request with FormData');
 
       const response = await fetch(`${API_BASE_URL}/api/special-pickup`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+          // Don't set Content-Type for FormData, let the browser set it with boundary
         },
-        body: JSON.stringify(requestData),
+        body: formData,
       });
 
       const result = await response.json();
@@ -70,7 +131,7 @@ const SPickup = () => {
       if (response.ok) {
         Alert.alert(
           'Success', 
-          'Special pickup request submitted successfully!',
+          'Special pickup request submitted successfully! The admin will review your request and assign a collector.',
           [
             {
               text: 'OK',
@@ -84,7 +145,7 @@ const SPickup = () => {
                 setNotes('');
                 setMessage('');
                 setImage(null);
-                // Navigate back or to a confirmation page
+                // Navigate back to home page where they can see their requests
                 router.push('/resident/HomePage');
               }
             }
@@ -165,19 +226,54 @@ const SPickup = () => {
           style={styles.input}
         />
 
-        <TextInput
-          placeholder="Date (YYYY-MM-DD)"
-          value={date}
-          onChangeText={setDate}
-          style={styles.input}
-        />
+        <TouchableOpacity
+          style={styles.dateTimeButton}
+          onPress={() => setShowDatePicker(true)}
+        >
+          <Ionicons name="calendar-outline" size={20} color="#666" />
+          <Text style={styles.dateTimeText}>
+            {date ? date.toDateString() : 'Select Date'}
+          </Text>
+        </TouchableOpacity>
 
-        <TextInput
-          placeholder="Time (HH:MM)"
-          value={time}
-          onChangeText={setTime}
-          style={styles.input}
-        />
+        <TouchableOpacity
+          style={styles.dateTimeButton}
+          onPress={() => setShowTimePicker(true)}
+        >
+          <Ionicons name="time-outline" size={20} color="#666" />
+          <Text style={styles.dateTimeText}>
+            {time ? time.toTimeString().split(' ')[0].substring(0, 5) : 'Select Time'}
+          </Text>
+        </TouchableOpacity>
+
+        {showDatePicker && (
+          <DateTimePicker
+            value={date || new Date()}
+            mode="date"
+            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+            onChange={(event, selectedDate) => {
+              setShowDatePicker(false);
+              if (selectedDate) {
+                setDate(selectedDate);
+              }
+            }}
+            minimumDate={new Date()}
+          />
+        )}
+
+        {showTimePicker && (
+          <DateTimePicker
+            value={time || new Date()}
+            mode="time"
+            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+            onChange={(event, selectedTime) => {
+              setShowTimePicker(false);
+              if (selectedTime) {
+                setTime(selectedTime);
+              }
+            }}
+          />
+        )}
 
         <TextInput
           placeholder="Enter pickup address"
@@ -294,6 +390,21 @@ const styles = StyleSheet.create({
     padding: 10,
     marginTop: 10,
     borderRadius: 5,
+  },
+  dateTimeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#ccc',
+    padding: 12,
+    marginTop: 10,
+    borderRadius: 5,
+    backgroundColor: '#f9f9f9',
+  },
+  dateTimeText: {
+    marginLeft: 10,
+    fontSize: 16,
+    color: '#333',
   },
   imagePickerButton: {
     backgroundColor: '#4CAF50',

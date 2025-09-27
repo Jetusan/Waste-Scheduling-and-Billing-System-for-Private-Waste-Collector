@@ -1,11 +1,12 @@
 import React, { useMemo, useState, useCallback, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, TextInput, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, TextInput, Alert, Modal } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { API_BASE_URL } from '../config';
 import { getUserId, getToken, getCollectorId } from '../auth';
 import * as Location from 'expo-location';
+import EnhancedMissedCollectionModal from './components/EnhancedMissedCollectionModal';
 
 // Fallback sample list shown only if we don't yet have real stops
 const sampleBarangays = [
@@ -39,6 +40,15 @@ const CStartCollection = () => {
   // Catch-ups (auto-rescheduled tasks)
   const [catchups, setCatchups] = useState([]);
   const [catchupsLoading, setCatchupsLoading] = useState(false);
+  // Route issue reporting
+  const [reportingIssue, setReportingIssue] = useState(false);
+  const [issueReported, setIssueReported] = useState(null);
+  const [issueChooserOpen, setIssueChooserOpen] = useState(false);
+  const [actionChooserOpen, setActionChooserOpen] = useState(false);
+  const [selectedIssue, setSelectedIssue] = useState(null); // { type, severity }
+  // Enhanced missed collection modal
+  const [enhancedMissedModalVisible, setEnhancedMissedModalVisible] = useState(false);
+  const [selectedStopForMissed, setSelectedStopForMissed] = useState(null);
 
   const handleMapReady = useCallback((ref) => {
     setMapRef(ref);
@@ -465,22 +475,252 @@ const CStartCollection = () => {
   }, []);
 
   const handleMissed = useCallback((stop) => {
-    // Prompt for reason: collector fault (auto-catch-up) vs resident fault (rollover)
+    // Use enhanced modal instead of basic alert
+    setSelectedStopForMissed(stop);
+    setEnhancedMissedModalVisible(true);
+  }, []);
+
+  const showCollectorFaultOptions = useCallback((stop) => {
     try {
       Alert.alert(
-        'Mark as Missed',
-        'Select the reason for the missed collection:',
+        'Collector Issue Details',
+        'What specific issue occurred?',
         [
-          { text: 'Collector issue', onPress: () => submitMissedWithReason(stop, 'collector_fault') },
-          { text: 'Resident unavailable', onPress: () => submitMissedWithReason(stop, 'resident_fault') },
-          { text: 'Cancel', style: 'cancel' }
+          { text: 'Truck breakdown', onPress: () => submitMissedWithDetails(stop, 'collector_fault', 'truck_breakdown', 3) },
+          { text: 'Equipment malfunction', onPress: () => submitMissedWithDetails(stop, 'collector_fault', 'equipment_failure', 1) },
+          { text: 'Route blocked/inaccessible', onPress: () => submitMissedWithDetails(stop, 'collector_fault', 'route_blocked', 2) },
+          { text: 'Collector sick/emergency', onPress: () => submitMissedWithDetails(stop, 'collector_fault', 'collector_emergency', 1) },
+          { text: 'Other operational issue', onPress: () => submitMissedWithDetails(stop, 'collector_fault', 'other_operational', 1) },
+          { text: 'Back', onPress: () => handleMissed(stop) }
         ]
       );
     } catch (_) {
-      // Fallback: default to resident fault
-      submitMissedWithReason(stop, 'resident_fault');
+      // Fallback: default collector fault with 1 day
+      submitMissedWithDetails(stop, 'collector_fault', 'other_operational', 1);
     }
-  }, [submitMissedWithReason]);
+  }, []);
+
+  const submitMissedWithDetails = useCallback(async (stop, missed_reason, fault_detail, estimated_delay_days) => {
+    try {
+      const token = await getToken();
+      const collectorId = await resolveCollectorId();
+      if (!token || !collectorId) {
+        Alert.alert('Auth Error', 'Missing session. Please re-login.');
+        return;
+      }
+      setSubmittingStopId(stop.stop_id || `${stop.user_id}-${stop.schedule_id || ''}`);
+      const res = await fetch(`${API_BASE_URL}/api/collector/assignments/stop/missed`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          stop_id: stop.stop_id,
+          schedule_id: stop.schedule_id,
+          user_id: stop.user_id,
+          collector_id: collectorId,
+          notes: `Missed at ${new Date().toISOString()}`,
+          missed_reason,
+          fault_detail,
+          estimated_delay_days
+        })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data?.success) {
+        const tentative = data?.next_catchup_date;
+        let msg;
+        if (missed_reason === 'collector_fault') {
+          if (fault_detail === 'truck_breakdown') {
+            msg = tentative
+              ? `Marked missed due to truck breakdown. Estimated repair: ${estimated_delay_days} days. Tentative catch-up: ${tentative}.`
+              : 'Marked missed due to truck breakdown. Admin will schedule catch-up and notify you.';
+          } else if (fault_detail === 'equipment_failure') {
+            msg = tentative
+              ? `Marked missed due to equipment failure. Catch-up scheduled: ${tentative}.`
+              : 'Marked missed due to equipment failure. Catch-up will be scheduled.';
+          } else if (fault_detail === 'route_blocked') {
+            msg = tentative
+              ? `Marked missed due to blocked route. Estimated resolution: ${estimated_delay_days} days. Tentative catch-up: ${tentative}.`
+              : 'Marked missed due to blocked route. Admin will reschedule when accessible.';
+          } else if (fault_detail === 'collector_emergency') {
+            msg = tentative
+              ? `Marked missed due to emergency. Catch-up scheduled: ${tentative}.`
+              : 'Marked missed due to emergency. Catch-up will be scheduled.';
+          } else {
+            msg = tentative
+              ? `Marked missed due to operational issue. Catch-up scheduled: ${tentative}.`
+              : 'Marked missed due to operational issue. Admin will schedule catch-up.';
+          }
+        } else {
+          msg = 'Marked missed. Will roll over to next regular schedule.';
+        }
+        Alert.alert('Marked Missed', msg);
+        // Optimistically update local stop status
+        setStops(prev => prev.map(s => (
+          (s.user_id === stop.user_id && (s.schedule_id === stop.schedule_id))
+            ? { ...s, latest_action: 'missed', latest_updated_at: new Date().toISOString() }
+            : s
+        )));
+      } else {
+        Alert.alert('Error', data?.message || 'Failed to mark as missed.');
+      }
+    } catch (e) {
+      Alert.alert('Error', 'Failed to mark as missed.');
+    } finally {
+      setSubmittingStopId(null);
+    }
+  }, []);
+
+  // Route issue reporting functions
+  const handleRouteIssue = useCallback(() => {
+    // Use a custom modal to support more than 3 options on Android
+    setIssueChooserOpen(true);
+  }, []);
+
+  const chooseIssue = useCallback((type, severity) => {
+    setSelectedIssue({ type, severity });
+    setIssueChooserOpen(false);
+    setActionChooserOpen(true);
+  }, []);
+
+  const reportIssue = useCallback(async (issueType, severity) => {
+    try {
+      const collectorId = await resolveCollectorId();
+      const token = await getToken();
+      if (!collectorId || !token) {
+        Alert.alert('Auth Error', 'Missing session. Please re-login.');
+        return;
+      }
+
+      // Get affected schedule IDs from current assignment
+      const affectedScheduleIds = assignment ? [assignment.schedule_id] : [];
+
+      // Prompt for requested action based on issue type
+      const actionOptions = getActionOptions(issueType, severity);
+      
+      // Open action chooser modal with dynamic options
+      setSelectedIssue({ type: issueType, severity });
+      // Keep token and collector context by closing over them
+      setIssueChooserOpen(false);
+      // Stash these so we can submit on selection
+      setActionChooserOpen(true);
+      // Temporarily store them on component instance via refs is overkill; we'll reuse submit handler below
+      // and read from selectedIssue plus recompute actionOptions when rendering.
+    } catch (error) {
+      Alert.alert('Error', 'Failed to report issue. Please try again.');
+    }
+  }, [assignment, resolveCollectorId]);
+
+  const getActionOptions = (issueType, severity) => {
+    const baseOptions = [
+      { label: 'Request backup truck', value: 'backup_truck' },
+      { label: 'Delay route (2 hours)', value: 'delay_2h' },
+      { label: 'Delay route (4 hours)', value: 'delay_4h' },
+      { label: 'Reschedule to tomorrow', value: 'reschedule_tomorrow' }
+    ];
+
+    if (severity === 'critical' || issueType === 'truck_breakdown') {
+      baseOptions.push({ label: 'Cancel route', value: 'cancel_route' });
+    }
+
+    return baseOptions;
+  };
+
+  const submitIssueReport = useCallback(async (collectorId, token, issueType, severity, requestedAction, affectedScheduleIds) => {
+    try {
+      setReportingIssue(true);
+      
+      const response = await fetch(`${API_BASE_URL}/api/collector/issues/report`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          collector_id: collectorId,
+          issue_type: issueType,
+          severity: severity,
+          description: `${issueType.replace('_', ' ')} reported via mobile app`,
+          affected_schedule_ids: affectedScheduleIds,
+          requested_action: requestedAction,
+          estimated_delay_hours: requestedAction.includes('delay_2h') ? 2 : requestedAction.includes('delay_4h') ? 4 : null,
+          location_lat: collectorLocation?.latitude || null,
+          location_lng: collectorLocation?.longitude || null
+        })
+      });
+
+      const data = await response.json();
+      
+      if (data.success) {
+        setIssueReported({
+          issue_id: data.issue_id,
+          auto_approved: data.auto_approved,
+          message: data.message
+        });
+        
+        Alert.alert(
+          data.auto_approved ? 'Issue Approved' : 'Issue Reported',
+          data.message,
+          [{ text: 'OK', onPress: () => setIssueReported(null) }]
+        );
+      } else {
+        Alert.alert('Error', data.message || 'Failed to report issue');
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to report issue. Please try again.');
+    } finally {
+      setReportingIssue(false);
+    }
+  }, [collectorLocation]);
+
+  // Enhanced missed collection submission handler
+  const handleEnhancedMissedSubmission = useCallback(async (submissionData) => {
+    try {
+      const token = await getToken();
+      const collectorId = await resolveCollectorId();
+      
+      if (!token || !collectorId) {
+        Alert.alert('Auth Error', 'Missing session. Please re-login.');
+        return;
+      }
+
+      setSubmittingStopId(submissionData.stop_id || `${submissionData.user_id}-${submissionData.schedule_id || ''}`);
+
+      const response = await fetch(`${API_BASE_URL}/api/enhanced-missed-collection/report`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          ...submissionData,
+          collector_id: collectorId
+        })
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        Alert.alert('Report Submitted', data.message);
+        
+        // Update local stop status
+        setStops(prev => prev.map(s => (
+          (s.user_id === submissionData.user_id && (s.schedule_id === submissionData.schedule_id))
+            ? { ...s, latest_action: 'missed', latest_updated_at: new Date().toISOString() }
+            : s
+        )));
+
+        // Close modal
+        setEnhancedMissedModalVisible(false);
+        setSelectedStopForMissed(null);
+      } else {
+        Alert.alert('Error', data.error || 'Failed to submit missed collection report.');
+      }
+    } catch (error) {
+      console.error('Error submitting enhanced missed collection:', error);
+      Alert.alert('Error', 'Failed to submit report. Please try again.');
+    } finally {
+      setSubmittingStopId(null);
+    }
+  }, [resolveCollectorId]);
 
   const showResidentOnMap = useCallback((userId) => {
     const location = residentLocations.find(loc => loc.user_id === userId);
@@ -544,12 +784,22 @@ const CStartCollection = () => {
 
   return (
     <View style={styles.container}>
-      {/* Header with Back Button */}
+      {/* Header with Cancel (back) on the left and Report Issue on the right */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={20} color="#222" />
-          <Text style={styles.backText}>Back</Text>
+          <Text style={styles.backText}>Cancel</Text>
         </TouchableOpacity>
+        <View style={styles.headerActions}>
+          <TouchableOpacity 
+            onPress={handleRouteIssue}
+            style={[styles.issueButton, reportingIssue && { opacity: 0.6 }]}
+            disabled={reportingIssue}
+          >
+            <Ionicons name="warning" size={20} color="#fff" />
+            <Text style={styles.issueButtonText}>Report Issue</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Map Section (MapLibre when available) */}
@@ -797,6 +1047,96 @@ const CStartCollection = () => {
         )}
       </ScrollView>
 
+      {/* Issue type chooser modal */}
+      <Modal
+        visible={issueChooserOpen}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setIssueChooserOpen(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.sheet}>
+            <Text style={styles.sheetTitle}>Report Route Issue</Text>
+            <TouchableOpacity style={styles.optionButton} onPress={() => chooseIssue('truck_breakdown', 'high')}>
+              <Text style={styles.optionText}>Truck breakdown</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.optionButton} onPress={() => chooseIssue('equipment_failure', 'medium')}>
+              <Text style={styles.optionText}>Equipment failure</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.optionButton} onPress={() => chooseIssue('weather', 'medium')}>
+              <Text style={styles.optionText}>Weather conditions</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.optionButton} onPress={() => chooseIssue('emergency', 'critical')}>
+              <Text style={styles.optionText}>Emergency situation</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.optionButton} onPress={() => chooseIssue('other', 'medium')}>
+              <Text style={styles.optionText}>Other issue</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.optionButton, styles.cancelOption]} onPress={() => setIssueChooserOpen(false)}>
+              <Text style={[styles.optionText, { color: '#c62828' }]}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Action chooser modal */}
+      <Modal
+        visible={actionChooserOpen}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setActionChooserOpen(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.sheet}>
+            <Text style={styles.sheetTitle}>Requested Action</Text>
+            {selectedIssue && getActionOptions(selectedIssue.type, selectedIssue.severity).map(opt => (
+              <TouchableOpacity
+                key={opt.value}
+                style={styles.optionButton}
+                onPress={async () => {
+                  try {
+                    const collectorId = await resolveCollectorId();
+                    const token = await getToken();
+                    if (!collectorId || !token) {
+                      Alert.alert('Auth Error', 'Missing session. Please re-login.');
+                      return;
+                    }
+                    const affectedScheduleIds = assignment ? [assignment.schedule_id] : [];
+                    setActionChooserOpen(false);
+                    await submitIssueReport(
+                      collectorId,
+                      token,
+                      selectedIssue.type,
+                      selectedIssue.severity,
+                      opt.value,
+                      affectedScheduleIds
+                    );
+                  } catch (_) {
+                    Alert.alert('Error', 'Failed to report issue. Please try again.');
+                  }
+                }}
+              >
+                <Text style={styles.optionText}>{opt.label}</Text>
+              </TouchableOpacity>
+            ))}
+            <TouchableOpacity style={[styles.optionButton, styles.cancelOption]} onPress={() => setActionChooserOpen(false)}>
+              <Text style={[styles.optionText, { color: '#c62828' }]}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Enhanced Missed Collection Modal */}
+      <EnhancedMissedCollectionModal
+        visible={enhancedMissedModalVisible}
+        onClose={() => {
+          setEnhancedMissedModalVisible(false);
+          setSelectedStopForMissed(null);
+        }}
+        onSubmit={handleEnhancedMissedSubmission}
+        stop={selectedStopForMissed}
+      />
+
       {/* Agent button removed as requested */}
       </View>
     );
@@ -957,12 +1297,17 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     paddingTop: 40,
     paddingHorizontal: 12,
     backgroundColor: '#fff',
     paddingBottom: 8,
     elevation: 2,
     zIndex: 2,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   backButton: {
     flexDirection: 'row',
@@ -1019,5 +1364,73 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingVertical: 10,
     paddingHorizontal: 12,
+  },
+  issueButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f44336',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 6,
+    marginLeft: 8,
+  },
+  issueButtonText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    marginLeft: 4,
+    fontSize: 14,
+  },
+  cancelButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#ccc',
+    backgroundColor: '#fff',
+  },
+  cancelButtonText: {
+    color: '#333',
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+    justifyContent: 'flex-end',
+  },
+  sheet: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: -2 },
+    elevation: 8,
+  },
+  sheetTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#222',
+    marginBottom: 8,
+  },
+  optionButton: {
+    backgroundColor: '#f7f7f7',
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    marginTop: 10,
+  },
+  optionText: {
+    color: '#222',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  cancelOption: {
+    backgroundColor: '#fff5f5',
+    borderColor: '#ffcdd2',
   },
 }); 

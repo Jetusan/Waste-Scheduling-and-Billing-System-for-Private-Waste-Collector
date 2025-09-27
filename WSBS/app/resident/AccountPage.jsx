@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator, Image, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import { getToken } from '../auth';
 import { API_BASE_URL } from '../config';
 
@@ -10,6 +12,7 @@ const AccountPage = () => {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [profileImage, setProfileImage] = useState(null);
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -60,6 +63,34 @@ const AccountPage = () => {
     fetchProfile();
   }, []);
 
+  const pickImage = async () => {
+    try {
+      // Request permission to access media library
+      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      
+      if (permissionResult.granted === false) {
+        Alert.alert('Permission Required', 'Please allow access to your photo library to change your profile picture.');
+        return;
+      }
+
+      // Launch image picker
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        setProfileImage(result.assets[0].uri);
+        Alert.alert('Success', 'Profile picture updated! (Note: This is stored locally for demo purposes)');
+      }
+    } catch (error) {
+      console.error('Error picking image:', error);
+      Alert.alert('Error', 'Failed to select image. Please try again.');
+    }
+  };
+
   const handleLogout = async () => {
     try {
       // Clear the token from secure storage
@@ -95,8 +126,19 @@ const AccountPage = () => {
         <Text style={styles.title}>Your Profile</Text>
 
         <View style={styles.profilePictureContainer}>
-          <View style={styles.profilePicture} />
-          <Text style={styles.profileText}>Profile Picture</Text>
+          <TouchableOpacity style={styles.profilePictureWrapper} onPress={pickImage}>
+            {profileImage ? (
+              <Image source={{ uri: profileImage }} style={styles.profilePicture} />
+            ) : (
+              <View style={styles.profilePicturePlaceholder}>
+                <Ionicons name="person" size={50} color="#999" />
+              </View>
+            )}
+            <View style={styles.cameraIconContainer}>
+              <Ionicons name="camera" size={20} color="#fff" />
+            </View>
+          </TouchableOpacity>
+          <Text style={styles.profileText}>Tap to change photo</Text>
         </View>
 
         <View style={styles.infoContainer}>
@@ -141,9 +183,17 @@ const AccountPage = () => {
           </Text>
         </View>
 
-        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-          <Text style={styles.logoutButtonText}>Log Out</Text>
-        </TouchableOpacity>
+        <View style={styles.buttonContainer}>
+          <TouchableOpacity style={styles.editButton} onPress={() => Alert.alert('Edit Profile', 'Profile editing feature coming soon!')}>
+            <Ionicons name="create-outline" size={20} color="#4CD964" style={{ marginRight: 8 }} />
+            <Text style={styles.editButtonText}>Edit Profile</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+            <Ionicons name="log-out-outline" size={20} color="#fff" style={{ marginRight: 8 }} />
+            <Text style={styles.logoutButtonText}>Log Out</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </ScrollView>
   );
@@ -180,17 +230,44 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 30,
   },
+  profilePictureWrapper: {
+    position: 'relative',
+    marginBottom: 10,
+  },
   profilePicture: {
     width: 110,
     height: 110,
     borderRadius: 55,
-    backgroundColor: '#C0C0C0',
-    marginBottom: 10,
+  },
+  profilePicturePlaceholder: {
+    width: 110,
+    height: 110,
+    borderRadius: 55,
+    backgroundColor: '#E8E8E8',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#4CD964',
+    borderStyle: 'dashed',
+  },
+  cameraIconContainer: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    backgroundColor: '#4CD964',
+    borderRadius: 18,
+    width: 36,
+    height: 36,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 3,
+    borderColor: '#fff',
   },
   profileText: {
     color: '#666',
     fontSize: 14,
     fontWeight: '500',
+    textAlign: 'center',
   },
   infoContainer: {
     marginBottom: 20,
@@ -215,14 +292,32 @@ const styles = StyleSheet.create({
     color: '#333',
     minHeight: 20,
   },
+  buttonContainer: {
+    marginTop: 30,
+    gap: 12,
+  },
+  editButton: {
+    backgroundColor: '#E8F5E9',
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#4CD964',
+  },
+  editButtonText: {
+    color: '#4CD964',
+    fontWeight: '600',
+    fontSize: 16,
+  },
   logoutButton: {
     backgroundColor: '#FF3B30',
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: 'center',
-    marginTop: 20,
-    width: 180,
-    alignSelf: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
   },
   logoutButtonText: {
     color: '#FFFFFF',

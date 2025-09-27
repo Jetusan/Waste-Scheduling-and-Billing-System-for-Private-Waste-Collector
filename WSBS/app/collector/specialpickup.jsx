@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, StatusBar, ScrollView, Image,
 import { useRouter } from 'expo-router';
 import { Feather, MaterialIcons } from '@expo/vector-icons';
 import { API_BASE_URL } from '../config';
-import { getUserId } from '../auth';
+import { getUserId, getCollectorId } from '../auth';
 
 const SpecialPickup = () => {
   const router = useRouter();
@@ -21,7 +21,9 @@ const SpecialPickup = () => {
       const res = await fetch(`${API_BASE_URL}/api/special-pickup/collector/${idToUse}`);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to fetch requests');
-      setRequests(data);
+      // Filter to show only in_progress requests
+      const inProgressRequests = data.filter(req => req.status === 'in_progress');
+      setRequests(inProgressRequests);
     } catch (err) {
       setError(err.message);
     }
@@ -31,7 +33,7 @@ const SpecialPickup = () => {
     (async () => {
       setLoading(true);
       try {
-        const id = await getUserId();
+        const id = await getCollectorId();
         setCollectorId(id);
         await loadRequests(id);
       } finally {
@@ -47,21 +49,54 @@ const SpecialPickup = () => {
   }, [loadRequests]);
 
   const markAsCollected = async (requestId) => {
-    try {
-      // optimistic update
-      setRequests((prev) => prev.map((r) => r.request_id === requestId ? { ...r, status: 'collected' } : r));
-      const res = await fetch(`${API_BASE_URL}/api/special-pickup/${requestId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'collected', collector_id: collectorId })
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to update request');
-    } catch (e) {
-      Alert.alert('Update Failed', e.message || 'Could not mark as collected');
-      // rollback by reloading
-      await loadRequests();
-    }
+    Alert.alert(
+      'Confirm Collection',
+      'Are you sure you want to mark this pickup as collected?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Confirm', 
+          onPress: async () => {
+            try {
+              // Remove from list immediately (optimistic update)
+              setRequests((prev) => prev.filter((r) => r.request_id !== requestId));
+              
+              const res = await fetch(`${API_BASE_URL}/api/special-pickup/${requestId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: 'collected', collector_id: collectorId })
+              });
+              const data = await res.json();
+              if (!res.ok) throw new Error(data.error || 'Failed to update request');
+              
+              Alert.alert('Success', 'Pickup marked as collected successfully!');
+            } catch (e) {
+              Alert.alert('Update Failed', e.message || 'Could not mark as collected');
+              // rollback by reloading
+              await loadRequests();
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const startNavigation = (address) => {
+    Alert.alert(
+      'Navigate to Location',
+      `Open navigation to: ${address}`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Open Maps', 
+          onPress: () => {
+            // This would open the device's default maps app
+            // For now, just show an alert
+            Alert.alert('Navigation', 'Opening maps navigation...');
+          }
+        }
+      ]
+    );
   };
 
   return (
@@ -74,7 +109,7 @@ const SpecialPickup = () => {
             <Feather name="arrow-left" size={24} color="black" />
           </Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Special Pickup Requests</Text>
+        <Text style={styles.headerTitle}>My Assigned Pickups</Text>
         <View style={{ width: 24 }} />
       </View>
       {loading ? (
@@ -89,7 +124,11 @@ const SpecialPickup = () => {
         <ScrollView contentContainerStyle={styles.content}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
           {requests.length === 0 ? (
-            <Text style={{ textAlign: 'center', color: '#888' }}>No special pickup requests found.</Text>
+            <View style={styles.emptyState}>
+              <MaterialIcons name="assignment" size={64} color="#ccc" />
+              <Text style={styles.emptyTitle}>No Active Pickups</Text>
+              <Text style={styles.emptyText}>You don't have any assigned pickup requests at the moment.</Text>
+            </View>
           ) : (
             requests.map((req) => (
               <View key={req.request_id} style={styles.detailsCard}>
@@ -99,26 +138,26 @@ const SpecialPickup = () => {
                 </View>
 
                 <View style={styles.detailItem}>
-                  <MaterialIcons name={'check-box'} size={24} color="#4CAF50" />
+                  <MaterialIcons name="location-on" size={24} color="#FF5722" />
                   <Text style={styles.detailText}>{req.address}</Text>
                 </View>
                 <View style={styles.detailItem}>
-                  <MaterialIcons name={'check-box'} size={24} color="#4CAF50" />
-                  <Text style={styles.detailText}>{req.pickup_date} {req.pickup_time}</Text>
+                  <MaterialIcons name="schedule" size={24} color="#2196F3" />
+                  <Text style={styles.detailText}>{req.pickup_date} at {req.pickup_time}</Text>
                 </View>
                 <View style={styles.detailItem}>
-                  <MaterialIcons name={'check-box'} size={24} color="#4CAF50" />
+                  <MaterialIcons name="delete" size={24} color="#FF9800" />
                   <Text style={styles.detailText}>{req.waste_type} - {req.description}</Text>
                 </View>
                 {req.notes ? (
                   <View style={styles.detailItem}>
-                    <MaterialIcons name={'check-box'} size={24} color="#4CAF50" />
+                    <MaterialIcons name="note" size={24} color="#9C27B0" />
                     <Text style={styles.detailText}>Notes: {req.notes}</Text>
                   </View>
                 ) : null}
                 {req.image_url ? (
                   <View style={styles.photosContainer}>
-                    <Image source={{ uri: req.image_url }} style={styles.photoPlaceholder} />
+                    <Image source={{ uri: `${API_BASE_URL}${req.image_url}` }} style={styles.photoPlaceholder} />
                   </View>
                 ) : null}
                 {req.message ? (
@@ -126,10 +165,21 @@ const SpecialPickup = () => {
                     <Text style={styles.inputPlaceholder}>Message: {req.message}</Text>
                   </View>
                 ) : null}
-                {/* Mark as Collected button */}
-                <View style={styles.footer}>
-                  <TouchableOpacity style={styles.collectedButton} onPress={() => markAsCollected(req.request_id)}>
-                    <Text style={[styles.buttonText, { color: '#4CAF50' }]}>Mark as Collected</Text>
+                {/* Action buttons */}
+                <View style={styles.actionButtons}>
+                  <TouchableOpacity 
+                    style={styles.navigateButton} 
+                    onPress={() => startNavigation(req.address)}
+                  >
+                    <MaterialIcons name="navigation" size={20} color="white" />
+                    <Text style={styles.buttonText}>Navigate</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={styles.collectedButton} 
+                    onPress={() => markAsCollected(req.request_id)}
+                  >
+                    <MaterialIcons name="check-circle" size={20} color="#4CAF50" />
+                    <Text style={[styles.buttonText, { color: '#4CAF50' }]}>Collected</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -232,17 +282,30 @@ const styles = StyleSheet.create({
   inputPlaceholder: {
     color: '#999',
   },
-  footer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: 'white',
-    padding: 16,
+  emptyState: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 60,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#666',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  emptyText: {
+    fontSize: 14,
+    color: '#888',
+    textAlign: 'center',
+    paddingHorizontal: 32,
+  },
+  actionButtons: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    borderTopWidth: 1,
-    borderTopColor: '#e0e0e0',
+    marginTop: 16,
+    gap: 12,
   },
   navigateButton: {
     backgroundColor: '#4CAF50',

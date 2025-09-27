@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, Image, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Image, ScrollView, ActivityIndicator, TouchableOpacity, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { getToken } from '../auth';
+import { getToken, getUserId } from '../auth';
 import { API_BASE_URL } from '../config';
+import RequestChatSection from '../components/RequestChatSection';
 
 export default function HomePage() {
   const router = useRouter();
@@ -14,6 +15,17 @@ export default function HomePage() {
   const [userBarangay, setUserBarangay] = useState('');
   const [hasHomeLocation, setHasHomeLocation] = useState(null); // null=unknown, true/false once fetched
   const [subscriptionStatus, setSubscriptionStatus] = useState(null); // null=unknown, 'active', 'pending', 'none'
+  const [specialRequests, setSpecialRequests] = useState([]);
+  const [requestsLoading, setRequestsLoading] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState(null);
+  const [expandedChats, setExpandedChats] = useState({});
+
+  const toggleChatExpansion = (requestId) => {
+    setExpandedChats(prev => ({
+      ...prev,
+      [requestId]: !prev[requestId]
+    }));
+  };
 
   useEffect(() => {
     // Fetch schedules
@@ -206,6 +218,78 @@ export default function HomePage() {
     console.log('🔥 Current subscriptionStatus state:', subscriptionStatus);
   }, [subscriptionStatus]);
 
+  // Fetch user ID and special pickup requests
+  useEffect(() => {
+    const initializeUserData = async () => {
+      try {
+        const userId = await getUserId();
+        if (userId) {
+          setCurrentUserId(userId);
+          await fetchSpecialRequests(userId);
+        }
+      } catch (error) {
+        console.error('Error initializing user data:', error);
+      }
+    };
+    initializeUserData();
+  }, []);
+
+  const fetchSpecialRequests = async (userId = currentUserId) => {
+    if (!userId) return;
+    
+    setRequestsLoading(true);
+    try {
+      const token = await getToken();
+      if (!token) return;
+
+      const response = await fetch(`${API_BASE_URL}/api/special-pickup/user/${userId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        // Show only the 3 most recent requests
+        setSpecialRequests(data.slice(0, 3));
+      }
+    } catch (error) {
+      console.error('Error fetching special requests:', error);
+    } finally {
+      setRequestsLoading(false);
+    }
+  };
+
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'pending': return '#FFA500';
+      case 'assigned': return '#2196F3';
+      case 'in_progress': return '#9C27B0';
+      case 'completed': return '#4CAF50';
+      case 'cancelled': return '#F44336';
+      default: return '#757575';
+    }
+  };
+
+  const getStatusIcon = (status) => {
+    switch (status) {
+      case 'pending': return 'time-outline';
+      case 'assigned': return 'person-outline';
+      case 'in_progress': return 'car-outline';
+      case 'completed': return 'checkmark-circle-outline';
+      case 'cancelled': return 'close-circle-outline';
+      default: return 'help-outline';
+    }
+  };
+
+  const formatDate = (dateString) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+    });
+  };
+
   // Filter schedules for this resident's barangay (RESTORED)
   const filteredSchedules = schedules.filter(evt =>
     evt.barangays &&
@@ -303,68 +387,228 @@ export default function HomePage() {
         ))}
       </View>
 
-      {/* Upcoming Schedule Section */}
-      <View style={styles.scheduleSection}>
-        <Text style={styles.servicesTitle}>Upcoming Collection Schedule</Text>
-        {/* Inline prompt: show only if user has no pinned home location */}
-        {!loading && !error && hasHomeLocation === false && (
-          <View style={styles.locationCard}>
-            <Text style={styles.locationTitle}>Set your home location to get accurate collection schedules</Text>
-            <Text style={styles.locationSubtitle}>Please pin your location so we can show schedules for your area.</Text>
-            <Pressable style={styles.ctaButton} onPress={() => router.push('/SetHomeLocation')}>
-              <Ionicons name="location-outline" size={18} color="#fff" />
-              <Text style={styles.ctaText}>Set Home Location</Text>
-            </Pressable>
+      {/* Current Schedules Section - Only show for active subscribers */}
+      {subscriptionStatus === 'active' && (
+        <View style={styles.scheduleSection}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+            <Text style={styles.servicesTitle}>Current Collection Schedules</Text>
+            {filteredSchedules.length > 3 && (
+              <TouchableOpacity 
+                style={styles.viewAllSchedulesButton}
+                onPress={() => router.push('/AllSchedules')}
+              >
+                <Text style={styles.viewAllSchedulesText}>View All</Text>
+                <Ionicons name="chevron-forward" size={16} color="#4CD964" />
+              </TouchableOpacity>
+            )}
           </View>
-        )}
-        {loading ? (
-          <ActivityIndicator size="small" color="#4CD964" style={{ marginVertical: 10 }} />
-        ) : error ? (
-          <Text style={{ color: 'red', textAlign: 'center' }}>{error}</Text>
-        ) : filteredSchedules.length === 0 ? (
-          <Text style={{ textAlign: 'center', color: '#888' }}>No collection schedule found for your barangay.</Text>
-        ) : upcomingSchedules.length === 0 ? (
-          <Text style={{ textAlign: 'center', color: '#888' }}>No upcoming schedules available.</Text>
-        ) : (
-          upcomingSchedules.map((evt, index) => {
-            // Determine if this schedule is for today
-            const isToday = evt.schedule_date?.trim().toLowerCase() === todayDayName.trim().toLowerCase();
-            
-            return (
-              <View key={`${evt.schedule_id}-${index}`} style={[
-                styles.eventCard,
-                isToday && { borderColor: '#4CD964', borderWidth: 2, backgroundColor: '#f0fff4' }
-              ]}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <Text style={[styles.eventTitle, isToday && { color: '#4CD964', fontWeight: 'bold' }]}>
-                    {evt.schedule_date}
-                    {isToday && ' (Today)'}
-                  </Text>
-                  {evt.time_range && (
-                    <Text style={[styles.timeText, isToday && { color: '#4CD964', fontWeight: 'bold' }]}>
-                      {evt.time_range}
-                    </Text>
-                  )}
-                </View>
+          {loading ? (
+            <ActivityIndicator size="small" color="#4CD964" style={{ marginVertical: 10 }} />
+          ) : error ? (
+            <Text style={{ color: 'red', textAlign: 'center' }}>{error}</Text>
+          ) : filteredSchedules.length === 0 ? (
+            <Text style={{ textAlign: 'center', color: '#888' }}>No collection schedule found for your barangay.</Text>
+          ) : (
+            filteredSchedules.slice(0, 3).map((schedule, index) => (
+              <View key={`${schedule.schedule_id}-${index}`} style={styles.eventCard}>
+                <Text style={styles.eventTitle}>{schedule.schedule_date}</Text>
                 <Text style={styles.eventLocation}>
-                  Barangay: {evt.barangays.map(b => b.barangay_name).join(', ')}
+                  Barangay: {schedule.barangays.map(b => b.barangay_name).join(', ')}
                 </Text>
                 <Text style={styles.eventLocation}>
-                  Waste Type: {evt.waste_type || 'Not specified'}
+                  Waste Type: {schedule.waste_type || 'Not specified'}
                 </Text>
-                {/* Add a status indicator */}
-                <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 5 }}>
-                  <View style={[
-                    styles.statusDot, 
-                    isToday ? { backgroundColor: '#4CD964' } : { backgroundColor: '#FFA500' }
-                  ]} />
-                  <Text style={[styles.statusText, isToday && { color: '#4CD964' }]}>
-                    {isToday ? 'Collection Today' : 'Upcoming Collection'}
-                  </Text>
-                </View>
+                {schedule.time_range && (
+                  <Text style={styles.timeText}>{schedule.time_range}</Text>
+                )}
               </View>
-            );
-          })
+            ))
+          )}
+          {filteredSchedules.length > 3 && (
+            <TouchableOpacity 
+              style={styles.viewAllSchedulesButtonBottom}
+              onPress={() => router.push('/AllSchedules')}
+            >
+              <Text style={styles.viewAllSchedulesBottomText}>View All {filteredSchedules.length} Schedules</Text>
+              <Ionicons name="chevron-forward" size={16} color="#4CD964" />
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
+
+      {/* Upcoming Schedule Section - Only show for active subscribers */}
+      {subscriptionStatus === 'active' ? (
+        <View style={styles.scheduleSection}>
+          <Text style={styles.servicesTitle}>Upcoming Collection Schedule</Text>
+          {/* Inline prompt: show only if user has no pinned home location */}
+          {!loading && !error && hasHomeLocation === false && (
+            <View style={styles.locationCard}>
+              <Text style={styles.locationTitle}>Set your home location to get accurate collection schedules</Text>
+              <Text style={styles.locationSubtitle}>Please pin your location so we can show schedules for your area.</Text>
+              <Pressable style={styles.ctaButton} onPress={() => router.push('/SetHomeLocation')}>
+                <Ionicons name="location-outline" size={18} color="#fff" />
+                <Text style={styles.ctaText}>Set Home Location</Text>
+              </Pressable>
+            </View>
+          )}
+          {loading ? (
+            <ActivityIndicator size="small" color="#4CD964" style={{ marginVertical: 10 }} />
+          ) : error ? (
+            <Text style={{ color: 'red', textAlign: 'center' }}>{error}</Text>
+          ) : filteredSchedules.length === 0 ? (
+            <Text style={{ textAlign: 'center', color: '#888' }}>No collection schedule found for your barangay.</Text>
+          ) : upcomingSchedules.length === 0 ? (
+            <Text style={{ textAlign: 'center', color: '#888' }}>No upcoming schedules available.</Text>
+          ) : (
+            upcomingSchedules.map((evt, index) => {
+              // Determine if this schedule is for today
+              const isToday = evt.schedule_date?.trim().toLowerCase() === todayDayName.trim().toLowerCase();
+              
+              return (
+                <View key={`${evt.schedule_id}-${index}`} style={[
+                  styles.eventCard,
+                  isToday && { borderColor: '#4CD964', borderWidth: 2, backgroundColor: '#f0fff4' }
+                ]}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Text style={[styles.eventTitle, isToday && { color: '#4CD964', fontWeight: 'bold' }]}>
+                      {evt.schedule_date}
+                      {isToday && ' (Today)'}
+                    </Text>
+                    {evt.time_range && (
+                      <Text style={[styles.timeText, isToday && { color: '#4CD964', fontWeight: 'bold' }]}>
+                        {evt.time_range}
+                      </Text>
+                    )}
+                  </View>
+                  <Text style={styles.eventLocation}>
+                    Barangay: {evt.barangays.map(b => b.barangay_name).join(', ')}
+                  </Text>
+                  <Text style={styles.eventLocation}>
+                    Waste Type: {evt.waste_type || 'Not specified'}
+                  </Text>
+                  {/* Add a status indicator */}
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 5 }}>
+                    <View style={[
+                      styles.statusDot, 
+                      isToday ? { backgroundColor: '#4CD964' } : { backgroundColor: '#FFA500' }
+                    ]} />
+                    <Text style={[styles.statusText, isToday && { color: '#4CD964' }]}>
+                      {isToday ? 'Collection Today' : 'Upcoming Collection'}
+                    </Text>
+                  </View>
+                </View>
+              );
+            })
+          )}
+        </View>
+      ) : (
+        <View style={styles.scheduleSection}>
+          <Text style={styles.servicesTitle}>Collection Schedule</Text>
+          <View style={styles.subscriptionPromptCard}>
+            <Ionicons name="calendar-outline" size={32} color="#ccc" style={{ marginBottom: 8 }} />
+            <Text style={styles.subscriptionPromptTitle}>Subscribe to View Collection Schedule</Text>
+            <Text style={styles.subscriptionPromptSubtitle}>
+              {subscriptionStatus === 'pending' 
+                ? 'Your subscription is pending payment. Complete payment to view your collection schedule.'
+                : 'Subscribe to our waste collection service to see your personalized collection schedule.'
+              }
+            </Text>
+            <TouchableOpacity 
+              style={styles.subscriptionPromptButton}
+              onPress={() => router.push(subscriptionStatus === 'pending' ? '/SubscriptionStatusScreen' : '/Subscription')}
+            >
+              <Text style={styles.subscriptionPromptButtonText}>
+                {subscriptionStatus === 'pending' ? 'Complete Payment' : 'Subscribe Now'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
+      {/* My Special Pickup Requests Section */}
+      <View style={styles.scheduleSection}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+          <Text style={styles.servicesTitle}>My Special Pickup Requests</Text>
+          <TouchableOpacity 
+            onPress={() => router.push('/spickup')}
+            style={styles.addRequestButton}
+          >
+            <Ionicons name="add" size={16} color="#4CD964" />
+            <Text style={styles.addRequestText}>New Request</Text>
+          </TouchableOpacity>
+        </View>
+        
+        {requestsLoading ? (
+          <ActivityIndicator size="small" color="#4CD964" style={{ marginVertical: 10 }} />
+        ) : specialRequests.length === 0 ? (
+          <View style={styles.emptyRequestsContainer}>
+            <Ionicons name="document-outline" size={32} color="#ccc" />
+            <Text style={styles.emptyRequestsText}>No special pickup requests yet</Text>
+            <TouchableOpacity 
+              style={styles.createRequestButton}
+              onPress={() => router.push('/spickup')}
+            >
+              <Text style={styles.createRequestButtonText}>Create Your First Request</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <>
+            {specialRequests.map((request) => (
+              <View key={request.request_id} style={styles.requestCard}>
+                <View style={styles.requestHeader}>
+                  <View style={styles.requestStatusContainer}>
+                    <Ionicons
+                      name={getStatusIcon(request.status)}
+                      size={16}
+                      color={getStatusColor(request.status)}
+                    />
+                    <Text style={[styles.requestStatusText, { color: getStatusColor(request.status) }]}>
+                      {request.status?.toUpperCase() || 'PENDING'}
+                    </Text>
+                  </View>
+                  <Text style={styles.requestDate}>
+                    {formatDate(request.created_at)}
+                  </Text>
+                </View>
+
+                <Text style={styles.requestWasteType}>{request.waste_type}</Text>
+                <Text style={styles.requestDescription} numberOfLines={2}>
+                  {request.description}
+                </Text>
+                
+                <View style={styles.requestDetailsRow}>
+                  <Ionicons name="calendar-outline" size={14} color="#666" />
+                  <Text style={styles.requestDetailText}>
+                    {request.pickup_date} at {request.pickup_time}
+                  </Text>
+                </View>
+                
+                <View style={styles.requestDetailsRow}>
+                  <Ionicons name="location-outline" size={14} color="#666" />
+                  <Text style={styles.requestDetailText} numberOfLines={1}>
+                    {request.address}
+                  </Text>
+                </View>
+
+                {/* Chat Section */}
+                <RequestChatSection
+                  requestId={request.request_id}
+                  isExpanded={expandedChats[request.request_id]}
+                  onToggle={() => toggleChatExpansion(request.request_id)}
+                />
+              </View>
+            ))}
+            
+            {specialRequests.length >= 3 && (
+              <TouchableOpacity 
+                style={styles.viewAllButton}
+                onPress={() => fetchSpecialRequests()} // Refresh to show all
+              >
+                <Text style={styles.viewAllText}>View All Requests</Text>
+                <Ionicons name="chevron-forward" size={16} color="#4CD964" />
+              </TouchableOpacity>
+            )}
+          </>
         )}
       </View>
 
@@ -618,5 +862,170 @@ const styles = StyleSheet.create({
     backgroundColor: '#E8F5E9',
     marginHorizontal: 2,
     elevation: 1,
+  },
+  // My Requests Section Styles
+  addRequestButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f0fff4',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#4CD964',
+  },
+  addRequestText: {
+    color: '#4CD964',
+    fontSize: 12,
+    fontWeight: '600',
+    marginLeft: 4,
+  },
+  emptyRequestsContainer: {
+    alignItems: 'center',
+    paddingVertical: 20,
+  },
+  emptyRequestsText: {
+    fontSize: 14,
+    color: '#666',
+    marginTop: 8,
+    marginBottom: 12,
+  },
+  createRequestButton: {
+    backgroundColor: '#4CD964',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  createRequestButtonText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  subscriptionPromptCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 20,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    marginVertical: 8,
+  },
+  subscriptionPromptTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  subscriptionPromptSubtitle: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 16,
+  },
+  subscriptionPromptButton: {
+    backgroundColor: '#4CD964',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  subscriptionPromptButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  viewAllSchedulesButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  viewAllSchedulesText: {
+    color: '#4CD964',
+    fontSize: 14,
+    fontWeight: '600',
+    marginRight: 4,
+  },
+  viewAllSchedulesButtonBottom: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#f0fff4',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: '#4CD964',
+  },
+  viewAllSchedulesBottomText: {
+    color: '#4CD964',
+    fontSize: 14,
+    fontWeight: '600',
+    marginRight: 6,
+  },
+  requestCard: {
+    backgroundColor: '#f9f9f9',
+    borderRadius: 8,
+    padding: 12,
+    marginVertical: 4,
+    borderLeftWidth: 3,
+    borderLeftColor: '#4CD964',
+  },
+  requestHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  requestStatusContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  requestStatusText: {
+    fontSize: 10,
+    fontWeight: 'bold',
+    marginLeft: 4,
+  },
+  requestDate: {
+    fontSize: 10,
+    color: '#666',
+  },
+  requestWasteType: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 4,
+  },
+  requestDescription: {
+    fontSize: 12,
+    color: '#666',
+    marginBottom: 8,
+  },
+  requestDetailsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  requestDetailText: {
+    fontSize: 11,
+    color: '#666',
+    marginLeft: 6,
+    flex: 1,
+  },
+  viewAllButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    marginTop: 8,
+  },
+  viewAllText: {
+    color: '#4CD964',
+    fontSize: 12,
+    fontWeight: '600',
+    marginRight: 4,
   },
 });

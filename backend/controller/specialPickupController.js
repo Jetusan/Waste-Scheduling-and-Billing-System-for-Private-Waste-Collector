@@ -4,6 +4,13 @@ const specialPickupModel = require('../models/specialPickupModel');
 const createRequest = async (req, res) => {
   try {
     const data = req.body;
+    
+    // Handle uploaded image
+    if (req.file) {
+      // Store the relative path to the uploaded file
+      data.image_url = `/uploads/${req.file.filename}`;
+    }
+    
     const newRequest = await specialPickupModel.createSpecialPickupRequest(data);
     res.status(201).json(newRequest);
   } catch (err) {

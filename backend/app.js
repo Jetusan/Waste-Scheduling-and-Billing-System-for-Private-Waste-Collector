@@ -12,7 +12,9 @@ const specialPickupRouter = require('./routes/specialPickup'); // Special pickup
 const residentsRouter = require('./routes/residents');
 const collectorsRouter = require('./routes/collectors');
 const trucksRouter = require('./routes/trucks');
-const collectorAssignmentsRouter = require('./routes/collectorAssignments');
+const collectorAssignmentsRoutes = require('./routes/collectorAssignments');
+const collectorIssuesRoutes = require('./routes/collectorIssues');
+const { router: nextScheduleRoutes } = require('./routes/nextScheduleCalculator');
 const debugAssignmentsRouter = require('./routes/debugAssignments');
 const assignmentsRouter = require('./routes/assignments');
 // const adminAuthRouter = require('./routes/adminAuth'); // Temporarily commented out
@@ -22,13 +24,24 @@ const emailVerificationRoutes = require('./routes/emailVerification');
 const adminRegistrationsRouter = require('./routes/adminRegistrations');
 const testEmailRouter = require('./routes/test-email');
 const notificationsRouter = require('./routes/notifications');
+const chatRouter = require('./routes/chat');
+const collectorRouter = require('./routes/collector');
+const feedbackRouter = require('./routes/feedback');
+const collectorEmergencyRouter = require('./routes/collectorEmergency');
+const reportsRouter = require('./routes/reports');
 
 const app = express();
+
+// Initialize automated notification scheduler
+const { initializeNotificationScheduler } = require('./services/automatedNotificationScheduler');
 
 // Middleware
 app.use(cors());
 app.use(express.json());
 app.use('/api', emailVerificationRoutes);
+
+// Initialize notification scheduler after app setup
+initializeNotificationScheduler();
 
 // Debug middleware to log all incoming requests
 app.use((req, res, next) => {
@@ -57,13 +70,20 @@ app.use('/api/special-pickup', specialPickupRouter); // Special pickup route
 app.use('/api/residents', residentsRouter);
 app.use('/api/collectors', collectorsRouter);
 app.use('/api/trucks', trucksRouter);
-app.use('/api/collector/assignments', collectorAssignmentsRouter);
+app.use('/api/collector/assignments', collectorAssignmentsRoutes);
+app.use('/api/collector/issues', collectorIssuesRoutes);
+app.use('/api/collector/issues', require('./routes/collectorIssuesAdmin'));
+app.use('/api/schedules', nextScheduleRoutes);
 app.use('/api/admin/registrations', adminRegistrationsRouter);
 app.use('/api/debug', debugAssignmentsRouter);
 app.use('/api/test-email', testEmailRouter);
 app.use('/api/notifications', notificationsRouter);
 app.use('/api/assignments', assignmentsRouter);
-// app.use('/api/admin/auth', adminAuthRouter); // Temporarily commented out
+app.use('/api/chat', chatRouter);
+app.use('/api/collector', collectorRouter);
+app.use('/api/feedback', feedbackRouter);
+app.use('/api/collector/emergency', collectorEmergencyRouter);
+app.use('/api/reports', reportsRouter);
 
 // Temporary admin auth route
 app.post('/api/admin/auth/login', async (req, res) => {
