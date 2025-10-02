@@ -18,11 +18,6 @@ services:
         sync: false
       - key: PAYMONGO_MODE
         value: test
-      - key: PUBLIC_URL
-        fromService:
-          type: web
-          name: wsbs-backend
-          property: url
       - key: DB_HOST
         fromDatabase:
           name: wsbs-db
@@ -43,11 +38,6 @@ services:
         fromDatabase:
           name: wsbs-db
           property: password
-      - key: ADMIN_SITE_URL
-        fromService:
-          type: web
-          name: wsbs-admin
-          property: url
 
   - type: web
     name: wsbs-admin
@@ -55,12 +45,6 @@ services:
     rootDir: admin
     buildCommand: "npm install && npm run build"
     staticPublishPath: build
-    envVars:
-      - key: REACT_APP_API_BASE
-        fromService:
-          type: web
-          name: wsbs-backend
-          property: url
 
 databases:
   - name: wsbs-db
