@@ -40,11 +40,11 @@ services:
         property: password
       - key: ADMIN_SITE_URL
         fromService:
-          type: static_site
+          type: static
           name: wsbs-admin
           property: url
 
-  - type: static_site
+  - type: static
     name: wsbs-admin
     rootDir: admin
     buildCommand: "npm install && npm run build"
