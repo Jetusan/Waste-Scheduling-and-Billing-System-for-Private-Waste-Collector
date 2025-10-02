@@ -184,67 +184,128 @@ const SPickup = () => {
 
   return (
     <View style={styles.container}>
-      {/* Status bar */}
       <StatusBar barStyle="light-content" backgroundColor="#4CAF50" />
 
-      {/* HEADER */}
+      {/* Modern Header */}
       <SafeAreaView style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => router.push('/resident/HomePage')}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        >
-          <Ionicons name="arrow-back" size={24} color="#000" />
-        </TouchableOpacity>
+        <View style={styles.headerContent}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => router.push('/resident/HomePage')}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Ionicons name="arrow-back" size={24} color="#fff" />
+          </TouchableOpacity>
 
-        <Text style={styles.headerTitle}>Special Pickup</Text>
+          <View style={styles.headerTitleContainer}>
+            <Text style={styles.headerTitle}>Special Pickup Request</Text>
+            <Text style={styles.headerSubtitle}>Schedule a custom waste collection</Text>
+          </View>
 
-        <TouchableOpacity style={styles.rightIcon}>
-          <Ionicons name="information-circle-outline" size={24} color="#fff" />
-        </TouchableOpacity>
+          <TouchableOpacity style={styles.infoButton}>
+            <Ionicons name="information-circle-outline" size={24} color="#fff" />
+          </TouchableOpacity>
+        </View>
       </SafeAreaView>
 
-      {/* CONTENT */}
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        <Text style={styles.label}>Type of Waste</Text>
-        <View style={styles.buttonGroup}>
-          {['Bulky', 'Electronics', 'Hazardous', 'Other'].map((type) => (
-            <TouchableOpacity
-              key={type}
-              style={[styles.typeButton, wasteType === type && styles.activeButton]}
-              onPress={() => setWasteType(type)}
-            >
-              <Text style={styles.buttonText}>{type}</Text>
-            </TouchableOpacity>
-          ))}
+      {/* Content */}
+      <ScrollView 
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Waste Type Section */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Ionicons name="trash-outline" size={20} color="#4CAF50" />
+            <Text style={styles.sectionTitle}>Waste Type</Text>
+          </View>
+          <View style={styles.buttonGroup}>
+            {[
+              { type: 'Bulky', icon: 'cube-outline' },
+              { type: 'Electronics', icon: 'laptop-outline' },
+              { type: 'Hazardous', icon: 'warning-outline' },
+              { type: 'Other', icon: 'ellipsis-horizontal-outline' }
+            ].map((item) => (
+              <TouchableOpacity
+                key={item.type}
+                style={[
+                  styles.typeButton,
+                  wasteType === item.type && styles.activeButton
+                ]}
+                onPress={() => setWasteType(item.type)}
+                activeOpacity={0.7}
+              >
+                <Ionicons 
+                  name={item.icon} 
+                  size={20} 
+                  color={wasteType === item.type ? '#fff' : '#4CAF50'} 
+                />
+                <Text style={[styles.buttonText, wasteType === item.type && styles.activeButtonText]}>
+                  {item.type}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
         </View>
 
-        <TextInput
-          placeholder="e.g., Old sofa"
-          value={description}
-          onChangeText={setDescription}
-          style={styles.input}
-        />
+        {/* Description Section */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Ionicons name="document-text-outline" size={20} color="#4CAF50" />
+            <Text style={styles.sectionTitle}>Description</Text>
+          </View>
+          <View style={styles.inputContainer}>
+            <TextInput
+              placeholder="e.g., Old sofa, broken refrigerator"
+              placeholderTextColor="#999"
+              value={description}
+              onChangeText={setDescription}
+              style={styles.input}
+            />
+          </View>
+        </View>
 
-        <TouchableOpacity
-          style={styles.dateTimeButton}
-          onPress={() => setShowDatePicker(true)}
-        >
-          <Ionicons name="calendar-outline" size={20} color="#666" />
-          <Text style={styles.dateTimeText}>
-            {date ? date.toDateString() : 'Select Date'}
-          </Text>
-        </TouchableOpacity>
+        {/* Date & Time Section */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Ionicons name="calendar-outline" size={20} color="#4CAF50" />
+            <Text style={styles.sectionTitle}>Pickup Schedule</Text>
+          </View>
+          
+          <TouchableOpacity
+            style={styles.dateTimeButton}
+            onPress={() => setShowDatePicker(true)}
+            activeOpacity={0.7}
+          >
+            <View style={styles.dateTimeIconContainer}>
+              <Ionicons name="calendar" size={22} color="#4CAF50" />
+            </View>
+            <View style={styles.dateTimeTextContainer}>
+              <Text style={styles.dateTimeLabel}>Pickup Date</Text>
+              <Text style={styles.dateTimeValue}>
+                {date ? date.toLocaleDateString('en-US', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' }) : 'Select a date'}
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#ccc" />
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          style={styles.dateTimeButton}
-          onPress={() => setShowTimePicker(true)}
-        >
-          <Ionicons name="time-outline" size={20} color="#666" />
-          <Text style={styles.dateTimeText}>
-            {time ? time.toTimeString().split(' ')[0].substring(0, 5) : 'Select Time'}
-          </Text>
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.dateTimeButton}
+            onPress={() => setShowTimePicker(true)}
+            activeOpacity={0.7}
+          >
+            <View style={styles.dateTimeIconContainer}>
+              <Ionicons name="time" size={22} color="#4CAF50" />
+            </View>
+            <View style={styles.dateTimeTextContainer}>
+              <Text style={styles.dateTimeLabel}>Pickup Time</Text>
+              <Text style={styles.dateTimeValue}>
+                {time ? time.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : 'Select a time'}
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#ccc" />
+          </TouchableOpacity>
+        </View>
 
         {showDatePicker && (
           <DateTimePicker
@@ -275,56 +336,104 @@ const SPickup = () => {
           />
         )}
 
-        <TextInput
-          placeholder="Enter pickup address"
-          value={address}
-          onChangeText={setAddress}
-          style={styles.input}
-        />
-
-        <TextInput
-          placeholder="Any special instructions?"
-          value={notes}
-          onChangeText={setNotes}
-          style={[styles.input, { height: 80 }]}
-          multiline
-        />
-
-        {/* Image Picker Section */}
-        <Text style={styles.label}>Attach an Image</Text>
-        <TouchableOpacity onPress={pickImage} style={styles.imagePickerButton}>
-          <Text style={styles.imagePickerButtonText}>
-            {image ? 'Change Image' : 'Upload Image'}
-          </Text>
-        </TouchableOpacity>
-
-        {image && (
-          <Image source={{ uri: image }} style={styles.previewImage} />
-        )}
-
-        <Text style={styles.label}>Message Collector</Text>
-        <View style={styles.messageBox}>
-          <Text>Collector: I&apos;ll be there in 30 minutes</Text>
+        {/* Address Section */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Ionicons name="location-outline" size={20} color="#4CAF50" />
+            <Text style={styles.sectionTitle}>Pickup Address</Text>
+          </View>
+          <View style={styles.inputContainer}>
+            <TextInput
+              placeholder="Enter your complete address"
+              placeholderTextColor="#999"
+              value={address}
+              onChangeText={setAddress}
+              style={styles.input}
+              multiline
+            />
+          </View>
         </View>
 
-        <TextInput
-          placeholder="Type a message..."
-          value={message}
-          onChangeText={setMessage}
-          style={styles.input}
-        />
+        {/* Special Instructions Section */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Ionicons name="chatbox-outline" size={20} color="#4CAF50" />
+            <Text style={styles.sectionTitle}>Special Instructions</Text>
+          </View>
+          <View style={[styles.inputContainer, styles.textAreaContainer]}>
+            <TextInput
+              placeholder="Any special instructions or notes for the collector?"
+              placeholderTextColor="#999"
+              value={notes}
+              onChangeText={setNotes}
+              style={[styles.input, styles.textArea]}
+              multiline
+              numberOfLines={4}
+              textAlignVertical="top"
+            />
+          </View>
+        </View>
 
-        <Text style={styles.price}>Est. Price: ₱170.00 (may vary)</Text>
+        {/* Image Upload Section */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Ionicons name="image-outline" size={20} color="#4CAF50" />
+            <Text style={styles.sectionTitle}>Photo (Optional)</Text>
+          </View>
+          
+          {!image ? (
+            <TouchableOpacity 
+              onPress={pickImage} 
+              style={styles.imagePickerButton}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="cloud-upload-outline" size={32} color="#4CAF50" />
+              <Text style={styles.imagePickerButtonText}>Upload Photo</Text>
+              <Text style={styles.imagePickerSubtext}>Tap to select an image</Text>
+            </TouchableOpacity>
+          ) : (
+            <View style={styles.imagePreviewContainer}>
+              <Image source={{ uri: image }} style={styles.previewImage} />
+              <TouchableOpacity 
+                onPress={pickImage} 
+                style={styles.changeImageButton}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="camera" size={16} color="#fff" />
+                <Text style={styles.changeImageText}>Change Photo</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                onPress={() => setImage(null)} 
+                style={styles.removeImageButton}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="close-circle" size={28} color="#ff4444" />
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
 
+        {/* Submit Button */}
         <TouchableOpacity 
           onPress={handleSubmit} 
           style={[styles.submitButton, isSubmitting && styles.submitButtonDisabled]}
           disabled={isSubmitting}
+          activeOpacity={0.8}
         >
-          <Text style={styles.submitButtonText}>
-            {isSubmitting ? 'Submitting...' : 'Request Pickup'}
-          </Text>
+          {isSubmitting ? (
+            <>
+              <Ionicons name="hourglass-outline" size={20} color="#fff" />
+              <Text style={styles.submitButtonText}>Submitting...</Text>
+            </>
+          ) : (
+            <>
+              <Ionicons name="checkmark-circle" size={20} color="#fff" />
+              <Text style={styles.submitButtonText}>Request Pickup</Text>
+            </>
+          )}
         </TouchableOpacity>
+
+        <View style={styles.bottomSpacer} />
       </ScrollView>
     </View>
   );
@@ -333,123 +442,237 @@ const SPickup = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: '#f5f7fa',
   },
   scrollContent: {
-    padding: 20,
+    padding: 16,
+    paddingBottom: 32,
   },
   header: {
     backgroundColor: '#4CAF50',
+    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  headerContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 10 + 20,
-    paddingBottom: 30,
-    paddingHorizontal: 20,
-    position: 'relative',
+    paddingHorizontal: 16,
+    paddingVertical: 16,
   },
   backButton: {
-    position: 'absolute',
-    left: 20,
-    zIndex: 10,
+    padding: 8,
+    marginRight: 12,
+  },
+  headerTitleContainer: {
+    flex: 1,
   },
   headerTitle: {
     color: '#fff',
     fontSize: 20,
-    fontWeight: 'bold',
+    fontWeight: '700',
+    letterSpacing: 0.3,
   },
-  rightIcon: {
-    position: 'absolute',
-    right: 15,
-    zIndex: 10,
+  headerSubtitle: {
+    color: 'rgba(255, 255, 255, 0.9)',
+    fontSize: 13,
+    marginTop: 2,
   },
-  label: {
-    fontWeight: 'bold',
-    marginTop: 20,
+  infoButton: {
+    padding: 8,
+    marginLeft: 12,
+  },
+  section: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#2c3e50',
+    marginLeft: 8,
   },
   buttonGroup: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    marginVertical: 10,
+    justifyContent: 'space-between',
+    marginTop: 8,
   },
   typeButton: {
-    padding: 10,
-    backgroundColor: '#ccc',
-    borderRadius: 5,
-    margin: 5,
+    width: '48%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    backgroundColor: '#f8f9fa',
+    borderRadius: 8,
+    borderWidth: 1.5,
+    borderColor: '#e9ecef',
+    marginBottom: 8,
   },
   activeButton: {
     backgroundColor: '#4CAF50',
+    borderColor: '#4CAF50',
   },
   buttonText: {
-    color: 'white',
+    color: '#666',
+    fontSize: 13,
+    fontWeight: '600',
+    marginLeft: 6,
+  },
+  activeButtonText: {
+    color: '#fff',
+  },
+  inputContainer: {
+    backgroundColor: '#f8f9fa',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#e9ecef',
   },
   input: {
-    borderWidth: 1,
-    borderColor: '#ccc',
-    padding: 10,
-    marginTop: 10,
-    borderRadius: 5,
+    padding: 14,
+    fontSize: 15,
+    color: '#2c3e50',
+  },
+  textAreaContainer: {
+    minHeight: 100,
+  },
+  textArea: {
+    minHeight: 100,
+    paddingTop: 14,
   },
   dateTimeButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#ccc',
-    padding: 12,
+    backgroundColor: '#f8f9fa',
+    borderRadius: 10,
+    padding: 14,
     marginTop: 10,
-    borderRadius: 5,
-    backgroundColor: '#f9f9f9',
+    borderWidth: 1,
+    borderColor: '#e9ecef',
   },
-  dateTimeText: {
-    marginLeft: 10,
-    fontSize: 16,
-    color: '#333',
+  dateTimeIconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 10,
+    backgroundColor: '#e8f5e9',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  dateTimeTextContainer: {
+    flex: 1,
+  },
+  dateTimeLabel: {
+    fontSize: 12,
+    color: '#7f8c8d',
+    marginBottom: 2,
+  },
+  dateTimeValue: {
+    fontSize: 15,
+    color: '#2c3e50',
+    fontWeight: '500',
   },
   imagePickerButton: {
-    backgroundColor: '#4CAF50',
-    padding: 12,
-    borderRadius: 5,
-    marginTop: 10,
+    backgroundColor: '#f8f9fa',
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#4CAF50',
+    borderStyle: 'dashed',
+    padding: 32,
     alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 8,
   },
   imagePickerButtonText: {
-    color: '#fff',
-    fontWeight: 'bold',
+    color: '#4CAF50',
+    fontSize: 16,
+    fontWeight: '600',
+    marginTop: 8,
+  },
+  imagePickerSubtext: {
+    color: '#95a5a6',
+    fontSize: 13,
+    marginTop: 4,
+  },
+  imagePreviewContainer: {
+    position: 'relative',
+    marginTop: 8,
+    borderRadius: 12,
+    overflow: 'hidden',
   },
   previewImage: {
     width: '100%',
-    height: 200,
-    marginTop: 10,
-    borderRadius: 5,
+    height: 240,
+    borderRadius: 12,
   },
-  messageBox: {
-    backgroundColor: '#eee',
-    padding: 10,
-    marginTop: 10,
-    borderRadius: 5,
+  changeImageButton: {
+    position: 'absolute',
+    bottom: 12,
+    left: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    gap: 6,
   },
-  price: {
-    marginVertical: 20,
-    textAlign: 'center',
-    fontSize: 16,
-    color: '#4CAF50',
-    fontWeight: 'bold',
+  changeImageText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  removeImageButton: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    backgroundColor: '#fff',
+    borderRadius: 14,
   },
   submitButton: {
     backgroundColor: '#4CAF50',
-    padding: 15,
-    borderRadius: 5,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 16,
+    borderRadius: 12,
+    marginTop: 8,
+    shadowColor: '#4CAF50',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+    gap: 8,
   },
   submitButtonDisabled: {
-    backgroundColor: '#cccccc',
-    opacity: 0.7,
+    backgroundColor: '#95a5a6',
+    shadowOpacity: 0.1,
   },
   submitButtonText: {
-    color: 'white',
-    textAlign: 'center',
+    color: '#fff',
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+  bottomSpacer: {
+    height: 20,
   },
 });
 

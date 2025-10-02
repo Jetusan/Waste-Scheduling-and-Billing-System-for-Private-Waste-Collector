@@ -880,7 +880,7 @@ const confirmGcashPayment = async (req, res) => {
   }
 };
 
-// Cash Payment Confirmation (for collectors)
+// Cash Payment Confirmation (for collectors) - Enhanced with payment attempt tracking
 const confirmCashPayment = async (req, res) => {
   try {
     const { subscription_id, collector_id, amount, notes } = req.body;
@@ -891,9 +891,39 @@ const confirmCashPayment = async (req, res) => {
       });
     }
 
+    // Get subscription details
+    const subscription = await billingModel.getCustomerSubscriptionById(subscription_id);
+    if (!subscription) {
+      return res.status(404).json({ error: 'Subscription not found' });
+    }
+
+    const amountNum = parseFloat(amount);
+    
+    // Record payment attempt as successful (without GPS)
+    try {
+      await pool.query(`
+        INSERT INTO payment_attempts (
+          subscription_id, user_id, collector_id, 
+          outcome, amount_collected, amount_expected, notes
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+      `, [
+        subscription_id,
+        subscription.user_id,
+        collector_id,
+        'paid',
+        amountNum,
+        subscription.price || 199,
+        notes || 'Cash payment collected successfully'
+      ]);
+      console.log('✅ Payment attempt recorded as successful');
+    } catch (attemptError) {
+      console.error('⚠️ Failed to record payment attempt:', attemptError);
+      // Continue anyway - payment confirmation is more important
+    }
+
     // Activate subscription with cash payment data
     const paymentData = {
-      amount: parseFloat(amount),
+      amount: amountNum,
       payment_method: 'Cash',
       reference_number: `CASH-${Date.now()}`,
       notes: notes || 'Cash payment on collection'
@@ -921,7 +951,8 @@ const confirmCashPayment = async (req, res) => {
     res.json({
       success: true,
       message: 'Cash payment confirmed and subscription activated',
-      subscription: activatedSubscription
+      subscription: activatedSubscription,
+      payment_attempt_recorded: true
     });
     
   } catch (error) {
@@ -1002,6 +1033,162 @@ const cancelSubscription = async (req, res) => {
   }
 };
 
+// Record Failed Payment Attempt (GPS removed)
+const recordPaymentAttempt = async (req, res) => {
+  try {
+    const { 
+      subscription_id, 
+      collector_id, 
+      outcome, 
+      notes,
+      retry_scheduled_date
+    } = req.body;
+    
+    if (!subscription_id || !collector_id || !outcome) {
+      return res.status(400).json({
+        error: 'Missing required fields: subscription_id, collector_id, and outcome'
+      });
+    }
+
+    // Validate outcome
+    const validOutcomes = ['paid', 'not_home', 'refused', 'promised_next_time', 'no_cash', 'partial_payment', 'disputed', 'cancelled'];
+    if (!validOutcomes.includes(outcome)) {
+      return res.status(400).json({
+        error: `Invalid outcome. Must be one of: ${validOutcomes.join(', ')}`
+      });
+    }
+
+    // Get subscription details
+    const subscription = await billingModel.getCustomerSubscriptionById(subscription_id);
+    if (!subscription) {
+      return res.status(404).json({ error: 'Subscription not found' });
+    }
+
+    // Record payment attempt (without GPS)
+    const result = await pool.query(`
+      INSERT INTO payment_attempts (
+        subscription_id, user_id, collector_id, 
+        outcome, amount_collected, amount_expected,
+        notes, retry_scheduled_date
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      RETURNING *
+    `, [
+      subscription_id,
+      subscription.user_id,
+      collector_id,
+      outcome,
+      0, // No amount collected for failed attempts
+      subscription.price || 199,
+      notes || `Payment attempt failed: ${outcome}`,
+      retry_scheduled_date || null
+    ]);
+
+    const attempt = result.rows[0];
+    
+    // Get updated subscription status
+    const updatedSubscription = await billingModel.getCustomerSubscriptionById(subscription_id);
+
+    res.json({
+      success: true,
+      message: 'Payment attempt recorded',
+      attempt: {
+        attempt_id: attempt.attempt_id,
+        outcome: attempt.outcome,
+        attempt_date: attempt.attempt_date,
+        retry_scheduled_date: attempt.retry_scheduled_date
+      },
+      subscription_status: {
+        status: updatedSubscription.status,
+        payment_attempts_count: updatedSubscription.payment_attempts_count,
+        payment_score: updatedSubscription.payment_score,
+        requires_prepayment: updatedSubscription.requires_prepayment
+      }
+    });
+    
+  } catch (error) {
+    console.error('Error recording payment attempt:', error);
+    res.status(500).json({
+      error: 'Failed to record payment attempt',
+      details: error.message
+    });
+  }
+};
+
+// Get Payment Attempts for a Subscription
+const getPaymentAttempts = async (req, res) => {
+  try {
+    const { subscription_id } = req.params;
+    
+    const result = await pool.query(`
+      SELECT 
+        pa.*,
+        c.name as collector_name,
+        u.username,
+        u.full_name as resident_name
+      FROM payment_attempts pa
+      LEFT JOIN collectors c ON pa.collector_id = c.collector_id
+      LEFT JOIN users u ON pa.user_id = u.user_id
+      WHERE pa.subscription_id = $1
+      ORDER BY pa.attempt_date DESC, pa.attempt_time DESC
+    `, [subscription_id]);
+
+    res.json({
+      success: true,
+      attempts: result.rows
+    });
+    
+  } catch (error) {
+    console.error('Error fetching payment attempts:', error);
+    res.status(500).json({
+      error: 'Failed to fetch payment attempts',
+      details: error.message
+    });
+  }
+};
+
+// Get Payment Attempt Analytics
+const getPaymentAttemptAnalytics = async (req, res) => {
+  try {
+    const { user_id, collector_id, start_date, end_date } = req.query;
+    
+    let query = 'SELECT * FROM payment_attempt_analytics WHERE 1=1';
+    const params = [];
+    let paramCount = 1;
+    
+    if (user_id) {
+      query += ` AND user_id = $${paramCount}`;
+      params.push(user_id);
+      paramCount++;
+    }
+    
+    if (start_date) {
+      query += ` AND last_attempt_date >= $${paramCount}`;
+      params.push(start_date);
+      paramCount++;
+    }
+    
+    if (end_date) {
+      query += ` AND last_attempt_date <= $${paramCount}`;
+      params.push(end_date);
+      paramCount++;
+    }
+    
+    const result = await pool.query(query, params);
+
+    res.json({
+      success: true,
+      analytics: result.rows
+    });
+    
+  } catch (error) {
+    console.error('Error fetching payment analytics:', error);
+    res.status(500).json({
+      error: 'Failed to fetch payment analytics',
+      details: error.message
+    });
+  }
+};
+
 module.exports = {
   // Subscription Plans
   getAllSubscriptionPlans,
@@ -1046,5 +1233,10 @@ module.exports = {
   createGcashSource,
 
   // Manual cancellation
-  cancelSubscription
+  cancelSubscription,
+  
+  // Payment Attempt Tracking
+  recordPaymentAttempt,
+  getPaymentAttempts,
+  getPaymentAttemptAnalytics
 }; 

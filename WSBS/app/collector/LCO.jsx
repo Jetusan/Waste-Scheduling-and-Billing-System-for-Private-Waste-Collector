@@ -10,7 +10,7 @@ import {
   ActivityIndicator,
   RefreshControl,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { API_BASE_URL } from '../config';
 import { getToken, getCollectorId } from '../auth';
 
@@ -65,6 +65,14 @@ const LCO = () => {
   useEffect(() => {
     fetchLastCollectionOverview();
   }, [fetchLastCollectionOverview]);
+
+  // Auto-refresh when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      console.log('LCO screen focused - refreshing overview');
+      fetchLastCollectionOverview();
+    }, [fetchLastCollectionOverview])
+  );
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);

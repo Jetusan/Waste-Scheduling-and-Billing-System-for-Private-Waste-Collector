@@ -1,13 +1,15 @@
 import { Stack } from 'expo-router';
+import { WebSocketProvider } from '../contexts/WebSocketContext';
 
 export default function Layout() {
   return (
-    <Stack
-      screenOptions={{
-        headerShown: false,
-        contentStyle: { backgroundColor: '#fff' },
-      }}
-    >
+    <WebSocketProvider>
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          contentStyle: { backgroundColor: '#fff' },
+        }}
+      >
       <Stack.Screen name="welcome" />
       <Stack.Screen name="role" />
       <Stack.Screen name="RLogin" />
@@ -49,5 +51,6 @@ export default function Layout() {
         }}
       />
     </Stack>
+    </WebSocketProvider>
   );
 }

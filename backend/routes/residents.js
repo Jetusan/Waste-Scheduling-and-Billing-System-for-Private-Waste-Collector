@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../config/dbAdmin');
 const { authenticateJWT } = require('../middleware/auth');
+const { sendRegistrationApprovalEmail, sendRegistrationRejectionEmail } = require('../services/notificationService');
 
 // Server-side admin check using DB role lookup
 async function requireAdmin(req, res, next) {
@@ -53,33 +54,119 @@ router.post('/:user_id/approve', authenticateJWT, requireAdmin, async (req, res)
     const { accept, reason } = req.body || {};
     const adminId = req.user.userId;
 
+    console.log(`📥 Admin ${adminId} ${accept ? 'approving' : 'rejecting'} resident ID: ${user_id}`);
+
+    // Get user details for email notification
+    const userQuery = `
+      SELECT u.email, un.first_name, un.last_name, u.approval_status
+      FROM users u
+      LEFT JOIN user_names un ON u.name_id = un.name_id
+      WHERE u.user_id = $1 AND u.role_id = 3
+    `;
+    
+    console.log(`🔍 Fetching user details for ID: ${user_id}`);
+    const userResult = await pool.query(userQuery, [user_id]);
+    
+    if (userResult.rows.length === 0) {
+      console.log(`❌ Resident not found: ${user_id}`);
+      return res.status(404).json({ success: false, message: 'Resident not found' });
+    }
+    
+    const user = userResult.rows[0];
+    const userName = `${user.first_name || 'Unknown'} ${user.last_name || 'User'}`.trim();
+    
+    console.log(`👤 User found: ${userName} (${user.email})`);
+    console.log(`📊 Current approval status: ${user.approval_status}`);
+
     if (accept === true) {
+      console.log(`✅ Approving resident...`);
       const update = await pool.query(
         `UPDATE users
-         SET approval_status = 'approved', approved_at = NOW(), approved_by = $1, rejection_reason = NULL
+         SET approval_status = 'approved', 
+             registration_status = 'approved',
+             approved_at = NOW(), 
+             approved_by = $1, 
+             rejection_reason = NULL
          WHERE user_id = $2 AND role_id = 3
          RETURNING user_id`,
         [adminId, user_id]
       );
-      if (update.rowCount === 0) return res.status(404).json({ success: false, message: 'Resident not found' });
-      return res.json({ success: true, message: 'Resident approved' });
+      
+      if (update.rowCount === 0) {
+        console.log(`❌ Failed to update resident: ${user_id}`);
+        return res.status(404).json({ success: false, message: 'Resident not found' });
+      }
+      
+      console.log(`✅ Resident status updated successfully`);
+      
+      // Send approval email notification
+      if (user.email) {
+        try {
+          console.log(`📧 Sending approval email to: ${user.email}`);
+          await sendRegistrationApprovalEmail(user.email, userName);
+          console.log(`✅ Approval email sent successfully to: ${user.email}`);
+        } catch (emailError) {
+          console.error('❌ Failed to send approval email:', emailError);
+          console.error('Email error details:', emailError.message);
+          // Don't fail the approval if email fails
+        }
+      } else {
+        console.log(`⚠️ No email found for user ${userName}, skipping email notification`);
+      }
+      
+      return res.json({ 
+        success: true, 
+        message: `Resident approved. ${user.email ? 'Notification email sent.' : 'No email notification sent (no email address).'}` 
+      });
     }
 
     if (accept === false) {
+      console.log(`❌ Rejecting resident with reason: ${reason}`);
       const update = await pool.query(
         `UPDATE users
-         SET approval_status = 'rejected', approved_at = NULL, approved_by = $1, rejection_reason = $2
+         SET approval_status = 'rejected', 
+             registration_status = 'rejected',
+             approved_at = NULL, 
+             approved_by = $1, 
+             rejection_reason = $2
          WHERE user_id = $3 AND role_id = 3
          RETURNING user_id`,
         [adminId, reason || null, user_id]
       );
-      if (update.rowCount === 0) return res.status(404).json({ success: false, message: 'Resident not found' });
-      return res.json({ success: true, message: 'Resident rejected' });
+      
+      if (update.rowCount === 0) {
+        console.log(`❌ Failed to update resident: ${user_id}`);
+        return res.status(404).json({ success: false, message: 'Resident not found' });
+      }
+      
+      console.log(`✅ Resident rejection updated successfully`);
+      
+      // Send rejection email notification
+      if (user.email) {
+        try {
+          console.log(`📧 Sending rejection email to: ${user.email}`);
+          await sendRegistrationRejectionEmail(user.email, userName, reason);
+          console.log(`✅ Rejection email sent successfully to: ${user.email}`);
+        } catch (emailError) {
+          console.error('❌ Failed to send rejection email:', emailError);
+          console.error('Email error details:', emailError.message);
+          // Don't fail the rejection if email fails
+        }
+      } else {
+        console.log(`⚠️ No email found for user ${userName}, skipping email notification`);
+      }
+      
+      return res.json({ 
+        success: true, 
+        message: `Resident rejected. ${user.email ? 'Notification email sent.' : 'No email notification sent (no email address).'}` 
+      });
     }
 
     return res.status(400).json({ success: false, message: 'Invalid payload: accept must be true or false' });
   } catch (error) {
-    console.error('Error updating approval status:', error);
+    console.error('❌ Error updating approval status:', error);
+    console.error('Error details:', error.message);
+    console.error('Stack trace:', error.stack);
     res.status(500).json({ success: false, message: 'Failed to update approval status', details: error.message });
   }
 });

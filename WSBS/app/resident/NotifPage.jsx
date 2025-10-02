@@ -1,10 +1,12 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, ActivityIndicator, RefreshControl, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, FlatList, ActivityIndicator, RefreshControl, TouchableOpacity, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { API_BASE_URL } from '../config';
 import { getToken } from '../auth';
+import { useWebSocket } from '../../contexts/WebSocketContext';
 
 export default function NotifPage() {
+  const { isConnected, subscribe } = useWebSocket();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
@@ -38,6 +40,34 @@ export default function NotifPage() {
   useEffect(() => {
     fetchNotifications();
   }, [fetchNotifications]);
+
+  // Subscribe to real-time notifications
+  useEffect(() => {
+    const unsubscribe = subscribe('notification', (data) => {
+      console.log('🔔 Real-time notification received:', data);
+      
+      // Add new notification to the top of the list
+      const newNotification = {
+        notification_id: Date.now(), // Temporary ID
+        title: data.title,
+        message: data.message,
+        notification_type: data.type,
+        is_read: false,
+        created_at: data.timestamp,
+        icon: data.icon || 'notifications',
+        color: data.color || '#4CAF50'
+      };
+      
+      setNotifications(prev => [newNotification, ...prev]);
+      
+      // Show alert for important notifications
+      if (data.type === 'collection_completed') {
+        Alert.alert(data.title, data.message);
+      }
+    });
+
+    return () => unsubscribe();
+  }, [subscribe]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -115,6 +145,12 @@ export default function NotifPage() {
       {/* Header Section */}
       <View style={styles.header}>
         <Text style={styles.title}>Notifications</Text>
+        {isConnected && (
+          <View style={styles.liveBadge}>
+            <View style={styles.liveDot} />
+            <Text style={styles.liveText}>Live</Text>
+          </View>
+        )}
       </View>
 
       {/* Mark all as read action */}
@@ -225,5 +261,28 @@ const styles = StyleSheet.create({
   },
   separator: {
     height: 12,
+  },
+  liveBadge: {
+    position: 'absolute',
+    top: 32,
+    right: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  liveDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#fff',
+    marginRight: 4,
+  },
+  liveText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: 'bold',
   },
 });

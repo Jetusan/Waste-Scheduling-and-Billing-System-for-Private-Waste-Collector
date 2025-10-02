@@ -493,4 +493,9 @@ router.get('/subscriptions/payment-methods', authenticateJWT, async (req, res) =
 // Billing history (used by admin BillingHistory.jsx)
 router.get('/history', billingController.getBillingHistory);
 
+// Payment Attempt Tracking Routes
+router.post('/payment-attempt', authenticateJWT, billingController.recordPaymentAttempt);
+router.get('/payment-attempts/:subscription_id', authenticateJWT, billingController.getPaymentAttempts);
+router.get('/payment-attempt-analytics', authenticateJWT, billingController.getPaymentAttemptAnalytics);
+
 module.exports = router;

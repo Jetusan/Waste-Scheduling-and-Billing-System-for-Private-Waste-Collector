@@ -6,6 +6,8 @@ const { sendRegistrationApprovalEmail, sendRegistrationRejectionEmail } = requir
 // Get all pending registrations for admin review
 router.get('/pending', async (req, res) => {
   try {
+    console.log('📥 Admin requesting pending registrations...');
+    
     const query = `
       SELECT 
         u.user_id,
@@ -14,27 +16,32 @@ router.get('/pending', async (req, res) => {
         u.contact_number,
         u.email_verified,
         u.created_at,
-        un.first_name,
+        COALESCE(un.first_name, 'Unknown') as first_name,
         un.middle_name,
-        un.last_name,
-        a.street,
-        a.house_number,
-        a.purok,
-        b.barangay_name,
-        c.city_name,
-        u.proof_image_path,
-        u.registration_status
+        COALESCE(un.last_name, 'User') as last_name,
+        COALESCE(a.street, '') as street,
+        COALESCE(a.block, '') as block,
+        COALESCE(a.lot, '') as lot,
+        COALESCE(a.subdivision, '') as subdivision,
+        COALESCE(b.barangay_name, 'Unknown Barangay') as barangay_name,
+        COALESCE(a.city_municipality, 'General Santos City') as city_name,
+        COALESCE(a.full_address, 'No address provided') as full_address,
+        u.validation_image_url,
+        u.registration_status,
+        u.approval_status
       FROM users u
       LEFT JOIN user_names un ON u.name_id = un.name_id
       LEFT JOIN addresses a ON u.address_id = a.address_id
       LEFT JOIN barangays b ON a.barangay_id = b.barangay_id
-      LEFT JOIN cities c ON a.city_id = c.city_id
       WHERE u.registration_status = 'pending' 
-      AND u.email_verified = true
+      AND u.approval_status = 'pending'
+      AND u.email IS NOT NULL
       ORDER BY u.created_at DESC
     `;
     
+    console.log('🔍 Executing pending registrations query...');
     const result = await pool.query(query);
+    console.log(`📊 Found ${result.rows.length} pending registrations`);
     
     const registrations = result.rows.map(row => ({
       userId: row.user_id,
@@ -43,16 +50,37 @@ router.get('/pending', async (req, res) => {
       contactNumber: row.contact_number,
       emailVerified: row.email_verified,
       createdAt: row.created_at,
-      name: `${row.first_name} ${row.middle_name ? row.middle_name + ' ' : ''}${row.last_name}`,
-      address: `${row.street}${row.house_number ? ', ' + row.house_number : ''}${row.purok ? ', Purok ' + row.purok : ''}, ${row.barangay_name}, ${row.city_name}`,
-      proofImagePath: row.proof_image_path,
-      status: row.registration_status
+      name: `${row.first_name}${row.middle_name ? ' ' + row.middle_name : ''} ${row.last_name}`.trim(),
+      address: row.full_address || `${[row.street, row.block ? 'Block ' + row.block : '', row.lot ? 'Lot ' + row.lot : '', row.subdivision, row.barangay_name, row.city_name].filter(Boolean).join(', ')}`,
+      proofImagePath: row.validation_image_url,
+      status: row.registration_status,
+      approvalStatus: row.approval_status,
+      // Additional address details for admin
+      addressDetails: {
+        street: row.street,
+        block: row.block,
+        lot: row.lot,
+        subdivision: row.subdivision,
+        barangay: row.barangay_name,
+        city: row.city_name
+      }
     }));
     
-    res.json({ success: true, registrations });
+    console.log(`✅ Returning ${registrations.length} pending registrations to admin`);
+    res.json({ 
+      success: true, 
+      registrations,
+      count: registrations.length
+    });
   } catch (error) {
-    console.error('Error fetching pending registrations:', error);
-    res.status(500).json({ success: false, message: 'Failed to fetch pending registrations' });
+    console.error('❌ Error fetching pending registrations:', error);
+    console.error('Error details:', error.message);
+    console.error('Stack trace:', error.stack);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Failed to fetch pending registrations',
+      error: error.message
+    });
   }
 });
 
@@ -60,56 +88,76 @@ router.get('/pending', async (req, res) => {
 router.post('/approve/:userId', async (req, res) => {
   const { userId } = req.params;
   
+  console.log(`📥 Admin approval request for user ID: ${userId}`);
+  
   try {
     // Get user details for email notification
     const userQuery = `
-      SELECT u.email, un.first_name, un.last_name
+      SELECT u.email, un.first_name, un.last_name, u.registration_status, u.approval_status
       FROM users u
       LEFT JOIN user_names un ON u.name_id = un.name_id
-      WHERE u.user_id = $1 AND u.registration_status = 'pending'
+      WHERE u.user_id = $1
     `;
     
+    console.log(`🔍 Fetching user details for ID: ${userId}`);
     const userResult = await pool.query(userQuery, [userId]);
     
     if (userResult.rows.length === 0) {
+      console.log(`❌ User not found: ${userId}`);
       return res.status(404).json({ 
         success: false, 
-        message: 'User not found or already processed' 
+        message: 'User not found' 
       });
     }
     
     const user = userResult.rows[0];
-    const userName = `${user.first_name} ${user.last_name}`;
+    const userName = `${user.first_name || 'Unknown'} ${user.last_name || 'User'}`.trim();
     
-    // Update registration status to approved
+    console.log(`👤 User found: ${userName} (${user.email})`);
+    console.log(`📊 Current status - Registration: ${user.registration_status}, Approval: ${user.approval_status}`);
+    
+    // Update both registration_status and approval_status
     const updateQuery = `
       UPDATE users 
       SET registration_status = 'approved', 
+          approval_status = 'approved',
+          approved_at = CURRENT_TIMESTAMP,
           updated_at = CURRENT_TIMESTAMP
       WHERE user_id = $1
     `;
     
+    console.log(`🔄 Updating user status to approved...`);
     await pool.query(updateQuery, [userId]);
+    console.log(`✅ User status updated successfully`);
     
     // Send approval email notification
-    try {
-      await sendRegistrationApprovalEmail(user.email, userName);
-      console.log(`✅ Registration approved and email sent to: ${user.email}`);
-    } catch (emailError) {
-      console.error('Failed to send approval email:', emailError);
-      // Don't fail the approval if email fails
+    if (user.email) {
+      try {
+        console.log(`📧 Sending approval email to: ${user.email}`);
+        await sendRegistrationApprovalEmail(user.email, userName);
+        console.log(`✅ Registration approved and email sent to: ${user.email}`);
+      } catch (emailError) {
+        console.error('❌ Failed to send approval email:', emailError);
+        console.error('Email error details:', emailError.message);
+        // Don't fail the approval if email fails
+      }
+    } else {
+      console.log(`⚠️ No email found for user ${userName}, skipping email notification`);
     }
     
     res.json({ 
       success: true, 
-      message: `Registration approved for ${userName}. Notification email sent.` 
+      message: `Registration approved for ${userName}. ${user.email ? 'Notification email sent.' : 'No email notification sent (no email address).'}` 
     });
     
   } catch (error) {
-    console.error('Error approving registration:', error);
+    console.error('❌ Error approving registration:', error);
+    console.error('Error details:', error.message);
+    console.error('Stack trace:', error.stack);
     res.status(500).json({ 
       success: false, 
-      message: 'Failed to approve registration' 
+      message: 'Failed to approve registration',
+      error: error.message
     });
   }
 });

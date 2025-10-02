@@ -364,6 +364,7 @@ const CStartCollection = () => {
         return;
       }
       setConfirmingUserId(stop.user_id);
+      
       const res = await fetch(`${API_BASE_URL}/api/billing/confirm-cash-payment`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -376,9 +377,36 @@ const CStartCollection = () => {
       });
       const data = await res.json();
       if (data && data.success) {
-        Alert.alert('Cash Confirmed', `₱${amountNum.toFixed(2)} recorded for ${stop.resident_name || 'resident'}.`);
-        // Optionally clear amount input for this user
+        // Record the collection event with amount
+        await fetch(`${API_BASE_URL}/api/collector/assignments/stop/collected`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            stop_id: stop.stop_id,
+            schedule_id: stop.schedule_id,
+            user_id: stop.user_id,
+            collector_id: collectorId,
+            amount: amountNum,
+            notes: `Cash payment collected: ₱${amountNum.toFixed(2)} at ${new Date().toISOString()}`
+          })
+        });
+        
+        Alert.alert('Cash Confirmed', `₱${amountNum.toFixed(2)} recorded for ${stop.resident_name || 'resident'}. Subscription activated!`);
+        
+        // Clear amount input
         setAmountInputs(prev => ({ ...prev, [stop.user_id]: '' }));
+        
+        // Mark stop as collected locally (will disappear from list)
+        setStops(prev => prev.map(s => 
+          s.user_id === stop.user_id 
+            ? { ...s, latest_action: 'collected', latest_updated_at: new Date().toISOString() }
+            : s
+        ));
+        
+        // Refresh payment info to show updated status
+        setTimeout(() => {
+          setPaymentInfo(prev => ({ ...prev }));
+        }, 1000);
       } else {
         Alert.alert('Error', data?.error || 'Failed to confirm cash payment.');
       }
@@ -388,6 +416,96 @@ const CStartCollection = () => {
       setConfirmingUserId(null);
     }
   }, [paymentInfo, amountInputs, resolveCollectorId]);
+
+  const handlePaymentFailed = useCallback(async (stop, outcome) => {
+    try {
+      const info = paymentInfo[stop.user_id];
+      if (!info || info.payment_method !== 'cash') {
+        return;
+      }
+      
+      const collectorId = await resolveCollectorId();
+      const token = await getToken();
+      if (!collectorId || !token) {
+        Alert.alert('Auth Error', 'Missing session. Please re-login.');
+        return;
+      }
+      
+      // Calculate retry date (next day)
+      const retryDate = new Date();
+      retryDate.setDate(retryDate.getDate() + 1);
+      
+      // Record payment failure
+      const res = await fetch(`${API_BASE_URL}/api/billing/payment-attempt`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          subscription_id: info.subscription_id,
+          collector_id: collectorId,
+          outcome: outcome,
+          notes: `Payment attempt failed at stop ${stop.stop_id || ''}: ${outcome}`,
+          retry_scheduled_date: retryDate.toISOString().split('T')[0]
+        })
+      });
+      
+      const data = await res.json();
+      if (data && data.success) {
+        const attemptCount = data.subscription_status?.payment_attempts_count || 0;
+        const score = data.subscription_status?.payment_score || 100;
+        
+        // Automatically mark as missed since payment failed
+        await submitMissedWithReason(stop, 'resident_fault');
+        
+        let message = `Payment failed: ${outcome.replace(/_/g, ' ')}\nCollection marked as missed.\nRetry scheduled for tomorrow.`;
+        if (attemptCount >= 2) {
+          message += `\n\n⚠️ Warning: ${attemptCount} failed attempts. Subscription may be suspended after 3 attempts.`;
+        }
+        if (score < 70) {
+          message += `\n\n📊 Payment score: ${score}/100`;
+        }
+        
+        Alert.alert('Payment Failed', message);
+        
+        // Remove stop from local list (it will disappear)
+        setStops(prev => prev.map(s => 
+          s.user_id === stop.user_id ? { ...s, latest_action: 'missed' } : s
+        ));
+      }
+    } catch (e) {
+      console.error('Failed to record payment attempt:', e);
+      Alert.alert('Error', 'Failed to record payment failure. Please try again.');
+    }
+  }, [paymentInfo, resolveCollectorId, submitMissedWithReason]);
+
+  const showPaymentFailedOptions = useCallback((stop) => {
+    Alert.alert(
+      'Payment Collection Failed',
+      'Why couldn\'t you collect the payment?',
+      [
+        { 
+          text: 'Resident Not Home', 
+          onPress: () => handlePaymentFailed(stop, 'not_home')
+        },
+        { 
+          text: 'Resident Has No Cash', 
+          onPress: () => handlePaymentFailed(stop, 'no_cash')
+        },
+        { 
+          text: 'Resident Refused to Pay', 
+          onPress: () => handlePaymentFailed(stop, 'refused'),
+          style: 'destructive'
+        },
+        { 
+          text: 'Promised to Pay Next Time', 
+          onPress: () => handlePaymentFailed(stop, 'promised_next_time')
+        },
+        { 
+          text: 'Cancel', 
+          style: 'cancel'
+        }
+      ]
+    );
+  }, [handlePaymentFailed]);
 
   const handleCollected = useCallback(async (stop) => {
     try {
@@ -738,8 +856,37 @@ const CStartCollection = () => {
           user_id: location.user_id
         }
       });
+      
+      // Draw route from collector to resident if collector location is available
+      if (collectorLocation) {
+        sendToMap({
+          type: 'draw_route',
+          from: {
+            latitude: collectorLocation.latitude,
+            longitude: collectorLocation.longitude
+          },
+          to: {
+            latitude: location.latitude,
+            longitude: location.longitude
+          }
+        });
+      }
     }
-  }, [residentLocations, mapRef]);
+  }, [residentLocations, mapRef, collectorLocation, sendToMap]);
+
+  const centerOnCollector = useCallback(() => {
+    if (collectorLocation && mapRef) {
+      sendToMap({
+        type: 'center_on_collector',
+        location: {
+          latitude: collectorLocation.latitude,
+          longitude: collectorLocation.longitude
+        }
+      });
+    } else {
+      Alert.alert('Location Unavailable', 'Collector location is not available yet.');
+    }
+  }, [collectorLocation, mapRef, sendToMap]);
 
   // Fetch own profile to get collector's barangay
   useEffect(() => {
@@ -805,6 +952,13 @@ const CStartCollection = () => {
       {/* Map Section (MapLibre when available) */}
       <View style={styles.mapContainer}>
         <MapSection onMapReady={handleMapReady} selectedLocation={selectedResidentLocation} />
+        {/* Floating button to center on collector location */}
+        <TouchableOpacity 
+          style={styles.centerButton}
+          onPress={centerOnCollector}
+        >
+          <Ionicons name="navigate" size={24} color="#fff" />
+        </TouchableOpacity>
       </View>
 
       {/* Small hint if no resident locations available while there are stops */}
@@ -884,7 +1038,37 @@ const CStartCollection = () => {
 
             {/* Stops list (placeholder if API not ready) */}
             {stops && stops.length > 0 ? (
-              stops.map((stop) => (
+              (() => {
+                const filteredStops = stops.filter((stop) => {
+                  // Filter 1: Only show stops with active or pending subscriptions
+                  const info = paymentInfo[stop.user_id];
+                  if (!info) return false; // Hide if no subscription info
+                  
+                  // Filter 2: Hide if already collected
+                  if (stop.latest_action === 'collected') return false;
+                  
+                  // Filter 3: Only show active or pending_payment subscriptions
+                  if (info.status && !['active', 'pending_payment'].includes(info.status)) return false;
+                  
+                  return true; // Show this stop
+                });
+
+                // Show empty state if all stops are filtered out
+                if (filteredStops.length === 0) {
+                  return (
+                    <View style={styles.card}>
+                      <Ionicons name="checkmark-circle" size={48} color="#4CAF50" style={{ alignSelf: 'center', marginBottom: 12 }} />
+                      <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#4CAF50', textAlign: 'center', marginBottom: 8 }}>
+                        All Done! 🎉
+                      </Text>
+                      <Text style={{ color: '#666', textAlign: 'center', fontSize: 14 }}>
+                        All residents in your route have been collected or don't have active subscriptions.
+                      </Text>
+                    </View>
+                  );
+                }
+
+                return filteredStops.map((stop) => (
                 <View key={stop.stop_id || `${stop.user_id}-${stop.address_id}`} style={styles.card}>
                   <TouchableOpacity 
                     onPress={() => stop.user_id && showResidentOnMap(stop.user_id)}
@@ -895,6 +1079,20 @@ const CStartCollection = () => {
                     {stop.address && <Text style={{ color: '#333' }}>📍 {stop.address}</Text>}
                     {stop.barangay_name && <Text style={{ color: '#666', fontSize: 12 }}>🏘️ {stop.barangay_name}</Text>}
                     {stop.planned_waste_type && <Text style={{ color: '#2e7d32', fontWeight: 'bold' }}>🗑️ {stop.planned_waste_type}</Text>}
+                    {/* Show subscription status badge */}
+                    {(() => {
+                      const info = paymentInfo[stop.user_id];
+                      if (info) {
+                        const statusColor = info.status === 'active' ? '#4CAF50' : '#FF9800';
+                        const statusText = info.status === 'active' ? '✓ Active Subscriber' : '⏳ Pending Payment';
+                        return (
+                          <View style={{ marginTop: 4, alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 12, backgroundColor: statusColor + '20', borderWidth: 1, borderColor: statusColor }}>
+                            <Text style={{ color: statusColor, fontWeight: 'bold', fontSize: 11 }}>{statusText}</Text>
+                          </View>
+                        );
+                      }
+                      return null;
+                    })()}
                     {stop.latest_action && (
                       <View style={{ marginTop: 6, alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, backgroundColor: stop.latest_action === 'collected' ? '#e8f5e9' : '#ffebee', borderWidth: 1, borderColor: stop.latest_action === 'collected' ? '#2e7d32' : '#c62828' }}>
                         <Text style={{ color: stop.latest_action === 'collected' ? '#2e7d32' : '#c62828', fontWeight: 'bold', fontSize: 12 }}>
@@ -959,6 +1157,22 @@ const CStartCollection = () => {
                           {typeof info.price === 'number' && (
                             <Text style={{ color: '#666', marginTop: 4, fontSize: 12 }}>Plan: {info.plan_name || 'Plan'} • Suggested: ₱{info.price.toFixed(2)}</Text>
                           )}
+                          {/* Payment Failed Button - Simple Design */}
+                          <TouchableOpacity
+                            style={{
+                              marginTop: 8,
+                              paddingVertical: 10,
+                              paddingHorizontal: 16,
+                              backgroundColor: '#fff',
+                              borderRadius: 6,
+                              borderWidth: 1.5,
+                              borderColor: '#ff9800',
+                              alignItems: 'center'
+                            }}
+                            onPress={() => showPaymentFailedOptions(stop)}
+                          >
+                            <Text style={{ color: '#ff9800', fontWeight: '600', fontSize: 14 }}>Payment Failed</Text>
+                          </TouchableOpacity>
                         </View>
                       );
                     }
@@ -991,7 +1205,8 @@ const CStartCollection = () => {
                     </TouchableOpacity>
                   </View>
                 </View>
-              ))
+              ));
+              })()
             ) : (
               <>
                 {/* Test Stop for user_id 140 */}
@@ -1183,9 +1398,69 @@ const MapSection = ({ onMapReady, selectedLocation }) => {
                 const M = window.mapboxgl || window.maplibregl || window.maplibre; if (!M) { post({ type: 'init_error', message: 'Map library missing' }); return; }
                 const map = new M.Map({ container: 'map', style: styleObj, center: [125.1716, 6.1164], zoom: 10 });
                 let popup = null;
-                function handleMessage(event){ try { const data = JSON.parse(event.data); if (data.type === 'set_resident_markers' && Array.isArray(data.markers)) { const fc = { type: 'FeatureCollection', features: data.markers.map(loc => ({ type: 'Feature', geometry: { type: 'Point', coordinates: [parseFloat(loc.longitude), parseFloat(loc.latitude)] }, properties: { name: String(loc.name||'Resident'), address: String(loc.address||''), user_id: loc.user_id } })).filter(f => Number.isFinite(f.geometry.coordinates[0]) && Number.isFinite(f.geometry.coordinates[1])) }; const src = map.getSource('residents'); if (src) src.setData(fc); } else if (data.type === 'set_collector_location' && data.location) { const lng = parseFloat(data.location.longitude), lat = parseFloat(data.location.latitude); if (Number.isFinite(lng) && Number.isFinite(lat)) { const src = map.getSource('collector'); if (src) src.setData({ type: 'FeatureCollection', features: [ { type: 'Feature', geometry: { type: 'Point', coordinates: [lng, lat] }, properties: {} } ] }); } } else if (data.type === 'show_resident_location' && data.location) { const lng = parseFloat(data.location.longitude), lat = parseFloat(data.location.latitude); if (!Number.isFinite(lng) || !Number.isFinite(lat)) return; const src = map.getSource('selected_resident'); if (src) src.setData({ type: 'FeatureCollection', features: [ { type: 'Feature', geometry: { type: 'Point', coordinates: [lng, lat] }, properties: { name: String(data.location.name||'Resident'), address: String(data.location.address||'') } } ] }); map.flyTo({ center: [lng, lat], zoom: 17, duration: 1500 }); setTimeout(() => { try { if (popup) popup.remove(); popup = new M.Popup({ offset: 10, closeButton: false }).setLngLat([lng, lat]).setHTML('<div style="font-family: sans-serif; padding: 12px; min-width: 220px"><div style="font-weight:700;color:#ff5722;margin-bottom:6px">📍 ' + (data.location.name || 'Resident') + '</div><div style="font-size:12px;color:#555">' + (data.location.address || '') + '</div></div>').addTo(map); } catch(_){} }, 1600); } } catch (_) {} }
+                function handleMessage(event){ 
+                  try { 
+                    const data = JSON.parse(event.data); 
+                    if (data.type === 'set_resident_markers' && Array.isArray(data.markers)) { 
+                      const fc = { type: 'FeatureCollection', features: data.markers.map(loc => ({ type: 'Feature', geometry: { type: 'Point', coordinates: [parseFloat(loc.longitude), parseFloat(loc.latitude)] }, properties: { name: String(loc.name||'Resident'), address: String(loc.address||''), user_id: loc.user_id } })).filter(f => Number.isFinite(f.geometry.coordinates[0]) && Number.isFinite(f.geometry.coordinates[1])) }; 
+                      const src = map.getSource('residents'); 
+                      if (src) src.setData(fc); 
+                    } else if (data.type === 'set_collector_location' && data.location) { 
+                      const lng = parseFloat(data.location.longitude), lat = parseFloat(data.location.latitude); 
+                      if (Number.isFinite(lng) && Number.isFinite(lat)) { 
+                        const src = map.getSource('collector'); 
+                        if (src) src.setData({ type: 'FeatureCollection', features: [ { type: 'Feature', geometry: { type: 'Point', coordinates: [lng, lat] }, properties: {} } ] }); 
+                      } 
+                    } else if (data.type === 'center_on_collector' && data.location) { 
+                      const lng = parseFloat(data.location.longitude), lat = parseFloat(data.location.latitude); 
+                      if (Number.isFinite(lng) && Number.isFinite(lat)) { 
+                        map.flyTo({ center: [lng, lat], zoom: 16, duration: 1000 }); 
+                      } 
+                    } else if (data.type === 'draw_route' && data.from && data.to) { 
+                      const fromLng = parseFloat(data.from.longitude), fromLat = parseFloat(data.from.latitude); 
+                      const toLng = parseFloat(data.to.longitude), toLat = parseFloat(data.to.latitude); 
+                      if (Number.isFinite(fromLng) && Number.isFinite(fromLat) && Number.isFinite(toLng) && Number.isFinite(toLat)) { 
+                        const src = map.getSource('route'); 
+                        if (src) src.setData({ type: 'FeatureCollection', features: [ { type: 'Feature', geometry: { type: 'LineString', coordinates: [[fromLng, fromLat], [toLng, toLat]] }, properties: {} } ] }); 
+                      } 
+                    } else if (data.type === 'show_resident_location' && data.location) { 
+                      const lng = parseFloat(data.location.longitude), lat = parseFloat(data.location.latitude); 
+                      if (!Number.isFinite(lng) || !Number.isFinite(lat)) return; 
+                      const src = map.getSource('selected_resident'); 
+                      if (src) src.setData({ type: 'FeatureCollection', features: [ { type: 'Feature', geometry: { type: 'Point', coordinates: [lng, lat] }, properties: { name: String(data.location.name||'Resident'), address: String(data.location.address||'') } } ] }); 
+                      map.flyTo({ center: [lng, lat], zoom: 17, duration: 1500 }); 
+                      setTimeout(() => { 
+                        try { 
+                          if (popup) popup.remove(); 
+                          popup = new M.Popup({ offset: 10, closeButton: false }).setLngLat([lng, lat]).setHTML('<div style="font-family: sans-serif; padding: 12px; min-width: 220px"><div style="font-weight:700;color:#ff5722;margin-bottom:6px">📍 ' + (data.location.name || 'Resident') + '</div><div style="font-size:12px;color:#555">' + (data.location.address || '') + '</div></div>').addTo(map); 
+                        } catch(_){} 
+                      }, 100); 
+                    } 
+                  } catch(_){} 
+                }
                 window.addEventListener('message', handleMessage); document.addEventListener('message', handleMessage); window.onMessage = handleMessage;
-                map.on('load', () => { post({ type: 'loaded' }); if (!map.getSource('residents')) map.addSource('residents', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } }); if (!map.getSource('selected_resident')) map.addSource('selected_resident', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } }); if (!map.getSource('collector')) map.addSource('collector', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } }); if (!map.getLayer('residents-layer')) map.addLayer({ id: 'residents-layer', type: 'circle', source: 'residents', paint: { 'circle-radius': 6, 'circle-color': '#ff5722', 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 1 } }); if (!map.getLayer('selected-resident-layer')) map.addLayer({ id: 'selected-resident-layer', type: 'circle', source: 'selected_resident', paint: { 'circle-radius': 8, 'circle-color': '#ff9800', 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 2 } }); if (!map.getLayer('collector-layer')) map.addLayer({ id: 'collector-layer', type: 'circle', source: 'collector', paint: { 'circle-radius': 6, 'circle-color': '#1976d2', 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 1 } }); map.on('click', 'residents-layer', (e) => { try { const f = e.features && e.features[0]; if (!f) return; const [lng, lat] = f.geometry.coordinates; const name = f.properties && f.properties.name; const address = f.properties && f.properties.address; if (popup) popup.remove(); popup = new M.Popup({ offset: 10, closeButton: false }).setLngLat([lng, lat]).setHTML('<div style="font-family: sans-serif; padding: 12px; min-width: 220px"><div style="font-weight:700;color:#ff5722;margin-bottom:6px">📍 ' + (name || 'Resident') + '</div><div style="font-size:12px;color:#555">' + (address || '') + '</div></div>').addTo(map); } catch(_){} }); });
+                map.on('load', () => { 
+                  post({ type: 'loaded' }); 
+                  if (!map.getSource('residents')) map.addSource('residents', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } }); 
+                  if (!map.getSource('selected_resident')) map.addSource('selected_resident', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } }); 
+                  if (!map.getSource('collector')) map.addSource('collector', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } }); 
+                  if (!map.getSource('route')) map.addSource('route', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } }); 
+                  if (!map.getLayer('route-layer')) map.addLayer({ id: 'route-layer', type: 'line', source: 'route', paint: { 'line-color': '#2196F3', 'line-width': 3, 'line-dasharray': [2, 2] } }); 
+                  if (!map.getLayer('residents-layer')) map.addLayer({ id: 'residents-layer', type: 'circle', source: 'residents', paint: { 'circle-radius': 6, 'circle-color': '#ff5722', 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 1 } }); 
+                  if (!map.getLayer('selected-resident-layer')) map.addLayer({ id: 'selected-resident-layer', type: 'circle', source: 'selected_resident', paint: { 'circle-radius': 8, 'circle-color': '#ff9800', 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 2 } }); 
+                  if (!map.getLayer('collector-layer')) map.addLayer({ id: 'collector-layer', type: 'circle', source: 'collector', paint: { 'circle-radius': 6, 'circle-color': '#1976d2', 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 1 } }); 
+                  map.on('click', 'residents-layer', (e) => { 
+                    try { 
+                      const f = e.features && e.features[0]; 
+                      if (!f) return; 
+                      const [lng, lat] = f.geometry.coordinates; 
+                      const name = f.properties && f.properties.name; 
+                      const address = f.properties && f.properties.address; 
+                      if (popup) popup.remove(); 
+                      popup = new M.Popup({ offset: 10, closeButton: false }).setLngLat([lng, lat]).setHTML('<div style="font-family: sans-serif; padding: 12px; min-width: 220px"><div style="font-weight:700;color:#ff5722;margin-bottom:6px">📍 ' + (name || 'Resident') + '</div><div style="font-size:12px;color:#555">' + (address || '') + '</div></div>').addTo(map); 
+                    } catch(_){} 
+                  }); 
+                });
                 map.on('error', (e) => { try { var msg = (e && e.error && e.error.message) || (e && e.message) || (e && e.type) || 'Unknown map error'; post({ type: 'map_error', message: msg }); } catch(_) { post({ type: 'map_error', message: 'Unknown map error' }); } });
               } catch (err) { post({ type: 'init_error', message: String(err && err.message || err) }); }
             }
@@ -1432,5 +1707,21 @@ const styles = StyleSheet.create({
   cancelOption: {
     backgroundColor: '#fff5f5',
     borderColor: '#ffcdd2',
+  },
+  centerButton: {
+    position: 'absolute',
+    bottom: 16,
+    right: 16,
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#2196F3',
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
   },
 }); 

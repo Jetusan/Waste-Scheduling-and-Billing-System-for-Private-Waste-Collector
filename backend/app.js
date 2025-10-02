@@ -1,5 +1,6 @@
 const express = require('express');
 const cors = require('cors');
+const API_CONFIG = require('./config/config');
 const path = require('path');
 // Only import the routes we actually need
 const collectionSchedulesRouter = require('./routes/collectionSchedules');
@@ -36,7 +37,18 @@ const app = express();
 const { initializeNotificationScheduler } = require('./services/automatedNotificationScheduler');
 
 // Middleware
-app.use(cors());
+// Configure CORS with allowlist from config
+const corsOptions = {
+  origin: (origin, callback) => {
+    // Allow non-browser tools (no origin) and allowlisted origins
+    if (!origin || API_CONFIG.CORS_ORIGINS.includes(origin)) {
+      return callback(null, true);
+    }
+    return callback(new Error(`Not allowed by CORS: ${origin}`));
+  },
+  credentials: true,
+};
+app.use(cors(corsOptions));
 app.use(express.json());
 app.use('/api', emailVerificationRoutes);
 
@@ -56,6 +68,10 @@ app.use((req, res, next) => {
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Routes
+// Health check for Render
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'ok', time: new Date().toISOString() });
+});
 app.use('/api/auth', authRouter);
 app.use('/api/billing', billingRouter);
 app.use('/api/receipt', require('./routes/receipt'));

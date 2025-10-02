@@ -249,8 +249,35 @@ router.post('/register-optimized', upload.single('proofImage'), async (req, res)
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 12);
 
-    // Generate email verification token
-    const verificationToken = crypto.randomBytes(32).toString('hex');
+    // Determine email verification status from step 1 (temporary tokens)
+    const tempTokens = global.tempVerificationTokens || {};
+    const trimmedEmail = email?.trim() || null;
+    const tempData = trimmedEmail ? tempTokens[trimmedEmail] : null;
+    const isTempVerified = !!(tempData && tempData.verified);
+
+    // Smart email verification logic:
+    // 1. If step 1 was done and verified, use that (no new email)
+    // 2. If step 1 was done but not verified, don't send duplicate email
+    // 3. Only send email if no step 1 attempt was made
+    let verificationToken = null;
+    let shouldSendEmail = false;
+    
+    if (isTempVerified) {
+      // Step 1 was completed successfully
+      console.log(`✅ Using step 1 verification for ${trimmedEmail}`);
+      verificationToken = null;
+      shouldSendEmail = false;
+    } else if (tempData && !tempData.verified) {
+      // Step 1 was attempted but not completed - don't send duplicate
+      console.log(`🔄 Step 1 verification pending for ${trimmedEmail}, not sending duplicate email`);
+      verificationToken = tempData.token; // Use existing token
+      shouldSendEmail = false;
+    } else {
+      // No step 1 attempt - send verification email
+      console.log(`📧 No step 1 verification found for ${trimmedEmail}, will send verification email`);
+      verificationToken = crypto.randomBytes(32).toString('hex');
+      shouldSendEmail = true;
+    }
 
     // Create name record first
     const nameResult = await pool.query(`
@@ -277,18 +304,35 @@ router.post('/register-optimized', upload.single('proofImage'), async (req, res)
 
     const addressId = addressResult.rows[0].address_id;
 
+    // Debug: Log the values being inserted
+    console.log('🔍 User insert parameters:', {
+      username: username.trim(),
+      email: trimmedEmail,
+      roleId,
+      addressId,
+      nameId,
+      dateOfBirth,
+      proofImagePath,
+      isTempVerified,
+      verificationToken: verificationToken || null
+    });
+
     // Create user with email verification fields
     const userResult = await pool.query(`
       INSERT INTO users (
         username, password_hash, contact_number, email, role_id, address_id, name_id, 
-        date_of_birth, validation_image_url, approval_status, email_verified, 
+        date_of_birth, validation_image_url, registration_status, email_verified, 
         verification_token, verification_token_expires
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, false, $11, NOW() + INTERVAL '24 hours')
+      ) VALUES (
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, 'pending', $10, $11::TEXT,
+        CASE WHEN $11::TEXT IS NULL THEN NULL ELSE NOW() + INTERVAL '24 hours' END
+      )
       RETURNING user_id, username, email
     `, [
       username.trim(), hashedPassword, normalizedPhone,
-      email?.trim() || null, roleId, addressId, nameId, dateOfBirth, proofImagePath, 'pending',
-      verificationToken
+      trimmedEmail, roleId, addressId, nameId, dateOfBirth, proofImagePath,
+      isTempVerified, // $10 - email_verified
+      verificationToken || null // $11 - verification_token (explicitly null if falsy)
     ]);
 
     console.log(`✅ New user registered: ${username} (ID: ${userResult.rows[0].user_id})`);
@@ -296,14 +340,42 @@ router.post('/register-optimized', upload.single('proofImage'), async (req, res)
     // Create the full name
     const fullName = [firstName, middleName, lastName].filter(Boolean).join(' ');
 
-    // Send verification email if email is provided
-    if (email && email.trim()) {
+    // Send verification email based on smart logic
+    if (trimmedEmail && shouldSendEmail && verificationToken) {
       try {
-        await sendVerificationEmail(email.trim(), fullName, verificationToken);
-        console.log(`✅ Verification email sent to: ${email}`);
+        await sendVerificationEmail(trimmedEmail, fullName, verificationToken);
+        console.log(`✅ Verification email sent to: ${trimmedEmail}`);
+        
+        // Store in temporary tokens for consistency
+        if (!tempTokens[trimmedEmail]) {
+          tempTokens[trimmedEmail] = {
+            token: verificationToken,
+            expires: new Date(Date.now() + 24 * 60 * 60 * 1000),
+            verified: false,
+            name: fullName
+          };
+        }
       } catch (emailError) {
         console.error('❌ Failed to send verification email:', emailError);
         // Don't fail registration if email sending fails
+      }
+    } else if (trimmedEmail) {
+      if (isTempVerified) {
+        console.log(`🔄 Email already verified in step 1: ${trimmedEmail}`);
+      } else if (tempData && !tempData.verified) {
+        console.log(`🔄 Email verification already sent in step 1, not sending duplicate: ${trimmedEmail}`);
+      } else {
+        console.log(`🔄 No verification email needed for: ${trimmedEmail}`);
+      }
+    }
+
+    // Clean up temp verification token after successful registration
+    if (isTempVerified && tempData) {
+      try {
+        delete tempTokens[trimmedEmail];
+        console.log('🧹 Cleaned up temporary verification token for', trimmedEmail);
+      } catch (e) {
+        console.warn('Failed cleaning temp verification token:', e.message);
       }
     }
 
@@ -358,7 +430,7 @@ router.post('/login-enhanced', async (req, res) => {
 
     // Find user by username OR email with role information, approval status, and email verification
     const userResult = await pool.query(`
-      SELECT u.user_id, u.username, u.password_hash, u.approval_status, u.rejection_reason, 
+      SELECT u.user_id, u.username, u.password_hash, u.registration_status AS approval_status, u.rejection_reason, 
              u.role_id, r.role_name, u.email, u.email_verified
       FROM users u
       LEFT JOIN roles r ON u.role_id = r.role_id

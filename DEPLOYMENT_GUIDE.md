@@ -1,10 +1,86 @@
-# Waste Management System - Deployment Guide
+# Waste Management System# WSBS Deployment Guide
+
+## PayMongo Payment Setup & Configuration
+
+### PayMongo Test vs Production
+
+Your system supports both test and production PayMongo modes:
+
+**Test Mode (Development/Staging):**
+- Use test API keys: `pk_test_...` and `sk_test_...`
+- Payments are simulated - no real money is charged
+- Perfect for development and testing
+
+**Production Mode (Live):**
+- Use live API keys: `pk_live_...` and `sk_live_...`
+- Real payments are processed
+- Only use when ready for live transactions
+
+### Getting PayMongo Credentials
+
+1. **Sign up/Login to PayMongo Dashboard:** https://dashboard.paymongo.com
+2. **Get Test Keys (for development):**
+   - Go to Developers → API Keys
+   - Copy your test keys:
+     - `pk_test_...` (Public Key)
+     - `sk_test_...` (Secret Key)
+3. **Set up Webhooks:**
+   - Go to Developers → Webhooks
+   - Create webhook pointing to your backend:
+     - URL: `https://your-backend.onrender.com/api/billing/webhooks/paymongo`
+     - Events: `payment.paid`, `payment.failed`
+   - Copy the webhook secret: `whsec_...`
+
+### Environment Configuration
+
+**Local Development (.env file):**
+```env
+PAYMONGO_SECRET_KEY=sk_test_your_key_here
+PAYMONGO_PUBLIC_KEY=pk_test_your_key_here
+PAYMONGO_WEBHOOK_SECRET=whsec_your_webhook_secret
+PAYMONGO_MODE=test
+PUBLIC_URL=https://your-ngrok-url.ngrok-free.app
+```
+
+**Render Production (Environment Variables):**
+```
+PAYMONGO_SECRET_KEY=sk_test_your_key_here (or sk_live_ for production)
+PAYMONGO_PUBLIC_KEY=pk_test_your_key_here (or pk_live_ for production)
+PAYMONGO_WEBHOOK_SECRET=whsec_your_webhook_secret
+PAYMONGO_MODE=test (or "live" for production)
+PUBLIC_URL=https://wsbs-backend.onrender.com (auto-set by render.yaml)
+```
+
+### Payment Flow
+
+1. **User initiates payment** → Frontend calls `/api/billing/create-payment`
+2. **Backend creates PayMongo payment** → Returns checkout URL
+3. **User completes payment** → PayMongo redirects to success/failure URL
+4. **PayMongo sends webhook** → Backend processes payment confirmation
+5. **Subscription activated** → User gets access
+
+### Testing Payments
+
+**Test Card Numbers (PayMongo Test Mode):**
+- **Success:** `4343434343434345`
+- **Declined:** `4000000000000002`
+- **Insufficient Funds:** `4000000000009995`
+- Use any future expiry date and any 3-digit CVC
+
+**Test Payment Flow:**
+1. Set `PAYMONGO_MODE=test`
+2. Use test API keys
+3. Create subscription in your app
+4. Use test card numbers above
+5. Verify webhook receives payment confirmation
+
+---
 
 ## 📁 Project Structure
 
 ```
 WASTE/
-├── WSBS/                    # React Native Mobile App (Expo)
+{{ ... }}
 ├── admin/                   # React Admin Panel
 ├── backend/                 # Node.js Backend Server
 └── docs/                   # Documentation

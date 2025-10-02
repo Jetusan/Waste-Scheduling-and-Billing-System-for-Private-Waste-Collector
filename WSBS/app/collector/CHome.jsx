@@ -1,13 +1,15 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, StatusBar, ScrollView, ImageBackground, ActivityIndicator, RefreshControl } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { Fontisto, Feather } from '@expo/vector-icons';
 import { API_BASE_URL } from '../config';
 import { getToken, getCollectorId } from '../auth';
+import { useWebSocket } from '../../contexts/WebSocketContext';
 
 
 const CHome = () => {
   const router = useRouter();
+  const { isConnected, subscribe } = useWebSocket();
   const [stats, setStats] = useState({
     today_pickups: 'N/A',
     hours_worked: 'N/A',
@@ -56,6 +58,35 @@ const CHome = () => {
     fetchDashboardStats();
   }, [fetchDashboardStats]);
 
+  // Auto-refresh when screen comes into focus (e.g., returning from collection page)
+  useFocusEffect(
+    useCallback(() => {
+      console.log('CHome screen focused - refreshing stats');
+      fetchDashboardStats();
+    }, [fetchDashboardStats])
+  );
+
+  // Subscribe to real-time WebSocket updates
+  useEffect(() => {
+    const unsubscribeCollection = subscribe('collection_update', (data) => {
+      console.log('📡 Real-time collection update received:', data);
+      // Refresh stats immediately when collection is completed
+      fetchDashboardStats();
+    });
+
+    const unsubscribeStats = subscribe('stats_update', (data) => {
+      console.log('📊 Real-time stats update received:', data);
+      if (data.stats) {
+        setStats(data.stats);
+      }
+    });
+
+    return () => {
+      unsubscribeCollection();
+      unsubscribeStats();
+    };
+  }, [subscribe, fetchDashboardStats]);
+
   const onRefresh = useCallback(() => {
     setRefreshing(true);
     fetchDashboardStats();
@@ -74,7 +105,15 @@ const CHome = () => {
       >
         {/* Header Section */}
         <View style={styles.header}>
-            <Text style={styles.welcomeText}>Welcome Collector!</Text>
+            <View>
+              <Text style={styles.welcomeText}>Welcome Collector!</Text>
+              {isConnected && (
+                <View style={styles.connectionBadge}>
+                  <View style={styles.connectionDot} />
+                  <Text style={styles.connectionText}>Live</Text>
+                </View>
+              )}
+            </View>
             <View style={{ flexDirection: 'row' }}>
               <TouchableOpacity style={styles.notificationIcon}
               onPress={() => router.push('/collector/CNotif')}>
@@ -260,5 +299,27 @@ const styles = StyleSheet.create({
     color: 'red',
     fontSize: 12,
     marginTop: 4,
+  },
+  connectionBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    backgroundColor: '#e8f5e9',
+    borderRadius: 12,
+    alignSelf: 'flex-start',
+  },
+  connectionDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#4CAF50',
+    marginRight: 4,
+  },
+  connectionText: {
+    fontSize: 10,
+    color: '#4CAF50',
+    fontWeight: 'bold',
   },
 });

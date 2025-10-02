@@ -1,15 +1,19 @@
 // Backend Configuration File
-// Change this IP address only when your local network changes
-const LOCAL_IP = '192.168.20.36';
+// Local IP for LAN development (override via env to avoid manual edits)
+const LOCAL_IP = process.env.LOCAL_IP || '192.168.100.36';
 const PORT = 5000;
 
-// NGROK URL - Update this when you restart ngrok
-const NGROK_URL = process.env.NGROK_URL || 'https://252689556d3b.ngrok-free.app';
+// NGROK URL - legacy; prefer PUBLIC_URL in production
+const NGROK_URL = process.env.NGROK_URL || 'https://b8c956cc76e6.ngrok-free.app';
+
+// Public URL for this backend (Render or other). Example: https://wsbs-backend.onrender.com
+const PUBLIC_URL = process.env.PUBLIC_URL || NGROK_URL;
 
 // Base URLs for different environments
 const BASE_URL = `http://${LOCAL_IP}:${PORT}`;
 const LOCALHOST_URL = `http://localhost:${PORT}`;
-const PUBLIC_URL = NGROK_URL; // Use ngrok for external services
+// Expose computed PUBLIC_URL
+// In production on Render, set PUBLIC_URL in the service env vars
 
 // API Configuration
 const API_CONFIG = {
@@ -34,14 +38,17 @@ const API_CONFIG = {
   
   // CORS origins
   CORS_ORIGINS: [
-    `http://${LOCAL_IP}:3000`, // Admin panel
+    `http://${LOCAL_IP}:3000`, // Admin panel (LAN)
     `http://localhost:3000`,   // Admin panel localhost
     `http://${LOCAL_IP}:8081`, // React Native Metro
     `http://localhost:8081`,   // React Native Metro localhost
     `http://${LOCAL_IP}:19006`, // Expo web
     `http://localhost:19006`,   // Expo web localhost
     NGROK_URL,                  // Ngrok tunnel for external access
-  ],
+    process.env.ADMIN_SITE_URL || '', // Render static site domain for admin
+    process.env.BACKEND_URL || '',    // Backend service public URL (optional)
+    PUBLIC_URL,                        // Preferred public URL
+  ].filter(Boolean),
   
   // Database configuration (if needed)
   DB_CONFIG: {

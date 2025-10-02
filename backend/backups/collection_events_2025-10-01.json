@@ -1,0 +1,74 @@
+[
+  {
+    "action": "collected",
+    "stop_id": "wednesday-organic-142-0",
+    "schedule_id": "wednesday-organic-0",
+    "user_id": 142,
+    "collector_id": 29,
+    "notes": "Collected at 2025-10-01T00:24:20.429Z",
+    "ts": "2025-10-01T00:24:23.015Z"
+  },
+  {
+    "action": "collected",
+    "stop_id": "wednesday-organic-143-0",
+    "schedule_id": "wednesday-organic-0",
+    "user_id": 143,
+    "collector_id": 29,
+    "notes": "Collected at 2025-10-01T00:24:26.445Z",
+    "ts": "2025-10-01T00:24:28.876Z"
+  },
+  {
+    "action": "collected",
+    "stop_id": "wednesday-organic-144-0",
+    "schedule_id": "wednesday-organic-0",
+    "user_id": 144,
+    "collector_id": 29,
+    "notes": "Collected at 2025-10-01T00:24:30.143Z",
+    "ts": "2025-10-01T00:24:32.579Z"
+  },
+  {
+    "action": "collected",
+    "stop_id": "wednesday-organic-147-0",
+    "schedule_id": "wednesday-organic-0",
+    "user_id": 147,
+    "collector_id": 29,
+    "notes": "Collected at 2025-10-01T00:24:32.660Z",
+    "ts": "2025-10-01T00:24:35.090Z"
+  },
+  {
+    "action": "collected",
+    "stop_id": "wednesday-organic-142-0",
+    "schedule_id": "wednesday-organic-0",
+    "user_id": 142,
+    "collector_id": 29,
+    "notes": "Collected at 2025-10-01T00:59:42.125Z",
+    "ts": "2025-10-01T00:59:44.589Z"
+  },
+  {
+    "action": "collected",
+    "stop_id": "wednesday-organic-143-0",
+    "schedule_id": "wednesday-organic-0",
+    "user_id": 143,
+    "collector_id": 29,
+    "notes": "Collected at 2025-10-01T01:00:30.273Z",
+    "ts": "2025-10-01T01:00:32.744Z"
+  },
+  {
+    "action": "collected",
+    "stop_id": "wednesday-organic-144-0",
+    "schedule_id": "wednesday-organic-0",
+    "user_id": 144,
+    "collector_id": 29,
+    "notes": "Collected at 2025-10-01T01:01:36.855Z",
+    "ts": "2025-10-01T01:01:39.292Z"
+  },
+  {
+    "action": "collected",
+    "stop_id": "wednesday-organic-142-0",
+    "schedule_id": "wednesday-organic-0",
+    "user_id": 142,
+    "collector_id": 29,
+    "notes": "Collected at 2025-10-01T01:05:23.169Z",
+    "ts": "2025-10-01T01:05:25.633Z"
+  }
+]

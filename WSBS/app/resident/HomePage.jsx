@@ -541,16 +541,8 @@ export default function HomePage() {
         {requestsLoading ? (
           <ActivityIndicator size="small" color="#4CD964" style={{ marginVertical: 10 }} />
         ) : specialRequests.length === 0 ? (
-          <View style={styles.emptyRequestsContainer}>
-            <Ionicons name="document-outline" size={32} color="#ccc" />
-            <Text style={styles.emptyRequestsText}>No special pickup requests yet</Text>
-            <TouchableOpacity 
-              style={styles.createRequestButton}
-              onPress={() => router.push('/spickup')}
-            >
-              <Text style={styles.createRequestButtonText}>Create Your First Request</Text>
-            </TouchableOpacity>
-          </View>
+          // Don't show anything if no requests - keep it clean
+          null
         ) : (
           <>
             {specialRequests.map((request) => (

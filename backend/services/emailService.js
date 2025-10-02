@@ -119,9 +119,11 @@ const getRejectionEmailTemplate = (firstName, lastName, reason) => {
 };
 
 const sendVerificationEmail = async (email, name, verificationToken) => {
-  // Build verification link using PUBLIC_URL so it's reachable outside localhost
-  const baseUrl = API_CONFIG?.PUBLIC_URL || API_CONFIG?.LOCALHOST_URL || 'http://localhost:5000';
+  // Build verification link using LOCALHOST_URL for local testing
+  const baseUrl = API_CONFIG?.LOCALHOST_URL || 'http://localhost:5000';
   const verificationLink = `${baseUrl}/api/verify-email?token=${verificationToken}`;
+  
+  console.log(`🔗 Generated verification link: ${verificationLink}`);
 
   try {
     const transporter = nodemailer.createTransport({

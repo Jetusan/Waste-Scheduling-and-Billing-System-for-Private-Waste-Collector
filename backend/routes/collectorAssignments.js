@@ -5,6 +5,7 @@ const fs = require('fs');
 const path = require('path');
 const { authenticateJWT } = require('../middleware/auth');
 const { handleMissedCollectionWithNextSchedule } = require('./nextScheduleCalculator');
+const { emitCollectionUpdate, emitStatsUpdate, emitAdminUpdate, emitResidentNotification } = require('../services/websocketService');
 
 // GET /api/collector/assignments/today?collector_id=123
 // Returns a lightweight assignment object and a list of resident stops for barangays scheduled today.
@@ -183,6 +184,10 @@ async function recordEventDb(event) {
     action, stop_id, schedule_id, user_id, collector_id,
     notes, amount, lat, lng
   } = event;
+  
+  // After SQL migration, columns now accept VARCHAR - store IDs as-is
+  // No conversion needed! Both "7-140" and "wednesday-organic-0" work
+  
   const q = `
     INSERT INTO collection_stop_events (
       action, stop_id, schedule_id, user_id, collector_id, notes, amount, lat, lng, created_at
@@ -404,6 +409,36 @@ async function handleEvent(req, res, action) {
     if (action === 'collected') {
       await notifyResident(user_id, 'Collection completed', 'Your waste was collected today. Thank you!');
       await notifyAdmins('Collected', `Collected by collector #${collector_id} for user ${user_id} (schedule ${schedule_id || 'N/A'}).`);
+      
+      // Emit real-time WebSocket updates
+      try {
+        // Notify collector
+        emitCollectionUpdate(collector_id, {
+          action: 'collected',
+          user_id,
+          stop_id,
+          schedule_id
+        });
+        
+        // Notify resident in real-time
+        emitResidentNotification(user_id, {
+          title: 'Collection Completed',
+          message: 'Your waste has been collected. Thank you!',
+          type: 'collection_completed',
+          icon: 'checkmark-circle',
+          color: '#4CAF50'
+        });
+        
+        // Notify admin
+        emitAdminUpdate({
+          type: 'collection_completed',
+          collector_id,
+          user_id,
+          timestamp: new Date().toISOString()
+        });
+      } catch (wsError) {
+        console.warn('WebSocket emission failed:', wsError.message);
+      }
     }
 
     return res.json({ success: true, ...responseExtras });

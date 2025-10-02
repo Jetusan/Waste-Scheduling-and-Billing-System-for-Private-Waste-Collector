@@ -28,16 +28,63 @@ router.get('/', async (req, res) => {
   }
 });
 
+// POST - Add new truck
+router.post('/', async (req, res) => {
+  try {
+    const { truck_number, plate_number, status } = req.body;
+    console.log('Adding new truck:', { truck_number, plate_number, status });
+    
+    // Validate required fields
+    if (!truck_number || !plate_number) {
+      return res.status(400).json({ error: 'Truck number and plate number are required' });
+    }
+    
+    const query = `
+      INSERT INTO trucks (truck_number, plate_number, status, created_at)
+      VALUES ($1, $2, $3, NOW())
+      RETURNING truck_id, truck_number, plate_number, status, created_at
+    `;
+    
+    const result = await pool.query(query, [
+      truck_number,
+      plate_number,
+      status || 'active'
+    ]);
+    
+    console.log('Truck added successfully:', result.rows[0]);
+    res.status(201).json({ 
+      success: true, 
+      message: 'Truck added successfully',
+      truck: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Error adding truck:', error);
+    res.status(500).json({ error: 'Failed to add truck', details: error.message });
+  }
+});
+
 // UPDATE a truck by ID
 router.put('/:truck_id', async (req, res) => {
   try {
     const { truck_id } = req.params;
-    const { truck_number, plate_number, status, driver_name } = req.body;
-    console.log('Updating truck ' + truck_id);
+    const { truck_number, plate_number, status } = req.body;
+    console.log('Updating truck ' + truck_id, { truck_number, plate_number, status });
     
-    // For now, just return success since trucks table may not exist
-    console.log('Truck updated successfully (simulated)');
-    res.json({ success: true, message: 'Truck updated successfully' });
+    const query = `
+      UPDATE trucks 
+      SET truck_number = $1, plate_number = $2, status = $3, updated_at = NOW()
+      WHERE truck_id = $4
+      RETURNING truck_id, truck_number, plate_number, status, created_at
+    `;
+    
+    const result = await pool.query(query, [truck_number, plate_number, status, truck_id]);
+    
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'Truck not found' });
+    }
+    
+    console.log('Truck updated successfully:', result.rows[0]);
+    res.json({ success: true, message: 'Truck updated successfully', truck: result.rows[0] });
   } catch (error) {
     console.error('Error updating truck:', error);
     res.status(500).json({ error: 'Failed to update truck', details: error.message });
@@ -50,8 +97,14 @@ router.delete('/:truck_id', async (req, res) => {
     const { truck_id } = req.params;
     console.log('Deleting truck ' + truck_id);
     
-    // For now, just return success since trucks table may not exist
-    console.log('Truck deleted successfully (simulated)');
+    const query = 'DELETE FROM trucks WHERE truck_id = $1 RETURNING truck_id';
+    const result = await pool.query(query, [truck_id]);
+    
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'Truck not found' });
+    }
+    
+    console.log('Truck deleted successfully');
     res.json({ success: true, message: 'Truck deleted successfully' });
   } catch (error) {
     console.error('Error deleting truck:', error);

@@ -1,0 +1,67 @@
+services:
+  - type: web
+    name: wsbs-backend
+    env: node
+    rootDir: backend
+    buildCommand: "npm install"
+    startCommand: "node index.js"
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: JWT_SECRET
+        generateValue: true
+      - key: PAYMONGO_PUBLIC_KEY
+        sync: false
+      - key: PAYMONGO_SECRET_KEY
+        sync: false
+      - key: PAYMONGO_WEBHOOK_SECRET
+        sync: false
+      - key: PAYMONGO_MODE
+        value: test
+      - key: PUBLIC_URL
+        fromService:
+          type: web
+          name: wsbs-backend
+          property: url
+      - key: DB_HOST
+        fromDatabase: wsbs-db
+        property: host
+      - key: DB_PORT
+        fromDatabase: wsbs-db
+        property: port
+      - key: DB_NAME
+        fromDatabase: wsbs-db
+        property: database
+      - key: DB_USER
+        fromDatabase: wsbs-db
+        property: user
+      - key: DB_PASSWORD
+        fromDatabase: wsbs-db
+        property: password
+      - key: ADMIN_SITE_URL
+        fromService:
+          type: static_site
+          name: wsbs-admin
+          property: url
+
+  - type: static_site
+    name: wsbs-admin
+    rootDir: admin
+    buildCommand: "npm install && npm run build"
+    staticPublishPath: build
+    envVars:
+      - key: REACT_APP_API_BASE
+        fromService:
+          type: web
+          name: wsbs-backend
+          property: url
+
+# Optional: define a cron job or background worker in the future
+
+# Database
+# Provision a managed PostgreSQL instance on Render
+# The connection details are referenced by the backend service envVars above
+
+databases:
+  - name: wsbs-db
+    databaseName: wsbs

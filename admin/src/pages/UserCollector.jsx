@@ -200,7 +200,7 @@ const UsersCollectors = () => {
           ...u, // keep all fields from backend
           truck_number: u.truck_number || 'No truck assigned',
           license_number: u.license_number || 'Not provided',
-          status: u.status || 'inactive',
+          status: u.employment_status || u.status || 'inactive', // Fix: backend returns employment_status
           joined: u.created_at,
         }));
         console.log('Normalized collectors data:', normalized);

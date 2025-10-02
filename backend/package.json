@@ -6,7 +6,12 @@
     "start": "node index.js",
     "dev": "nodemon index.js",
     "test": "jest",
-    "init-db": "node config/initDb.js"
+    "init-db": "node config/initDb.js",
+    "test-email-flow": "node test_email_verification_flow.js",
+    "test-admin-emails": "node test_admin_notifications.js",
+    "check-server": "node check_server.js",
+    "debug-email": "node debug_email_verification.js",
+    "delete-user": "node delete_user_data.js"
   },
   "keywords": [],
   "author": "",
@@ -28,6 +33,7 @@
     "nodemailer": "^7.0.5",
     "pg": "^8.16.2",
     "puppeteer": "^24.22.3",
+    "socket.io": "^4.7.2",
     "uuid": "^11.1.0"
   },
   "devDependencies": {

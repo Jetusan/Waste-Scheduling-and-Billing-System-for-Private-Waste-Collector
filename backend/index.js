@@ -18,6 +18,7 @@ process.on('unhandledRejection', (reason, promise) => {
 
 const app = require('./app');
 const { pool } = require('./config/db'); // Destructure the pool from exports
+const { initializeWebSocket } = require('./services/websocketService');
 
 const PORT = process.env.PORT || config.PORT;
 
@@ -36,6 +37,9 @@ const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`API URL: ${config.BASE_URL}`);
   console.log(`Local URL: ${config.LOCALHOST_URL}`);
   console.log(`🎯 Server is now ready to handle requests!`);
+  
+  // Initialize WebSocket after server starts
+  initializeWebSocket(server);
 });
 
 server.on('error', (err) => {

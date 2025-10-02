@@ -8,7 +8,10 @@ const crypto = require('crypto');
 router.get('/verify-email', async (req, res) => {
   const { token } = req.query;
   
+  console.log(`🔍 Verification attempt with token: ${token ? token.substring(0, 10) + '...' : 'MISSING'}`);
+  
   if (!token) {
+    console.log('❌ No token provided');
     return res.status(400).send(`
       <html>
         <head><title>Email Verification</title></head>
@@ -26,23 +29,47 @@ router.get('/verify-email', async (req, res) => {
     const tempTokens = global.tempVerificationTokens || {};
     let emailFound = null;
     
+    console.log(`🔍 Checking ${Object.keys(tempTokens).length} temporary tokens`);
+    
     for (const [email, tokenData] of Object.entries(tempTokens)) {
+      console.log(`🔍 Comparing with token for ${email}: ${tokenData.token.substring(0, 10)}...`);
       if (tokenData.token === token) {
         emailFound = email;
+        console.log(`✅ Token match found for email: ${email}`);
         break;
       }
     }
     
     if (emailFound) {
+      // Check if token has expired
+      const tokenData = tempTokens[emailFound];
+      if (new Date() > new Date(tokenData.expires)) {
+        console.log(`❌ Token expired for ${emailFound}`);
+        delete tempTokens[emailFound];
+        return res.status(400).send(`
+          <html>
+            <head><title>Email Verification</title></head>
+            <body style="font-family: Arial, sans-serif; text-align: center; padding: 50px;">
+              <h2 style="color: #e74c3c;">❌ Verification Failed</h2>
+              <p>Verification token has expired. Please request a new verification email.</p>
+              <p><a href="#" onclick="window.close()">Close this window</a></p>
+            </body>
+          </html>
+        `);
+      }
+      
       // Mark as verified in temporary storage
       tempTokens[emailFound].verified = true;
+      tempTokens[emailFound].verifiedAt = new Date();
+      
+      console.log(`✅ Email verified successfully: ${emailFound}`);
       
       return res.status(200).send(`
         <html>
           <head><title>Email Verification</title></head>
           <body style="font-family: Arial, sans-serif; text-align: center; padding: 50px;">
             <h2 style="color: #27ae60;">✅ Email Verified Successfully!</h2>
-            <p>Your email has been verified. You can now continue with registration in the WSBS app.</p>
+            <p>Your email <strong>${emailFound}</strong> has been verified. You can now continue with registration in the WSBS app.</p>
             <p><a href="#" onclick="window.close()">Close this window</a></p>
           </body>
         </html>
@@ -141,6 +168,66 @@ router.get('/verify-email', async (req, res) => {
   }
 });
 
+
+// Combined verification status (temp + database)
+router.post('/combined-verification-status', async (req, res) => {
+  const { email } = req.body;
+  
+  if (!email) {
+    return res.status(400).json({ 
+      success: false, 
+      message: 'Email is required' 
+    });
+  }
+
+  try {
+    const trimmed = email.trim();
+    const tempTokens = global.tempVerificationTokens || {};
+    const tokenData = tempTokens[trimmed];
+
+    const tempInfo = {
+      existsInTemp: !!tokenData,
+      tempVerified: !!(tokenData && tokenData.verified),
+      tempExpiresAt: tokenData?.expires || null
+    };
+
+    // Query database for user email verification
+    const dbQuery = `
+      SELECT user_id, email_verified, verification_token IS NOT NULL AS has_verification_token
+      FROM users
+      WHERE email = $1
+    `;
+    const dbResult = await pool.query(dbQuery, [trimmed]);
+    const dbUser = dbResult.rows[0] || null;
+
+    const dbInfo = {
+      dbUserFound: !!dbUser,
+      dbEmailVerified: dbUser ? !!dbUser.email_verified : false,
+      hasVerificationToken: dbUser ? !!dbUser.has_verification_token : false
+    };
+
+    const overallVerified = tempInfo.tempVerified || dbInfo.dbEmailVerified;
+    const source = overallVerified
+      ? (dbInfo.dbEmailVerified ? 'database' : 'temporary')
+      : 'none';
+
+    return res.status(200).json({
+      success: true,
+      email: trimmed,
+      ...tempInfo,
+      ...dbInfo,
+      overallVerified,
+      source
+    });
+  } catch (error) {
+    console.error('Combined verification status error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to get combined verification status'
+    });
+  }
+});
+
 // Resend verification email endpoint
 router.post('/resend-verification', async (req, res) => {
   const { email } = req.body;
@@ -225,18 +312,30 @@ router.post('/send-verification', async (req, res) => {
   }
 
   try {
+    // Check if email already has a recent verification
+    global.tempVerificationTokens = global.tempVerificationTokens || {};
+    const existing = global.tempVerificationTokens[email];
+    
+    if (existing && existing.verified) {
+      return res.status(200).json({ 
+        success: true, 
+        message: 'Email is already verified.' 
+      });
+    }
+    
     // Generate verification token
     const verificationToken = crypto.randomBytes(32).toString('hex');
     const tokenExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
     
-    // Store token temporarily (you might want to use a temporary table or cache)
-    // For now, we'll store it in a simple in-memory object (not production-ready)
-    global.tempVerificationTokens = global.tempVerificationTokens || {};
+    // Store token temporarily
     global.tempVerificationTokens[email] = {
       token: verificationToken,
       expires: tokenExpires,
-      verified: false
+      verified: false,
+      name: name
     };
+    
+    console.log(`🔗 Storing temp token for ${email}: ${verificationToken.substring(0, 10)}...`);
     
     // Send verification email
     await sendVerificationEmail(email, name, verificationToken);
@@ -245,14 +344,19 @@ router.post('/send-verification', async (req, res) => {
     
     res.status(200).json({ 
       success: true, 
-      message: 'Verification email sent successfully. Please check your inbox.' 
+      message: 'Verification email sent successfully. Please check your inbox.',
+      debug: {
+        tokenPreview: verificationToken.substring(0, 10) + '...',
+        expires: tokenExpires
+      }
     });
     
   } catch (error) {
     console.error('Send verification error:', error);
     res.status(500).json({ 
       success: false, 
-      message: 'Failed to send verification email. Please try again.' 
+      message: 'Failed to send verification email. Please try again.',
+      error: error.message
     });
   }
 });
