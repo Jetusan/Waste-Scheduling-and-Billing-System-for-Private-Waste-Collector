@@ -4,6 +4,12 @@ const API_CONFIG = require('../config/config');
 
 // Create transporter using Brevo SMTP
 const createTransporter = () => {
+  // Check if Brevo credentials are configured
+  if (!process.env.BREVO_SMTP_USER || !process.env.BREVO_SMTP_KEY) {
+    console.log('⚠️ Brevo SMTP credentials not configured - email service disabled');
+    return null;
+  }
+
   return nodemailer.createTransporter({
     host: 'smtp-relay.brevo.com',
     port: 587,
@@ -179,6 +185,13 @@ const sendVerificationEmail = async (email, name, verificationToken) => {
 const sendApprovalEmail = async (userEmail, firstName, lastName) => {
   try {
     const transporter = createTransporter();
+    
+    // Skip if email service not configured
+    if (!transporter) {
+      console.log('📧 Email service not configured - skipping approval email');
+      return { success: true, skipped: true };
+    }
+    
     const template = getApprovalEmailTemplate(firstName, lastName);
     
     const mailOptions = {
@@ -201,6 +214,13 @@ const sendApprovalEmail = async (userEmail, firstName, lastName) => {
 const sendRejectionEmail = async (userEmail, firstName, lastName, reason) => {
   try {
     const transporter = createTransporter();
+    
+    // Skip if email service not configured
+    if (!transporter) {
+      console.log('📧 Email service not configured - skipping rejection email');
+      return { success: true, skipped: true };
+    }
+    
     const template = getRejectionEmailTemplate(firstName, lastName, reason);
     
     const mailOptions = {
