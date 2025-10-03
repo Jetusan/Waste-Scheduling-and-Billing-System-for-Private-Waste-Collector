@@ -146,20 +146,7 @@ const UsersCollectors = () => {
     }
   };
 
-  useEffect(() => {
-    console.log('Tab changed to:', activeTab);
-    if (activeTab === 'trucks') {
-      fetchTrucks();
-    } else if (activeTab === 'subscribers') {
-      if (residentView === 'pending') {
-        fetchPendingResidents();
-      } else {
-        fetchData();
-      }
-    } else {
-      fetchData();
-    }
-  }, [activeTab, residentView, fetchData, fetchPendingResidents]);
+  
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -269,6 +256,22 @@ const UsersCollectors = () => {
       setPendingLoading(false);
     }
   }, [navigate]);
+
+  // Place effect after callbacks are defined
+  useEffect(() => {
+    console.log('Tab changed to:', activeTab);
+    if (activeTab === 'trucks') {
+      fetchTrucks();
+    } else if (activeTab === 'subscribers') {
+      if (residentView === 'pending') {
+        fetchPendingResidents();
+      } else {
+        fetchData();
+      }
+    } else {
+      fetchData();
+    }
+  }, [activeTab, residentView, fetchData, fetchPendingResidents]);
 
   const approveResident = async (userId) => {
     if (!userId) return;

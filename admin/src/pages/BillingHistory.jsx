@@ -49,7 +49,7 @@ const BillingHistory = () => {
     } finally {
       setLoading(false);
     }
-  }, [filters]);
+  }, [filters, API_BASE_URL]);
 
   // Load data on component mount
   useEffect(() => {

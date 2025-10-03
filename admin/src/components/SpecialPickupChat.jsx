@@ -15,52 +15,7 @@ const SpecialPickupChat = ({ requestId, requestData, onClose }) => {
   const [isPolling, setIsPolling] = useState(false);
   const messagesEndRef = useRef(null);
 
-  useEffect(() => {
-    initializeChat();
-  }, [initializeChat]);
-
-  useEffect(() => {
-    if (chat) {
-      setIsPolling(true);
-      const interval = setInterval(() => {
-        fetchMessages(chat.chat_id);
-      }, 2000); // Poll for new messages every 2 seconds
-      return () => clearInterval(interval);
-    }
-  }, [chat, fetchMessages]);
-
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
-
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
-
-  const initializeChat = useCallback(async () => {
-    try {
-      const token = localStorage.getItem('adminToken');
-      
-      // Get or create chat
-      const chatResponse = await fetch(`${API_BASE_URL}/api/chat/request/${requestId}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (chatResponse.ok) {
-        const chatData = await chatResponse.json();
-        setChat(chatData.chat);
-        await fetchMessages(chatData.chat.chat_id);
-      }
-    } catch (error) {
-      console.error('Error initializing chat:', error);
-    } finally {
-      setLoading(false);
-    }
-  }, [requestId, fetchMessages]);
-
+  // Define callbacks before effects to satisfy no-use-before-define
   const fetchMessages = useCallback(async (chatId = chat?.chat_id) => {
     if (!chatId) return;
 
@@ -92,6 +47,53 @@ const SpecialPickupChat = ({ requestId, requestData, onClose }) => {
       console.error('Error fetching messages:', error);
     }
   }, [chat]);
+
+  const initializeChat = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('adminToken');
+      
+      // Get or create chat
+      const chatResponse = await fetch(`${API_BASE_URL}/api/chat/request/${requestId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (chatResponse.ok) {
+        const chatData = await chatResponse.json();
+        setChat(chatData.chat);
+        await fetchMessages(chatData.chat.chat_id);
+      }
+    } catch (error) {
+      console.error('Error initializing chat:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [requestId, fetchMessages]);
+
+  useEffect(() => {
+    initializeChat();
+  }, [initializeChat]);
+
+  useEffect(() => {
+    if (chat) {
+      setIsPolling(true);
+      const interval = setInterval(() => {
+        fetchMessages(chat.chat_id);
+      }, 2000); // Poll for new messages every 2 seconds
+      return () => clearInterval(interval);
+    }
+  }, [chat, fetchMessages]);
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
 
   const markAsRead = async (chatId) => {
     try {

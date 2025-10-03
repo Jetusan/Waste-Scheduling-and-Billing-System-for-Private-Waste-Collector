@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import '../styles/CollectionSchedule.css';
 import axios from 'axios';
 import SpecialPickup from './SpecialPickup'; // Add this import at the top
-import API_CONFIG, { buildApiUrl } from '../config/api';
+import { buildApiUrl } from '../config/api';
 
 const CollectionSchedule = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
