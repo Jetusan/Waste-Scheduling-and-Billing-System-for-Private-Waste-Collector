@@ -68,6 +68,16 @@ app.use((req, res, next) => {
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Routes
+// Root route for Render health checks
+app.get('/', (req, res) => {
+  res.status(200).json({ 
+    message: 'WSBS Backend API is running',
+    status: 'ok', 
+    time: new Date().toISOString(),
+    version: '1.0.0'
+  });
+});
+
 // Health check for Render
 app.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok', time: new Date().toISOString() });
