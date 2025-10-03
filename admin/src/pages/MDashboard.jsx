@@ -50,6 +50,9 @@ const Dashboard = () => {
   
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  // API health indicator
+  const [apiHealthy, setApiHealthy] = useState(null); // null | true | false
+  const [apiCheckedAt, setApiCheckedAt] = useState(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -259,11 +262,52 @@ const Dashboard = () => {
     };
   }, []);
 
+  // Health check effect
+  useEffect(() => {
+    let cancelled = false;
+    const checkHealth = async () => {
+      try {
+        const res = await axios.get(`${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.HEALTH}`);
+        if (!cancelled) {
+          setApiHealthy(res.status === 200);
+          setApiCheckedAt(new Date());
+        }
+      } catch (_) {
+        if (!cancelled) {
+          setApiHealthy(false);
+          setApiCheckedAt(new Date());
+        }
+      }
+    };
+    checkHealth();
+    const t = setInterval(checkHealth, 60 * 1000); // every 60s
+    return () => {
+      cancelled = true;
+      clearInterval(t);
+    };
+  }, []);
+
   if (loading) return <div className="main-dashboard"><div>Loading dashboard...</div></div>;
   if (error) return <div className="main-dashboard"><div className="error-message">{error}</div></div>;
 
   return (
     <div className="main-dashboard">
+      {/* API Health Indicator */}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#555' }}>
+          <span
+            title={apiCheckedAt ? `Checked at ${apiCheckedAt.toLocaleTimeString()}` : 'Checking...'}
+            style={{
+              width: 10,
+              height: 10,
+              borderRadius: '50%',
+              backgroundColor: apiHealthy == null ? '#fbbf24' : apiHealthy ? '#22c55e' : '#ef4444',
+              boxShadow: '0 0 0 2px rgba(0,0,0,0.05)'
+            }}
+          />
+          <span>{apiHealthy == null ? 'Checking API…' : apiHealthy ? 'API Online' : 'API Unreachable'}</span>
+        </div>
+      </div>
 
       {/* Key Metrics */}
       <div className="overview-section">
