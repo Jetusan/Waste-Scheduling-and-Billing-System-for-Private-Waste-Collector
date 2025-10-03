@@ -6,7 +6,6 @@ services:
     rootDir: backend
     buildCommand: "npm install"
     startCommand: "npm start"
-    plan: starter
     envVars:
       # Application Environment
       - key: NODE_ENV
@@ -66,7 +65,6 @@ services:
     rootDir: admin
     buildCommand: "npm install && npm run build"
     staticPublishPath: build
-    plan: starter
     envVars:
       # Backend API URL
       - key: REACT_APP_API_URL
