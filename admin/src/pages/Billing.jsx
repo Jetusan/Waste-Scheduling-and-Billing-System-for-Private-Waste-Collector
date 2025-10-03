@@ -61,11 +61,7 @@ const Billing = () => {
       console.log('✅ Subscription plans:', plansResponse.data);
       setSubscriptionPlans(plansResponse.data);
 
-      // Fetch customer subscriptions
-      console.log('📋 Fetching customer subscriptions...');
-      const subscriptionsResponse = await axios.get(`${API_BASE_URL}/billing/subscriptions`);
-      console.log('✅ Customer subscriptions:', subscriptionsResponse.data);
-      setCustomers(subscriptionsResponse.data);
+      // (Removed) Fetch customer subscriptions - no longer used
 
       // Fetch invoices
       console.log('📋 Fetching invoices...');
