@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import '../styles/CollectionSchedule.css';
 import axios from 'axios';
 import SpecialPickup from './SpecialPickup'; // Add this import at the top
+import API_CONFIG, { buildApiUrl } from '../config/api';
 
-const API_URL = 'http://localhost:5000/api';
+const API_URL = `${API_CONFIG.BASE_URL}/api`;
 
 const CollectionSchedule = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -69,7 +70,7 @@ const CollectionSchedule = () => {
   // Fetch schedules
   const fetchSchedules = async () => {
     try {
-      const { data } = await axios.get(`${API_URL}/collection-schedules`);
+      const { data } = await axios.get(buildApiUrl('/api/collection-schedules'));
       setSchedules(data);
     } catch (err) {
       console.error('Error fetching schedules:', err);
@@ -78,10 +79,8 @@ const CollectionSchedule = () => {
 
   // Fetch barangays
   const fetchBarangays = async () => {
-    console.log('Fetching barangays...');
     try {
-      const { data } = await axios.get(`${API_URL}/barangays`);
-      console.log('Barangays data received:', data);
+      const { data } = await axios.get(buildApiUrl('/api/barangays'));
       setBarangays(data);
     } catch (err) {
       console.error('Error fetching barangays:', err);
@@ -102,7 +101,7 @@ const CollectionSchedule = () => {
         alert('Please select at least one barangay and fill in the day.');
         return;
       }
-      const response = await axios.post(`${API_URL}/collection-schedules`, {
+      const response = await axios.post(buildApiUrl('/api/collection-schedules'), {
         barangay_ids: newSchedule.barangay_ids.map(id => parseInt(id, 10)),
         schedule_date: newSchedule.schedule_date,
         waste_type: newSchedule.waste_type, // Include waste type
@@ -131,7 +130,7 @@ const CollectionSchedule = () => {
   const handleDelete = async id => {
     if (window.confirm('Are you sure you want to delete this schedule?')) {
       try {
-        await axios.delete(`${API_URL}/collection-schedules/${id}`);
+        await axios.delete(buildApiUrl(`/api/collection-schedules/${id}`));
         fetchSchedules();
       } catch (err) {
         console.error('Error deleting schedule:', err);
@@ -144,7 +143,7 @@ const CollectionSchedule = () => {
     e.preventDefault();
     try {
       const response = await axios.put(
-        `${API_URL}/collection-schedules/${editSchedule.schedule_id}`,
+        buildApiUrl(`/api/collection-schedules/${editSchedule.schedule_id}`),
         {
           barangay_ids: editSchedule.barangay_ids.map(id => parseInt(id, 10)),
           schedule_date: editSchedule.schedule_date,

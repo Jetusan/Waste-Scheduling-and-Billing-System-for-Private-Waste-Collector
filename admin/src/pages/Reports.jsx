@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import '../styles/Reports.css';
+import React, { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
+import API_CONFIG from '../config/api';
+import '../styles/Reports.css';
 import ReportVisualization from '../components/ReportVisualization';
 import { Line, Bar, Pie } from 'react-chartjs-2';
 import {
@@ -29,7 +30,7 @@ ChartJS.register(
   Legend
 );
 
-const API_URL = 'http://localhost:5000/api';
+const API_URL = `${API_CONFIG.BASE_URL}/api`;
 
 // Helper functions for date presets (moved outside component)
 const getToday = () => {

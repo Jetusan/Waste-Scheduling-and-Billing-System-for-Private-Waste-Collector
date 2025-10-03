@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import SpecialPickupChat from '../components/SpecialPickupChat';
+import API_CONFIG, { buildApiUrl } from '../config/api';
 
-const API_URL = 'http://localhost:5000/api/special-pickup';
-const COLLECTORS_API_URL = 'http://localhost:5000/api/collectors';
+const API_URL = buildApiUrl('/api/special-pickup');
+const COLLECTORS_API_URL = buildApiUrl('/api/collectors');
 
 const SpecialPickup = () => {
   const [showModal, setShowModal] = useState(false);
@@ -340,7 +341,7 @@ const SpecialPickup = () => {
               {selected.image_url && (
                 <>
                   <div style={{ fontWeight: 600, color: '#555' }}>Photo:</div>
-                  <div><img src={`http://localhost:5000${selected.image_url}`} alt="pickup" style={{ maxWidth: 200, maxHeight: 200, borderRadius: 10, border: '1px solid #eee', boxShadow: '0 2px 8px #eee' }} /></div>
+                  <div><img src={`${API_CONFIG.BASE_URL}${selected.image_url}`} alt="pickup" style={{ maxWidth: 200, maxHeight: 200, borderRadius: 10, border: '1px solid #eee', boxShadow: '0 2px 8px #eee' }} /></div>
                 </>
               )}
               

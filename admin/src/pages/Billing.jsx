@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import '../styles/Billing.css';
+import API_CONFIG from '../config/api';
 
-const API_BASE_URL = 'http://localhost:5000/api'; // Use /api for correct backend route
+const API_BASE_URL = `${API_CONFIG.BASE_URL}/api`;
 
 const Billing = () => {
   // Data states

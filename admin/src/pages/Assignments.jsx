@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
+import API_CONFIG from '../config/api';
 
-const API_BASE_URL = 'http://localhost:5000/api';
+const API_BASE_URL = `${API_CONFIG.BASE_URL}/api`;
 
 export default function Assignments() {
   const [loading, setLoading] = useState(true);

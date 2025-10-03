@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import '../styles/UsersCollectors.css';
 import axios from 'axios';
+import API_CONFIG, { buildApiUrl } from '../config/api';
 
 const UsersCollectors = () => {
   const [activeTab, setActiveTab] = useState('subscribers');
@@ -53,7 +54,7 @@ const UsersCollectors = () => {
       if (/^https?:\/\//i.test(cleaned)) return cleaned;
       // Ensure leading slash then prefix backend origin
       const withSlash = cleaned.startsWith('/') ? cleaned : `/${cleaned}`;
-      return `http://localhost:5000${withSlash}`;
+      return `${API_CONFIG.BASE_URL}${withSlash}`;
     } catch (_) {
       return null;
     }
@@ -166,7 +167,7 @@ const UsersCollectors = () => {
     try {
       if (activeTab === 'subscribers') {
         console.log('Fetching residents data...');
-        const endpoint = 'http://localhost:5000/api/residents';
+        const endpoint = buildApiUrl('/api/residents');
         const { data } = await axios.get(endpoint);
         console.log('Received residents data:', data);
         const normalized = data
@@ -193,7 +194,7 @@ const UsersCollectors = () => {
         setAllUsers(normalized);
       } else {
         console.log('Fetching collectors data...');
-        const endpoint = 'http://localhost:5000/api/collectors';
+        const endpoint = buildApiUrl('/api/collectors');
         const { data } = await axios.get(endpoint);
         console.log('Received collectors data:', data);
         const normalized = data.map(u => ({
@@ -219,7 +220,7 @@ const UsersCollectors = () => {
     setLoading(true);
     setError('');
     try {
-      const { data } = await axios.get('http://localhost:5000/api/trucks');
+      const { data } = await axios.get(buildApiUrl('/api/trucks'));
       setTrucks(data);
     } catch (err) {
       setError('Failed to load trucks. Please try again.');
@@ -243,7 +244,7 @@ const UsersCollectors = () => {
         return;
       }
       const headers = { Authorization: `Bearer ${token}` };
-      const endpoint = 'http://localhost:5000/api/residents/pending';
+      const endpoint = buildApiUrl('/api/residents/pending');
       const { data } = await axios.get(endpoint, { headers });
       if (data && data.success) {
         setPendingResidents(data.users || []);
@@ -275,7 +276,7 @@ const UsersCollectors = () => {
       setActingOnId(userId);
       const token = localStorage.getItem('adminToken') || localStorage.getItem('token');
       const headers = token ? { Authorization: `Bearer ${token}` } : {};
-      const endpoint = `http://localhost:5000/api/residents/${userId}/approve`;
+      const endpoint = buildApiUrl(`/api/residents/${userId}/approve`);
       const { data } = await axios.post(endpoint, { accept: true }, { headers });
       if (!data?.success) {
         alert(`Approve failed\n${data?.message || ''}`.trim());
@@ -296,7 +297,7 @@ const UsersCollectors = () => {
       setActingOnId(userId);
       const token = localStorage.getItem('adminToken') || localStorage.getItem('token');
       const headers = token ? { Authorization: `Bearer ${token}` } : {};
-      const endpoint = `http://localhost:5000/api/residents/${userId}/approve`;
+      const endpoint = buildApiUrl(`/api/residents/${userId}/approve`);
       const { data } = await axios.post(endpoint, { accept: false, reason }, { headers });
       if (!data?.success) {
         alert(`Reject failed\n${data?.message || ''}`.trim());
@@ -333,8 +334,8 @@ const UsersCollectors = () => {
 
       // Use the correct ID for the API endpoint
       const url = activeTab === 'subscribers'
-        ? `http://localhost:5000/api/residents/${editingUser.resident_id}`
-        : `http://localhost:5000/api/collectors/${editingUser.collector_id}`;
+        ? buildApiUrl(`/api/residents/${editingUser.resident_id}`)
+        : buildApiUrl(`/api/collectors/${editingUser.collector_id}`);
 
       let updateData;
       if (activeTab === 'subscribers') {
@@ -377,8 +378,8 @@ const UsersCollectors = () => {
     if (window.confirm('Are you sure you want to delete this record?')) {
       try {
         const url = activeTab === 'subscribers'
-          ? `http://localhost:5000/api/residents/${recordId}`
-          : `http://localhost:5000/api/collectors/${recordId}`;
+          ? buildApiUrl(`/api/residents/${recordId}`)
+          : buildApiUrl(`/api/collectors/${recordId}`);
         
         console.log('Deleting record:', { url, recordId });
         await axios.delete(url);
@@ -432,7 +433,7 @@ const UsersCollectors = () => {
       };
 
       console.log('📝 Registration data prepared:', { username: registrationData.username });
-      const resp = await axios.post('http://localhost:5000/api/collectors/register-optimized', registrationData);
+      const resp = await axios.post(buildApiUrl('/api/collectors/register-optimized'), registrationData);
       console.log('✅ Collector added:', resp.data);
 
       // Reset
@@ -471,7 +472,7 @@ const UsersCollectors = () => {
   const handleAddTruck = async (e) => {
     e.preventDefault();
     try {
-      await axios.post('http://localhost:5000/api/trucks', newTruck);
+      await axios.post(buildApiUrl('/api/trucks'), newTruck);
       setShowAddTruckModal(false);
       setNewTruck({ truck_number: '', plate_number: '', status: 'active' });
       fetchTrucks();
@@ -491,7 +492,7 @@ const UsersCollectors = () => {
     // Fetch barangays for the collector registration form
     setBarangayLoading(true);
     try {
-      const response = await axios.get('http://localhost:5000/api/barangays');
+      const response = await axios.get(buildApiUrl('/api/barangays'));
       setBarangays(response.data);
     } catch (error) {
       console.error('Error fetching barangays:', error);
@@ -521,7 +522,7 @@ const UsersCollectors = () => {
       };
 
       console.log('Sending truck update request:', updateData);
-      const response = await axios.put(`http://localhost:5000/api/trucks/${editingTruck.truck_id}`, updateData);
+      const response = await axios.put(buildApiUrl(`/api/trucks/${editingTruck.truck_id}`), updateData);
       console.log('Truck update response:', response.data);
 
       setIsEditTruckModalOpen(false);
@@ -538,7 +539,7 @@ const UsersCollectors = () => {
     if (window.confirm('Are you sure you want to delete this truck? This action cannot be undone.')) {
       try {
         console.log('Deleting truck:', truckId);
-        await axios.delete(`http://localhost:5000/api/trucks/${truckId}`);
+        await axios.delete(buildApiUrl(`/api/trucks/${truckId}`));
         await fetchTrucks(); // Refresh the data
       } catch (err) {
         console.error('Error deleting truck:', err);

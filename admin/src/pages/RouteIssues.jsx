@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
+import API_CONFIG, { buildApiUrl } from '../config/api';
 
-const API_BASE_URL = 'http://localhost:5000/api';
+const API_BASE_URL = `${API_CONFIG.BASE_URL}/api`;
 
 export default function RouteIssues() {
   const [loading, setLoading] = useState(true);

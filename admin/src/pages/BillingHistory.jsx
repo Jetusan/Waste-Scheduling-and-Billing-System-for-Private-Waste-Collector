@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import '../styles/BillingHistory.css';
-
-const API_BASE_URL = 'http://localhost:5000/api';
+import API_CONFIG from '../config/api';
 
 const BillingHistory = () => {
   // Data states
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
+  const API_BASE_URL = `${API_CONFIG.BASE_URL}/api`;
   const [error, setError] = useState(null);
 
   // View states

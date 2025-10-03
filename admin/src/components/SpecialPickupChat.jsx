@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import './SpecialPickupChat.css';
+import API_CONFIG from '../config/api';
 
-const API_BASE_URL = 'http://localhost:5000';
+const API_BASE_URL = API_CONFIG.BASE_URL;
 
 const SpecialPickupChat = ({ requestId, requestData, onClose }) => {
   const [messages, setMessages] = useState([]);

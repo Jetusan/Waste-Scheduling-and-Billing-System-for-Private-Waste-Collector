@@ -11,6 +11,10 @@ const API_CONFIG = {
     // Authentication
     AUTH: '/api/auth',
     LOGIN: '/api/auth/login',
+    // Admin Authentication
+    ADMIN_AUTH: '/api/admin/auth',
+    ADMIN_LOGIN: '/api/admin/auth/login',
+    ADMIN_REGISTER: '/api/admin/auth/register',
     REGISTER: '/api/auth/register',
     
     // Dashboard

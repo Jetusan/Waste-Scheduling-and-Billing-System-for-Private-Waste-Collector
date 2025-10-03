@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import '../styles/ALogin.css';
+import API_CONFIG, { buildApiUrl } from '../config/api';
 
-// Admin login API endpoint
-const ADMIN_LOGIN_API = 'http://localhost:5000/api/admin/auth/login';
+// Admin login API endpoint (built from environment-based API config)
+const ADMIN_LOGIN_API = buildApiUrl(API_CONFIG.ENDPOINTS.ADMIN_LOGIN);
 
 
 const ALogin = () => {
