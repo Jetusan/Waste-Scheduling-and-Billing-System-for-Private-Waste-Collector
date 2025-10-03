@@ -125,22 +125,20 @@ const getRejectionEmailTemplate = (firstName, lastName, reason) => {
 };
 
 const sendVerificationEmail = async (email, name, verificationToken) => {
-  // Build verification link using LOCALHOST_URL for local testing
-  const baseUrl = API_CONFIG?.LOCALHOST_URL || 'http://localhost:5000';
+  // Build verification link
+  const baseUrl = process.env.PUBLIC_URL || 'http://localhost:5000';
   const verificationLink = `${baseUrl}/api/verify-email?token=${verificationToken}`;
   
   console.log(`🔗 Generated verification link: ${verificationLink}`);
 
   try {
-    const transporter = nodemailer.createTransport({
-      host: 'smtp-relay.brevo.com',
-      port: 587,
-      secure: false, // true for 465, false for other ports
-      auth: {
-        user: process.env.BREVO_SMTP_USER,
-        pass: process.env.BREVO_SMTP_KEY
-      }
-    });
+    const transporter = createTransporter();
+    
+    // Skip if email service not configured
+    if (!transporter) {
+      console.log('📧 Email service not configured - skipping verification email');
+      return { success: true, skipped: true };
+    }
     const info = await transporter.sendMail({
       from: `"WSBS" <${process.env.BREVO_SENDER_EMAIL}>`,
       to: email,
