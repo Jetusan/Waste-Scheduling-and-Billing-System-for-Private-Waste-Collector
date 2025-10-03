@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import '../styles/UsersCollectors.css';
 import axios from 'axios';
@@ -159,9 +159,9 @@ const UsersCollectors = () => {
     } else {
       fetchData();
     }
-  }, [activeTab, residentView]);
+  }, [activeTab, residentView, fetchData, fetchPendingResidents]);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
@@ -214,7 +214,7 @@ const UsersCollectors = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [activeTab]);
 
   const fetchTrucks = async () => {
     setLoading(true);
@@ -231,7 +231,7 @@ const UsersCollectors = () => {
   };
 
   // Fetch pending residents (admin-only endpoint, include token if present)
-  const fetchPendingResidents = async () => {
+  const fetchPendingResidents = useCallback(async () => {
     setPendingLoading(true);
     setPendingError('');
     try {
@@ -268,7 +268,7 @@ const UsersCollectors = () => {
     } finally {
       setPendingLoading(false);
     }
-  };
+  }, [navigate]);
 
   const approveResident = async (userId) => {
     if (!userId) return;
@@ -311,21 +311,7 @@ const UsersCollectors = () => {
     }
   };
 
-  const handleNameChange = (e) => {
-    const fullName = e.target.value;
-    const nameParts = fullName.split(' ').filter(part => part.trim() !== '');
-    
-    // Handle cases where there might be multiple spaces between names
-    const firstName = nameParts[0] || '';
-    const lastName = nameParts.length > 1 ? nameParts[nameParts.length - 1] : '';
-    
-    setEditingUser({
-      ...editingUser,
-      full_name: fullName,
-      first_name: firstName,
-      last_name: lastName
-    });
-  };
+  
 
   const handleEdit = async (e) => {
     e.preventDefault();

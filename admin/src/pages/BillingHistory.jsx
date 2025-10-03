@@ -13,7 +13,6 @@ const BillingHistory = () => {
   // View states
   const [selectedTransaction, setSelectedTransaction] = useState(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
-  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
 
   // Filter and search states
   const [filters, setFilters] = useState({
@@ -27,7 +26,7 @@ const BillingHistory = () => {
   const [searchTerm, setSearchTerm] = useState('');
 
   // Fetch data from API
-  const fetchBillingHistory = async () => {
+  const fetchBillingHistory = React.useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -50,12 +49,12 @@ const BillingHistory = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [filters]);
 
   // Load data on component mount
   useEffect(() => {
     fetchBillingHistory();
-  }, []);
+  }, [fetchBillingHistory]);
 
   // Get unique collectors
   const uniqueCollectors = [...new Set(transactions.map(t => t.details?.collectorName).filter(Boolean))];

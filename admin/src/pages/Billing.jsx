@@ -8,7 +8,6 @@ const API_BASE_URL = `${API_CONFIG.BASE_URL}/api`;
 const Billing = () => {
   // Data states
   const [subscriptionPlans, setSubscriptionPlans] = useState([]);
-  const [customers, setCustomers] = useState([]);
   const [invoices, setInvoices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -40,14 +39,7 @@ const Billing = () => {
     type: 'all' // 'all', 'monthly', 'yearly', 'custom'
   });
 
-  // Helper functions
-  const formatDate = (date) => date.toISOString().split('T')[0];
-  
-  const addDays = (date, days) => {
-    const result = new Date(date);
-    result.setDate(result.getDate() + days);
-    return result;
-  };
+  // Helper functions (removed unused helpers)
 
   const calculateAging = (dueDate) => {
     const today = new Date();

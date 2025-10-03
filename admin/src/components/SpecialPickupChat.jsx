@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import './SpecialPickupChat.css';
 import API_CONFIG from '../config/api';
 
@@ -17,7 +17,7 @@ const SpecialPickupChat = ({ requestId, requestData, onClose }) => {
 
   useEffect(() => {
     initializeChat();
-  }, []);
+  }, [initializeChat]);
 
   useEffect(() => {
     if (chat) {
@@ -27,7 +27,7 @@ const SpecialPickupChat = ({ requestId, requestData, onClose }) => {
       }, 2000); // Poll for new messages every 2 seconds
       return () => clearInterval(interval);
     }
-  }, [chat]);
+  }, [chat, fetchMessages]);
 
   useEffect(() => {
     scrollToBottom();
@@ -37,7 +37,7 @@ const SpecialPickupChat = ({ requestId, requestData, onClose }) => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  const initializeChat = async () => {
+  const initializeChat = useCallback(async () => {
     try {
       const token = localStorage.getItem('adminToken');
       
@@ -59,9 +59,9 @@ const SpecialPickupChat = ({ requestId, requestData, onClose }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [requestId, fetchMessages]);
 
-  const fetchMessages = async (chatId = chat?.chat_id) => {
+  const fetchMessages = useCallback(async (chatId = chat?.chat_id) => {
     if (!chatId) return;
 
     try {
@@ -91,7 +91,7 @@ const SpecialPickupChat = ({ requestId, requestData, onClose }) => {
     } catch (error) {
       console.error('Error fetching messages:', error);
     }
-  };
+  }, [chat]);
 
   const markAsRead = async (chatId) => {
     try {

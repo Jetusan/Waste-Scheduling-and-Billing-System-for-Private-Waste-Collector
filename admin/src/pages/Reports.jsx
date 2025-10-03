@@ -1,9 +1,8 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import API_CONFIG from '../config/api';
 import '../styles/Reports.css';
 import ReportVisualization from '../components/ReportVisualization';
-import { Line, Bar, Pie } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -85,7 +84,6 @@ const Reports = () => {
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
   const [selectedReport, setSelectedReport] = useState(null);
-  const [exportFormat, setExportFormat] = useState('pdf');
   const [scheduleForm, setScheduleForm] = useState({
     frequency: 'weekly',
     day: 'monday',
@@ -147,8 +145,7 @@ const Reports = () => {
   const [error, setError] = useState(null);
   const [showViewModal, setShowViewModal] = useState(false);
   const [viewReport, setViewReport] = useState(null);
-  const [selectedWeekdays, setSelectedWeekdays] = useState([]);
-  const weekdaysList = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  // Removed unused selectedWeekdays and weekdaysList
 
   // Add new state for report focus, waste type, scheduling, and selected report output
   // Map reportFocus to backend type
@@ -159,13 +156,10 @@ const Reports = () => {
     'billing-payment': 'billing-payment',
     'special-pickup': 'special-pickup',
   };
-  const [wasteType, setWasteType] = useState('');
-  const [scheduleReport, setScheduleReport] = useState(false);
-  const [scheduleFrequency, setScheduleFrequency] = useState('weekly');
+  // Removed unused wasteType, scheduleReport, scheduleFrequency
   const [generatedReportData, setGeneratedReportData] = useState(null);
 
-  const [invoiceStatus, setInvoiceStatus] = useState('all');
-  const [planType, setPlanType] = useState('');
+  // Removed unused invoiceStatus, planType
   const [isGenerating, setIsGenerating] = useState(false);
 
   // Handle form input changes
@@ -410,6 +404,7 @@ const Reports = () => {
       ...prev,
       type: reportFocusToType[reportFocus] || 'regular-pickup',
     }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reportFocus]);
 
   const handleScheduleFormChange = e => {

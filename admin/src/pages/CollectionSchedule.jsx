@@ -4,8 +4,6 @@ import axios from 'axios';
 import SpecialPickup from './SpecialPickup'; // Add this import at the top
 import API_CONFIG, { buildApiUrl } from '../config/api';
 
-const API_URL = `${API_CONFIG.BASE_URL}/api`;
-
 const CollectionSchedule = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -44,7 +42,7 @@ const CollectionSchedule = () => {
   // Helper function to format time to 12-hour format
   const formatTime = (time24) => {
     if (!time24) return '';
-    const [hours, minutes] = time24.split(':');
+    const [hours] = time24.split(':');
     const hour = parseInt(hours);
     const period = hour >= 12 ? 'pm' : 'am';
     const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;

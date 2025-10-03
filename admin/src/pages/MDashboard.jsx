@@ -44,7 +44,7 @@ const Dashboard = () => {
   // Enhanced state for operational insights
   const [activeRoutes, setActiveRoutes] = useState([]);
   const [systemAlerts, setSystemAlerts] = useState([]);
-  const [collectorPerformance, setCollectorPerformance] = useState([]);
+  // Removed unused collectorPerformance state
   const [emergencyRequests, setEmergencyRequests] = useState([]);
   const [truckStatus, setTruckStatus] = useState([]);
   
