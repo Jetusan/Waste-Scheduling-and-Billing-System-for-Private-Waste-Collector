@@ -1,15 +1,36 @@
 services:
+  # Backend API Service
   - type: web
     name: wsbs-backend
     env: node
     rootDir: backend
     buildCommand: "npm install"
-    startCommand: "node index.js"
+    startCommand: "npm start"
+    plan: starter
     envVars:
+      # Application Environment
       - key: NODE_ENV
         value: production
+      - key: PORT
+        value: 10000
+      
+      # Database Configuration (Neon PostgreSQL)
+      - key: DB_HOST
+        sync: false  # Set this to your Neon database host
+      - key: DB_NAME
+        sync: false  # Set this to your Neon database name
+      - key: DB_USER
+        sync: false  # Set this to your Neon database user
+      - key: DB_PASSWORD
+        sync: false  # Set this to your Neon database password
+      - key: DB_PORT
+        value: 5432
+      
+      # JWT Configuration
       - key: JWT_SECRET
         generateValue: true
+      
+      # PayMongo Configuration
       - key: PAYMONGO_PUBLIC_KEY
         sync: false
       - key: PAYMONGO_SECRET_KEY
@@ -18,34 +39,44 @@ services:
         sync: false
       - key: PAYMONGO_MODE
         value: test
-      - key: DB_HOST
-        fromDatabase:
-          name: wsbs-db
-          property: host
-      - key: DB_PORT
-        fromDatabase:
-          name: wsbs-db
-          property: port
-      - key: DB_NAME
-        fromDatabase:
-          name: wsbs-db
-          property: database
-      - key: DB_USER
-        fromDatabase:
-          name: wsbs-db
-          property: user
-      - key: DB_PASSWORD
-        fromDatabase:
-          name: wsbs-db
-          property: password
+      
+      # Email Configuration (if using email services)
+      - key: EMAIL_USER
+        sync: false
+      - key: EMAIL_PASSWORD
+        sync: false
+      - key: EMAIL_SERVICE
+        value: gmail
+      
+      # CORS Configuration
+      - key: FRONTEND_URL
+        value: https://wsbs-admin.onrender.com
+      
+      # File Upload Configuration
+      - key: MAX_FILE_SIZE
+        value: 10485760  # 10MB
+    
+    # Health check endpoint
+    healthCheckPath: /api/health
 
+  # Frontend Admin Dashboard
   - type: web
     name: wsbs-admin
     env: static
     rootDir: admin
     buildCommand: "npm install && npm run build"
     staticPublishPath: build
-
-databases:
-  - name: wsbs-db
-    databaseName: wsbs
+    plan: starter
+    envVars:
+      # Backend API URL
+      - key: REACT_APP_API_URL
+        value: https://wsbs-backend.onrender.com
+      - key: REACT_APP_ENVIRONMENT
+        value: production
+    
+    # Build settings for React
+    buildFilter:
+      paths:
+        - admin/**
+      ignoredPaths:
+        - admin/node_modules/**

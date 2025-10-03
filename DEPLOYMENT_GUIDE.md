@@ -1,271 +1,146 @@
-# Waste Management System# WSBS Deployment Guide
+# WSBS Deployment Guide - Render + Neon
 
-## PayMongo Payment Setup & Configuration
+This guide covers deploying the WSBS (Waste Scheduling and Billing System) to Render with a Neon PostgreSQL database.
 
-### PayMongo Test vs Production
+## Prerequisites
 
-Your system supports both test and production PayMongo modes:
+1. **Render Account**: Sign up at [render.com](https://render.com)
+2. **Neon Account**: Sign up at [neon.tech](https://neon.tech)
+3. **GitHub Repository**: Your code should be in a GitHub repository
 
-**Test Mode (Development/Staging):**
-- Use test API keys: `pk_test_...` and `sk_test_...`
-- Payments are simulated - no real money is charged
-- Perfect for development and testing
+## Step 1: Set up Neon Database
 
-**Production Mode (Live):**
-- Use live API keys: `pk_live_...` and `sk_live_...`
-- Real payments are processed
-- Only use when ready for live transactions
+1. Create a new Neon project
+2. Create a database (e.g., `waste_collection_db`)
+3. Note down your connection details (keep these secure - don't commit to GitHub):
+   - Host: `ep-summer-scene-a1rlu78r-pooler.ap-southeast-1.aws.neon.tech`
+   - Database: `neondb`
+   - Username: `neondb_owner`
+   - Password: `npg_DZf0c3qxWQim`
+   - Port: `5432`
 
-### Getting PayMongo Credentials
+## Step 2: Deploy to Render
 
-1. **Sign up/Login to PayMongo Dashboard:** https://dashboard.paymongo.com
-2. **Get Test Keys (for development):**
-   - Go to Developers → API Keys
-   - Copy your test keys:
-     - `pk_test_...` (Public Key)
-     - `sk_test_...` (Secret Key)
-3. **Set up Webhooks:**
-   - Go to Developers → Webhooks
-   - Create webhook pointing to your backend:
-     - URL: `https://your-backend.onrender.com/api/billing/webhooks/paymongo`
-     - Events: `payment.paid`, `payment.failed`
-   - Copy the webhook secret: `whsec_...`
+### Option A: Using render.yaml (Recommended)
 
-### Environment Configuration
+1. **Connect Repository**:
+   - Go to Render Dashboard
+   - Click "New" → "Blueprint"
+   - Connect your GitHub repository
+   - Render will automatically detect the `render.yaml` file
 
-**Local Development (.env file):**
-```env
-PAYMONGO_SECRET_KEY=sk_test_your_key_here
-PAYMONGO_PUBLIC_KEY=pk_test_your_key_here
-PAYMONGO_WEBHOOK_SECRET=whsec_your_webhook_secret
-PAYMONGO_MODE=test
-PUBLIC_URL=https://your-ngrok-url.ngrok-free.app
-```
+2. **Set Environment Variables**:
+   After deployment starts, you'll need to set these environment variables in the Render dashboard:
 
-**Render Production (Environment Variables):**
-```
-PAYMONGO_SECRET_KEY=sk_test_your_key_here (or sk_live_ for production)
-PAYMONGO_PUBLIC_KEY=pk_test_your_key_here (or pk_live_ for production)
-PAYMONGO_WEBHOOK_SECRET=whsec_your_webhook_secret
-PAYMONGO_MODE=test (or "live" for production)
-PUBLIC_URL=https://wsbs-backend.onrender.com (auto-set by render.yaml)
-```
-
-### Payment Flow
-
-1. **User initiates payment** → Frontend calls `/api/billing/create-payment`
-2. **Backend creates PayMongo payment** → Returns checkout URL
-3. **User completes payment** → PayMongo redirects to success/failure URL
-4. **PayMongo sends webhook** → Backend processes payment confirmation
-5. **Subscription activated** → User gets access
-
-### Testing Payments
-
-**Test Card Numbers (PayMongo Test Mode):**
-- **Success:** `4343434343434345`
-- **Declined:** `4000000000000002`
-- **Insufficient Funds:** `4000000000009995`
-- Use any future expiry date and any 3-digit CVC
-
-**Test Payment Flow:**
-1. Set `PAYMONGO_MODE=test`
-2. Use test API keys
-3. Create subscription in your app
-4. Use test card numbers above
-5. Verify webhook receives payment confirmation
-
----
-
-## 📁 Project Structure
-
-```
-WASTE/
-{{ ... }}
-├── admin/                   # React Admin Panel
-├── backend/                 # Node.js Backend Server
-└── docs/                   # Documentation
-```
-
-## 🚀 Quick Start Guide
-
-### 1. Backend Server (Node.js)
-```bash
-cd backend
-npm install
-node server.js
-```
-- **Port**: 5000
-- **Database**: PostgreSQL (waste_collection_db)
-- **Admin Login**: Use `/api/admin/login` endpoint
-
-### 2. Mobile App (React Native/Expo)
-```bash
-cd WSBS
-npm install
-npx expo start
-```
-- **Development**: Use Expo Go app on mobile
-- **Network**: Update `LOCAL_IP` in `config.js` for your network
-
-### 3. Admin Panel (React)
-```bash
-cd admin
-npm install
-npm start
-```
-- **Port**: 3000
-- **Access**: http://localhost:3000
-- **Login**: Admin credentials from backend
-
-## 🔧 Configuration Files
-
-### Backend Configuration
-- **Database**: `backend/config/db.js`
-- **Environment**: `backend/.env` (create if missing)
-- **Routes**: `backend/app.js`
-
-### Mobile App Configuration
-- **API URLs**: `WSBS/app/config.js`
-- **Update LOCAL_IP**: Change to your computer's IP address
-
-### Admin Panel Configuration
-- **API URLs**: Update in component files (currently localhost:5000)
-
-## 📊 Database Setup
-
-### Required Tables for Chat Feature
-Run this SQL in your PostgreSQL database:
-
-```sql
--- Chat tables
-CREATE TABLE IF NOT EXISTS special_pickup_chats (
-    chat_id SERIAL PRIMARY KEY,
-    request_id INTEGER NOT NULL REFERENCES special_pickup_requests(request_id),
-    status VARCHAR(20) DEFAULT 'active',
-    price_agreed BOOLEAN DEFAULT FALSE,
-    final_agreed_price DECIMAL(10,2),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS special_pickup_chat_messages (
-    message_id SERIAL PRIMARY KEY,
-    chat_id INTEGER NOT NULL REFERENCES special_pickup_chats(chat_id),
-    sender_type VARCHAR(20) NOT NULL,
-    sender_id INTEGER NOT NULL,
-    message_text TEXT NOT NULL,
-    message_type VARCHAR(20) DEFAULT 'text',
-    price_amount DECIMAL(10,2),
-    is_read BOOLEAN DEFAULT FALSE,
-    sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-```
-
-## 🌐 Network Configuration
-
-### For Mobile Development
-1. Find your computer's IP address:
-   - Windows: `ipconfig` (look for IPv4 Address)
-   - Mac/Linux: `ifconfig` (look for inet)
-
-2. Update `WSBS/app/config.js`:
-   ```javascript
-   export const LOCAL_IP = 'YOUR_IP_ADDRESS_HERE';
+   **For wsbs-backend service:**
+   ```
+   DB_HOST=your-neon-host
+   DB_NAME=waste_collection_db
+   DB_USER=your-neon-username
+   DB_PASSWORD=your-neon-password
+   PAYMONGO_PUBLIC_KEY=your-paymongo-public-key
+   PAYMONGO_SECRET_KEY=your-paymongo-secret-key
+   PAYMONGO_WEBHOOK_SECRET=your-paymongo-webhook-secret
+   EMAIL_USER=your-email@gmail.com (if using email features)
+   EMAIL_PASSWORD=your-email-app-password
    ```
 
-3. Ensure all devices are on the same network
+### Option B: Manual Deployment
 
-## 🔑 Authentication Flow
+If you prefer manual setup:
 
-### Mobile App
-- **Login**: `POST /api/auth/login`
-- **Token Storage**: SecureStore (auth.js)
-- **User Types**: resident, collector
+1. **Deploy Backend**:
+   - New → Web Service
+   - Connect repository
+   - Root Directory: `backend`
+   - Build Command: `npm install`
+   - Start Command: `npm start`
+   - Set all environment variables listed above
 
-### Admin Panel
-- **Login**: `POST /api/admin/login`
-- **Token Storage**: sessionStorage
-- **Access**: Admin dashboard at `/admin`
+2. **Deploy Frontend**:
+   - New → Static Site
+   - Connect repository
+   - Root Directory: `admin`
+   - Build Command: `npm install && npm run build`
+   - Publish Directory: `build`
+   - Environment Variables:
+     ```
+     REACT_APP_API_URL=https://your-backend-url.onrender.com
+     REACT_APP_ENVIRONMENT=production
+     ```
 
-## 📱 Features Overview
+## Step 3: Database Setup
 
-### Mobile App Features
-- ✅ User Registration/Login
-- ✅ Special Pickup Requests (with date/time picker)
-- ✅ Chat with Admin/Collectors
-- ✅ Payment Integration (PayMongo)
-- ✅ Collection Schedules
-- ✅ Profile Management
+1. **Run Database Migrations**:
+   Once your backend is deployed, you may need to run the initial database setup:
+   - Use Render's shell feature or connect to your database directly
+   - Run the SQL files in `backend/config/` directory:
+     - `init.sql` (main tables)
+     - `collector_emergency_tables.sql` (emergency features)
+     - `enhanced_missed_collection_schema.sql` (missed collections)
+     - `feedback_table.sql` (feedback system)
 
-### Admin Panel Features
-- ✅ Dashboard with Statistics
-- ✅ Special Pickup Management
-- ✅ Chat System with Residents
-- ✅ User Management
-- ✅ Billing Management
-- ✅ Collection Schedule Management
-- ✅ Reports and Analytics
+## Step 4: Update Service URLs
 
-## 🐛 Common Issues & Solutions
+After deployment, update the following in your Render environment variables:
 
-### 1. Chat Messages Not Sending
-**Problem**: Database tables missing
-**Solution**: Run the chat table creation SQL above
+1. **Backend Service**: Update `FRONTEND_URL` to your actual frontend URL
+2. **Frontend Service**: Update `REACT_APP_API_URL` to your actual backend URL
 
-### 2. Network Request Failed
-**Problem**: Backend server not running or wrong IP
-**Solution**: 
-- Start backend: `cd backend && node server.js`
-- Update LOCAL_IP in mobile config
+## Step 5: Test Deployment
 
-### 3. Admin Chat Page Not Visible
-**Problem**: Route not configured
-**Solution**: ✅ Fixed - Added to Operations menu
+1. **Health Check**: Visit `https://your-backend-url.onrender.com/health`
+2. **Frontend**: Visit your frontend URL
+3. **Database Connection**: Check logs for successful database connection
 
-### 4. Date Picker Errors
-**Problem**: Date objects undefined
-**Solution**: ✅ Fixed - Added null checks and fallbacks
+## Important Notes
 
-## 📂 File Locations
+### Environment Variables Required
 
-### Key Configuration Files
-- **Mobile API Config**: `WSBS/app/config.js`
-- **Backend Routes**: `backend/app.js`
-- **Admin Routes**: `admin/src/App.jsx`
-- **Database Config**: `backend/config/db.js`
+**Backend (wsbs-backend):**
+- `DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_PORT` - Neon database credentials
+- `JWT_SECRET` - Auto-generated by Render
+- `PAYMONGO_*` - PayMongo payment integration
+- `EMAIL_*` - Email service configuration
+- `FRONTEND_URL` - Your frontend URL for CORS
 
-### Chat System Files
-- **Backend Controller**: `backend/controller/chatController.js`
-- **Backend Routes**: `backend/routes/chat.js`
-- **Mobile Component**: `WSBS/app/components/RequestChatSection.jsx`
-- **Admin Component**: `admin/src/components/SpecialPickupChat.jsx`
+**Frontend (wsbs-admin):**
+- `REACT_APP_API_URL` - Your backend URL
+- `REACT_APP_ENVIRONMENT=production`
 
-## 🚀 Production Deployment
+### Security Considerations
 
-### Backend (Node.js)
-- Use PM2 or similar process manager
-- Set up environment variables
-- Configure reverse proxy (nginx)
+1. **Never commit sensitive data** like API keys or database passwords
+2. **Use Render's environment variables** for all sensitive configuration
+3. **Enable HTTPS** (Render provides this automatically)
+4. **Set up proper CORS** origins in your backend configuration
 
-### Admin Panel (React)
-- Build: `npm run build`
-- Deploy to web server (nginx, Apache)
-- Update API URLs for production
+### Troubleshooting
 
-### Mobile App (React Native)
-- Build APK: `expo build:android`
-- Build IPA: `expo build:ios`
-- Update API URLs for production server
+1. **Build Failures**: Check build logs in Render dashboard
+2. **Database Connection Issues**: Verify Neon credentials and whitelist Render IPs
+3. **CORS Errors**: Ensure frontend URL is in backend CORS configuration
+4. **API Errors**: Check backend logs and ensure all environment variables are set
 
-## 📞 Support
+### Monitoring
 
-For issues or questions:
-1. Check this guide first
-2. Verify all services are running
-3. Check network configuration
-4. Review console logs for errors
+- **Health Checks**: Backend includes `/health` endpoint
+- **Logs**: Monitor both services through Render dashboard
+- **Database**: Monitor through Neon dashboard
 
----
+## Post-Deployment
 
-**Last Updated**: September 2025
-**Version**: 1.0.0
+1. **Test all features**: Login, dashboard, billing, scheduling
+2. **Set up monitoring**: Use Render's monitoring features
+3. **Configure backups**: Set up database backups in Neon
+4. **Update documentation**: Update any hardcoded URLs in your documentation
+
+## Support
+
+If you encounter issues:
+1. Check Render build/deploy logs
+2. Check Neon database connectivity
+3. Verify all environment variables are set correctly
+4. Test API endpoints individually
+
+Your WSBS application should now be fully deployed and accessible via your Render URLs!
