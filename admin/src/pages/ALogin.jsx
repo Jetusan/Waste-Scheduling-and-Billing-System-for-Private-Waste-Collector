@@ -42,22 +42,29 @@ const ALogin = () => {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ username: email, password }),
+        // Send both email and username for compatibility
+        body: JSON.stringify({ email, username: email, password }),
       });
 
-      const data = await response.json();
+      let data;
+      try {
+        data = await response.json();
+      } catch (_) {
+        data = {};
+      }
 
-      if (data.success) {
+      if (response.ok && (data.success || data.token)) {
         // Store admin session and token
         sessionStorage.setItem('adminAuth', 'true');
-        sessionStorage.setItem('adminToken', data.token);
+        if (data.token) sessionStorage.setItem('adminToken', data.token);
         // Also store in localStorage for API calls that read from localStorage
-        localStorage.setItem('adminToken', data.token);
+        if (data.token) localStorage.setItem('adminToken', data.token);
         sessionStorage.removeItem('tempAdmin'); // Remove temp flag if exists
         // Redirect to intended page or dashboard
         navigate(redirect || '/admin/dashboard', { replace: true });
       } else {
-        setError(data.message || 'Invalid admin credentials');
+        const serverMsg = data?.message || data?.error || `Login failed (status ${response.status})`;
+        setError(serverMsg);
       }
     } catch (err) {
       console.error('Admin login error:', err);
