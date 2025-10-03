@@ -33,7 +33,5 @@ const createTransporter = () => {
 
 // Export a function that creates transporter when needed
 module.exports = {
-  getTransporter: createTransporter,
-  // For backward compatibility, export null if no credentials
-  transporter: process.env.BREVO_SMTP_USER && process.env.BREVO_SMTP_KEY ? createTransporter() : null
+  getTransporter: createTransporter
 };

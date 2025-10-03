@@ -1,9 +1,17 @@
 const { sendVerificationEmail } = require('./emailService');
-const transporter = require('./mailer');
+const { getTransporter } = require('./mailer');
 
 // Send registration approval notification to user
 const sendRegistrationApprovalEmail = async (userEmail, userName) => {
   try {
+    const transporter = getTransporter();
+    
+    // Skip if email service not configured
+    if (!transporter) {
+      console.log('📧 Email service not configured - skipping approval notification');
+      return { success: true, skipped: true };
+    }
+    
     const info = await transporter.sendMail({
       from: `"WSBS" <${process.env.BREVO_SENDER_EMAIL}>`,
       to: userEmail,
@@ -48,6 +56,14 @@ const sendRegistrationApprovalEmail = async (userEmail, userName) => {
 // Send registration rejection notification to user
 const sendRegistrationRejectionEmail = async (userEmail, userName, reason = '') => {
   try {
+    const transporter = getTransporter();
+    
+    // Skip if email service not configured
+    if (!transporter) {
+      console.log('📧 Email service not configured - skipping rejection notification');
+      return { success: true, skipped: true };
+    }
+    
     const info = await transporter.sendMail({
       from: `"WSBS" <${process.env.BREVO_SENDER_EMAIL}>`,
       to: userEmail,
