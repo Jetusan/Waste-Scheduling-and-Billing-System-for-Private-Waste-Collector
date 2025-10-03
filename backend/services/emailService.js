@@ -4,7 +4,7 @@ const API_CONFIG = require('../config/config');
 
 // Create transporter using Brevo SMTP
 const createTransporter = () => {
-  return nodemailer.createTransport({
+  return nodemailer.createTransporter({
     host: 'smtp-relay.brevo.com',
     port: 587,
     secure: false, // true for 465, false for other ports
