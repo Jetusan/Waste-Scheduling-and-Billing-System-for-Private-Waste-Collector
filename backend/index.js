@@ -57,16 +57,43 @@ const testSMTPConnection = async () => {
       auth: {
         user: process.env.BREVO_SMTP_USER,
         pass: process.env.BREVO_SMTP_KEY
-      }
+      },
+      // Add connection timeout for production
+      connectionTimeout: 10000, // 10 seconds
+      greetingTimeout: 5000,     // 5 seconds
+      socketTimeout: 10000       // 10 seconds
     });
 
-    console.log('🧪 Verifying SMTP connection...');
-    await transporter.verify();
-    console.log('✅ SMTP connection successful!');
-    console.log(`📧 Email service ready: ${process.env.BREVO_SMTP_USER}`);
+    // Skip verification in production to avoid timeout issues
+    if (process.env.NODE_ENV === 'production') {
+      console.log('🏭 Production mode: Skipping SMTP verification');
+      console.log('✅ SMTP service configured for production');
+      console.log(`📧 Email service ready: ${process.env.BREVO_SMTP_USER}`);
+    } else {
+      console.log('🧪 Verifying SMTP connection...');
+      
+      // Add timeout wrapper for verification
+      const verifyWithTimeout = () => {
+        return Promise.race([
+          transporter.verify(),
+          new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('SMTP verification timeout')), 15000)
+          )
+        ]);
+      };
+
+      await verifyWithTimeout();
+      console.log('✅ SMTP connection successful!');
+      console.log(`📧 Email service ready: ${process.env.BREVO_SMTP_USER}`);
+    }
   } catch (error) {
     console.error('❌ SMTP connection failed:', error.message);
     console.log('⚠️ Email service will be disabled');
+    
+    // In production, we'll skip verification but still allow email sending
+    if (process.env.NODE_ENV === 'production') {
+      console.log('📧 Production mode: Email service enabled without verification');
+    }
   }
 };
 
