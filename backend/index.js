@@ -34,12 +34,22 @@ pool.query('SELECT NOW()')
 
 // Test SMTP connection
 const testSMTPConnection = async () => {
+  console.log('🔍 Starting SMTP connection test...');
+  console.log('📧 BREVO_SMTP_USER:', process.env.BREVO_SMTP_USER ? 'SET' : 'NOT SET');
+  console.log('🔑 BREVO_SMTP_KEY:', process.env.BREVO_SMTP_KEY ? 'SET' : 'NOT SET');
+  console.log('📤 BREVO_SENDER_EMAIL:', process.env.BREVO_SENDER_EMAIL ? 'SET' : 'NOT SET');
+  
   if (!process.env.BREVO_SMTP_USER || !process.env.BREVO_SMTP_KEY) {
     console.log('⚠️ SMTP credentials not configured - email service disabled');
+    console.log('Missing variables:', {
+      BREVO_SMTP_USER: !process.env.BREVO_SMTP_USER,
+      BREVO_SMTP_KEY: !process.env.BREVO_SMTP_KEY
+    });
     return;
   }
 
   try {
+    console.log('🔧 Creating SMTP transporter...');
     const transporter = nodemailer.createTransport({
       host: 'smtp-relay.brevo.com',
       port: 587,
@@ -50,6 +60,7 @@ const testSMTPConnection = async () => {
       }
     });
 
+    console.log('🧪 Verifying SMTP connection...');
     await transporter.verify();
     console.log('✅ SMTP connection successful!');
     console.log(`📧 Email service ready: ${process.env.BREVO_SMTP_USER}`);
@@ -59,8 +70,14 @@ const testSMTPConnection = async () => {
   }
 };
 
-// Test SMTP connection
+// Test SMTP connection immediately
 testSMTPConnection();
+
+// Also test SMTP connection after a delay (in case of timing issues)
+setTimeout(() => {
+  console.log('🔄 Running delayed SMTP test...');
+  testSMTPConnection();
+}, 2000);
 
 // Start server with error handling
 const server = app.listen(PORT, '0.0.0.0', () => {
