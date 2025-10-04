@@ -21,8 +21,23 @@ pool.on('error', (err) => {
   console.error('Unexpected error on idle client', err);
 });
 
-// Export both the pool and a query function
+// Enhanced query function that sets search path for Neon
+const query = async (text, params) => {
+  const client = await pool.connect();
+  try {
+    // Set search path to public for Neon compatibility
+    if (process.env.DB_HOST && process.env.DB_HOST.includes('neon.tech')) {
+      await client.query('SET search_path TO public');
+    }
+    const result = await client.query(text, params);
+    return result;
+  } finally {
+    client.release();
+  }
+};
+
+// Export both the pool and enhanced query function
 module.exports = {
   pool,
-  query: (text, params) => pool.query(text, params)
+  query
 };

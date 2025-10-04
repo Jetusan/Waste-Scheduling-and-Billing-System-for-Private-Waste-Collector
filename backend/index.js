@@ -19,6 +19,7 @@ process.on('unhandledRejection', (reason, promise) => {
 const app = require('./app');
 const { pool } = require('./config/db'); // Destructure the pool from exports
 const { initializeWebSocket } = require('./services/websocketService');
+const nodemailer = require('nodemailer');
 
 const PORT = process.env.PORT || config.PORT;
 
@@ -30,6 +31,36 @@ pool.query('SELECT NOW()')
   .catch(err => {
     console.error('❌ Database connection error:', err);
   });
+
+// Test SMTP connection
+const testSMTPConnection = async () => {
+  if (!process.env.BREVO_SMTP_USER || !process.env.BREVO_SMTP_KEY) {
+    console.log('⚠️ SMTP credentials not configured - email service disabled');
+    return;
+  }
+
+  try {
+    const transporter = nodemailer.createTransport({
+      host: 'smtp-relay.brevo.com',
+      port: 587,
+      secure: false,
+      auth: {
+        user: process.env.BREVO_SMTP_USER,
+        pass: process.env.BREVO_SMTP_KEY
+      }
+    });
+
+    await transporter.verify();
+    console.log('✅ SMTP connection successful!');
+    console.log(`📧 Email service ready: ${process.env.BREVO_SMTP_USER}`);
+  } catch (error) {
+    console.error('❌ SMTP connection failed:', error.message);
+    console.log('⚠️ Email service will be disabled');
+  }
+};
+
+// Test SMTP connection
+testSMTPConnection();
 
 // Start server with error handling
 const server = app.listen(PORT, '0.0.0.0', () => {
