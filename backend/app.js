@@ -110,6 +110,7 @@ app.use('/api/collector', collectorRouter);
 app.use('/api/feedback', feedbackRouter);
 app.use('/api/collector/emergency', collectorEmergencyRouter);
 app.use('/api/reports', reportsRouter);
+app.use('/api/webhooks', require('./routes/webhooks'));
 
 // Temporary admin auth route
 app.post('/api/admin/auth/login', async (req, res) => {

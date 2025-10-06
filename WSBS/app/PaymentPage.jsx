@@ -211,11 +211,15 @@ const PaymentPage = ({
     try {
       const response = await fetch(`${API_BASE_URL}/api/billing/create-gcash-source`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'X-Client-Type': 'mobile'  // Identify as mobile client for deep linking
+        },
         body: JSON.stringify({ 
           amount: selectedPlanData.priceValue * 100, // Convert to centavos
           description: `Payment for ${selectedPlanData.name} subscription`,
           isAdmin: false,
+          client_type: 'mobile',  // Also in body for extra detection
           subscription_id: subscriptionResult.subscription.id,
           invoice_id: subscriptionResult.invoice.invoice_id
         })

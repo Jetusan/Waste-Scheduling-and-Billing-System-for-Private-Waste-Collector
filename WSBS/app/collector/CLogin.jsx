@@ -3,10 +3,12 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingVi
 import { useRouter } from 'expo-router';
 import { saveAuth } from '../auth'; // Import the auth utility
 import { API_BASE_URL } from '../config';
+import { Feather } from '@expo/vector-icons';
 
 const CollectorLoginScreen = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
@@ -121,13 +123,21 @@ const CollectorLoginScreen = () => {
         />
 
         <Text style={styles.label}>Password</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Enter your password"
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry
-        />
+        <View style={styles.passwordContainer}>
+          <TextInput
+            style={styles.passwordInput}
+            placeholder="Enter your password"
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry={!showPassword}
+          />
+          <TouchableOpacity 
+            onPress={() => setShowPassword(!showPassword)} 
+            style={styles.showHideButton}
+          >
+            <Feather name={showPassword ? 'eye-off' : 'eye'} size={24} color="#3498db" />
+          </TouchableOpacity>
+        </View>
 
         {/* Forgot Password Link */}
         <TouchableOpacity onPress={() => router.push('/forgotPassword')}>
@@ -230,6 +240,27 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#3498db',
     fontWeight: '600',
+  },
+  passwordContainer: {
+    position: 'relative',
+    justifyContent: 'center',
+  },
+  passwordInput: {
+    height: 50,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    paddingHorizontal: 15,
+    fontSize: 16,
+    paddingRight: 70, // space for the show/hide button
+    marginBottom: 20,
+  },
+  showHideButton: {
+    position: 'absolute',
+    right: 15,
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });
 

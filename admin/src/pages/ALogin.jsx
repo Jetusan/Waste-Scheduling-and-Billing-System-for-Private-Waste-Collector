@@ -10,6 +10,7 @@ const ADMIN_LOGIN_API = buildApiUrl(API_CONFIG.ENDPOINTS.ADMIN_LOGIN);
 const ALogin = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
   const location = useLocation();
@@ -154,13 +155,32 @@ const ALogin = () => {
 
               <div className="form-group">
                 <label>Password</label>
-                <input
-                  type="password"
-                  placeholder="Enter your password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="form-input"
-                />
+                <div className="password-input-container">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    placeholder="Enter your password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="form-input password-input"
+                  />
+                  <button
+                    type="button"
+                    className="password-toggle-btn"
+                    onClick={() => setShowPassword(!showPassword)}
+                  >
+                    {showPassword ? (
+                      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M14.95 14.95C13.525 16.025 11.775 16.6667 10 16.6667C6.325 16.6667 3.10833 14.0917 2.5 10C2.84167 8.66667 3.49167 7.45833 4.38333 6.45833M8.25 4.86667C8.825 4.70833 9.40833 4.625 10 4.625C13.675 4.625 16.8917 7.2 17.5 11.2917C17.3417 11.9583 17.1083 12.5833 16.8167 13.1583M11.7667 11.7667C11.5417 12.0083 11.2667 12.1917 10.9583 12.3C10.65 12.4083 10.3167 12.4417 9.99167 12.3917C9.66667 12.3417 9.35833 12.2083 9.09167 12C8.825 11.7917 8.60833 11.5167 8.46667 11.2C8.325 10.8833 8.26667 10.5417 8.29167 10.2C8.31667 9.85833 8.425 9.53333 8.60833 9.25L11.7667 11.7667ZM7.05833 7.05833L12.9417 12.9417" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                        <path d="M2.5 2.5L17.5 17.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    ) : (
+                      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M10 7.5C8.61929 7.5 7.5 8.61929 7.5 10C7.5 11.3807 8.61929 12.5 10 12.5C11.3807 12.5 12.5 11.3807 12.5 10C12.5 8.61929 11.3807 7.5 10 7.5Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                        <path d="M10 4.625C13.675 4.625 16.8917 7.2 17.5 11.2917C16.8917 15.3833 13.675 17.9583 10 17.9583C6.325 17.9583 3.10833 15.3833 2.5 11.2917C3.10833 7.2 6.325 4.625 10 4.625Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    )}
+                  </button>
+                </div>
               </div>
               
               <button type="submit" className="login-button">

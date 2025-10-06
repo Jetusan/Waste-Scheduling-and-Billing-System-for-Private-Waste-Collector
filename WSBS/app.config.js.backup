@@ -1,0 +1,42 @@
+// Production configuration for WSBS Mobile App
+export default {
+  expo: {
+    name: "WSBS - Waste Management",
+    slug: "wsbs-waste-management",
+    version: "1.0.0",
+    orientation: "portrait",
+    icon: "./assets/images/LOGO.png",
+    userInterfaceStyle: "light",
+    splash: {
+      image: "./assets/images/splash-icon.png",
+      resizeMode: "contain",
+      backgroundColor: "#4CAF50"
+    },
+    assetBundlePatterns: [
+      "**/*"
+    ],
+    ios: {
+      supportsTablet: true,
+      bundleIdentifier: "com.wsbs.wastemanagement"
+    },
+    android: {
+      adaptiveIcon: {
+        foregroundImage: "./assets/images/adaptive-icon.png",
+        backgroundColor: "#4CAF50"
+      },
+      package: "com.anonymous.WSBS",
+      versionCode: 1
+    },
+    web: {
+      favicon: "./assets/images/favicon.png"
+    },
+    extra: {
+      // Production backend URL
+      apiBaseUrl: "https://waste-scheduling-and-billing-system-for.onrender.com",
+      // EAS project configuration
+      eas: {
+        projectId: "ac7dcefc-ef5b-4704-b66e-1f9094f0e759"
+      }
+    }
+  }
+};

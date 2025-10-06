@@ -1,9 +1,16 @@
 import { Text, View, Image, StyleSheet, Pressable, ImageBackground } from "react-native";
 import { globalStyles, colors } from './styles/global';
 import { useRouter } from 'expo-router';
+import { setNotFirstTime } from './auth';
 
 export default function Welcome2() {
   const router = useRouter();
+
+  const handleContinue = async () => {
+    // Mark that user has completed welcome flow
+    await setNotFirstTime();
+    router.push('/role');
+  };
 
   return (
     <View style={styles.container}>
@@ -74,7 +81,7 @@ export default function Welcome2() {
         
         <Pressable 
           style={[styles.navButton, styles.nextButton]}
-          onPress={() => router.push('/role')}
+          onPress={handleContinue}
         >
           <Text style={styles.nextButtonText}>Continue</Text>
         </Pressable>

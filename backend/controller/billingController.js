@@ -694,13 +694,27 @@ const createGcashSource = async (req, res) => {
       });
     }
 
-    // Determine redirect URLs based on isAdmin flag using centralized config
-    const baseSuccessUrl = isAdmin 
-      ? process.env.ADMIN_SUCCESS_URL || config.ADMIN_PAYMENT_REDIRECT.SUCCESS
-      : process.env.FRONTEND_SUCCESS_URL || config.PAYMENT_REDIRECT.SUCCESS;
-    const baseFailedUrl = isAdmin 
-      ? process.env.ADMIN_FAILED_URL || config.ADMIN_PAYMENT_REDIRECT.FAILED
-      : process.env.FRONTEND_FAILED_URL || config.PAYMENT_REDIRECT.FAILED;
+    // Determine redirect URLs based on isAdmin flag and client type
+    // For mobile app, use deep links; for web, use regular URLs
+    const isMobileRequest = req.headers['user-agent']?.includes('Expo') || 
+                           req.headers['x-client-type'] === 'mobile' ||
+                           req.body.client_type === 'mobile';
+    
+    let baseSuccessUrl, baseFailedUrl;
+    
+    if (isMobileRequest && !isAdmin) {
+      // Mobile app deep links
+      baseSuccessUrl = 'wsbs://payment/success';
+      baseFailedUrl = 'wsbs://payment/failed';
+    } else {
+      // Web/Admin URLs
+      baseSuccessUrl = isAdmin 
+        ? process.env.ADMIN_SUCCESS_URL || config.ADMIN_PAYMENT_REDIRECT.SUCCESS
+        : process.env.FRONTEND_SUCCESS_URL || config.PAYMENT_REDIRECT.SUCCESS;
+      baseFailedUrl = isAdmin 
+        ? process.env.ADMIN_FAILED_URL || config.ADMIN_PAYMENT_REDIRECT.FAILED
+        : process.env.FRONTEND_FAILED_URL || config.PAYMENT_REDIRECT.FAILED;
+    }
     
     // Create PayMongo GCash Source first to get the source ID
     const paymongoData = {

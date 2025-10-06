@@ -10,7 +10,7 @@ const createTransporter = () => {
     return null;
   }
 
-  return nodemailer.createTransporter({
+  return nodemailer.createTransport({
     host: 'smtp-relay.brevo.com',
     port: 587,
     secure: false, // true for 465, false for other ports
@@ -125,19 +125,33 @@ const getRejectionEmailTemplate = (firstName, lastName, reason) => {
 };
 
 const sendVerificationEmail = async (email, name, verificationToken) => {
-  // Build verification link
-  const baseUrl = process.env.PUBLIC_URL || 'http://localhost:5000';
-  const verificationLink = `${baseUrl}/api/verify-email?token=${verificationToken}`;
+  // Use URL configuration helper
+  const { buildVerificationLink } = require('../config/urlConfig');
+  const verificationLink = buildVerificationLink(verificationToken);
   
+  // Enhanced production logging
+  console.log('📧 ===== EMAIL VERIFICATION PROCESS START =====');
+  console.log(`🎯 Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`🔗 Generated verification link: ${verificationLink}`);
+  console.log(`📧 Sending verification email to: ${email}`);
+  console.log(`👤 Recipient name: ${name}`);
+  console.log(`🔑 Verification token: ${verificationToken}`);
 
   try {
     const transporter = createTransporter();
     
-    // Skip if email service not configured
+    // Fail properly if email service not configured
     if (!transporter) {
-      console.log('📧 Email service not configured - skipping verification email');
-      return { success: true, skipped: true };
+      console.error('❌ Email service not configured - SMTP credentials missing');
+      console.error('Required environment variables:');
+      console.error('- BREVO_SMTP_USER:', process.env.BREVO_SMTP_USER ? 'SET' : 'MISSING');
+      console.error('- BREVO_SMTP_KEY:', process.env.BREVO_SMTP_KEY ? 'SET' : 'MISSING');
+      console.error('- BREVO_SENDER_EMAIL:', process.env.BREVO_SENDER_EMAIL ? 'SET' : 'MISSING');
+      return { 
+        success: false, 
+        error: 'Email service not configured. Please contact administrator.',
+        missingConfig: true
+      };
     }
     const info = await transporter.sendMail({
       from: `"WSBS" <${process.env.BREVO_SENDER_EMAIL}>`,
@@ -171,11 +185,39 @@ const sendVerificationEmail = async (email, name, verificationToken) => {
       `,
     });
 
-    console.log('✅ Verification email sent:', info.messageId);
-    return { success: true, messageId: info.messageId };
+    // Enhanced production logging for Render deployment
+    console.log('✅ ===== EMAIL VERIFICATION SUCCESS =====');
+    console.log(`🎯 Environment: ${process.env.NODE_ENV || 'development'}`);
+    console.log(`📧 Email delivered to: ${email}`);
+    console.log(`👤 Recipient name: ${name}`);
+    console.log(`📨 Message ID: ${info.messageId}`);
+    console.log(`🔗 Verification link sent: ${verificationLink}`);
+    console.log(`📤 From: "WSBS" <${process.env.BREVO_SENDER_EMAIL}>`);
+    console.log(`📥 Response: ${info.response}`);
+    console.log(`⏰ Sent at: ${new Date().toISOString()}`);
+    console.log('🎉 User should receive email and can click verification link');
+    console.log('📧 ===== EMAIL VERIFICATION COMPLETE =====');
+    
+    return { 
+      success: true, 
+      messageId: info.messageId, 
+      recipient: email,
+      verificationLink: verificationLink,
+      sentAt: new Date().toISOString()
+    };
   } catch (error) {
-    console.error('❌ Failed to send verification email:', error);
-    return { success: false, error: error.message };
+    console.error('❌ Failed to send verification email to:', email);
+    console.error('❌ Error details:', error.message);
+    console.error('❌ Full error:', error);
+    
+    // Check for specific SMTP errors
+    if (error.code === 'EAUTH') {
+      console.error('❌ SMTP Authentication failed - check BREVO credentials');
+    } else if (error.code === 'ECONNECTION') {
+      console.error('❌ SMTP Connection failed - check network/firewall');
+    }
+    
+    return { success: false, error: error.message, recipient: email };
   }
 };
 
@@ -224,13 +266,7 @@ const sendRejectionEmail = async (userEmail, firstName, lastName, reason) => {
     const mailOptions = {
       from: process.env.BREVO_SENDER_EMAIL || process.env.BREVO_SMTP_USER,
       to: userEmail,
-      subject: template.subject,
-      html: template.html
     };
-
-    const result = await transporter.sendMail(mailOptions);
-    console.log('Rejection email sent successfully:', result.messageId);
-    return { success: true, messageId: result.messageId };
   } catch (error) {
     console.error('Error sending rejection email:', error);
     return { success: false, error: error.message };

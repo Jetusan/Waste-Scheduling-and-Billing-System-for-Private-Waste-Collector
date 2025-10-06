@@ -1,23 +1,48 @@
 {
   "expo": {
-    "name": "WSBS",
-    "slug": "WSBS",
-    "version": "1.0.0",
+    "name": "WSBS - Waste Management",
+    "slug": "wsbs-waste-management",
+    "version": "1.0.5",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/LOGO.png",
     "scheme": "wsbs",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
+    "description": "Waste Scheduling and Billing System for Private Waste Collectors",
+    "privacy": "public",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.wsbs.wastemanagement"
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "foregroundImage": "./assets/images/LOGO.png",
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.anonymous.WSBS"
+      "package": "com.anonymous.WSBS",
+      "versionCode": 6,
+      "permissions": [
+        "INTERNET",
+        "ACCESS_NETWORK_STATE",
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE"
+      ],
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "data": [
+            {
+              "scheme": "wsbs"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        }
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -41,6 +66,12 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "ac7dcefc-ef5b-4704-b66e-1f9094f0e759"
+      }
     }
   }
 }

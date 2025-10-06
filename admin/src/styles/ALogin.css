@@ -233,6 +233,42 @@
   color: var(--wsbs-gray-500);
 }
 
+/* ═══ PASSWORD INPUT WITH TOGGLE ═══ */
+.password-input-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.password-input {
+  padding-right: 50px !important; /* Make space for the toggle button */
+}
+
+.password-toggle-btn {
+  position: absolute;
+  right: 12px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 8px;
+  color: var(--wsbs-gray-500);
+  transition: color var(--wsbs-transition-fast);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--wsbs-radius-md);
+}
+
+.password-toggle-btn:hover {
+  color: var(--wsbs-primary);
+  background-color: var(--wsbs-gray-50);
+}
+
+.password-toggle-btn:focus {
+  outline: 2px solid var(--wsbs-primary);
+  outline-offset: 2px;
+}
+
 .login-button {
   display: flex;
   align-items: center;
