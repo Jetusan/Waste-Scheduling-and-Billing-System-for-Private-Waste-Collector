@@ -62,6 +62,36 @@ const validateAndNormalizePhone = (phone) => {
   throw new Error('Please enter a valid Philippine mobile number (09xxxxxxxxx, 639xxxxxxxxx, or +639xxxxxxxxx)');
 };
 
+// Strict YYYY-MM-DD validator to avoid invalid dates like 1989-06-31
+const parseBirthDate = (value) => {
+  if (!value || typeof value !== 'string') {
+    throw new Error('Date of birth is required');
+  }
+
+  const trimmed = value.trim();
+  const match = /^([0-9]{4})-([0-9]{2})-([0-9]{2})$/.exec(trimmed);
+
+  if (!match) {
+    throw new Error('Invalid date of birth format. Use YYYY-MM-DD');
+  }
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+
+  const date = new Date(Date.UTC(year, month - 1, day));
+
+  if (
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() + 1 !== month ||
+    date.getUTCDate() !== day
+  ) {
+    throw new Error('Invalid date of birth. Please select a valid calendar date');
+  }
+
+  return date;
+};
+
 // Helper function to create admin notification
 const createAdminNotification = async (title, message) => {
   try {
@@ -149,34 +179,34 @@ router.post('/register-optimized', upload.single('proofImage'), async (req, res)
     }
 
     // Validate birthdate
-    if (!dateOfBirth) {
+    let birthDate;
+    try {
+      birthDate = parseBirthDate(dateOfBirth);
+    } catch (error) {
       return res.status(400).json({
         success: false,
-        message: 'Date of birth is required'
+        message: error.message
       });
     }
 
     // Validate age (must be 18+)
     const today = new Date();
-    const birthDate = new Date(dateOfBirth);
-    
-    if (isNaN(birthDate.getTime())) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid date of birth format'
-      });
-    }
+    const birthDateLocal = new Date(
+      birthDate.getUTCFullYear(),
+      birthDate.getUTCMonth(),
+      birthDate.getUTCDate()
+    );
 
-    if (birthDate > today) {
+    if (birthDateLocal > today) {
       return res.status(400).json({
         success: false,
         message: 'Date of birth cannot be in the future'
       });
     }
 
-    const age = today.getFullYear() - birthDate.getFullYear();
-    const monthDiff = today.getMonth() - birthDate.getMonth();
-    const dayDiff = today.getDate() - birthDate.getDate();
+    const age = today.getFullYear() - birthDateLocal.getFullYear();
+    const monthDiff = today.getMonth() - birthDateLocal.getMonth();
+    const dayDiff = today.getDate() - birthDateLocal.getDate();
     
     if (age < 18 || (age === 18 && monthDiff < 0) || (age === 18 && monthDiff === 0 && dayDiff < 0)) {
       return res.status(400).json({
@@ -311,7 +341,7 @@ router.post('/register-optimized', upload.single('proofImage'), async (req, res)
       roleId,
       addressId,
       nameId,
-      dateOfBirth,
+      dateOfBirth: birthDate.toISOString().split('T')[0],
       proofImagePath,
       isTempVerified,
       verificationToken: verificationToken || null
@@ -330,7 +360,7 @@ router.post('/register-optimized', upload.single('proofImage'), async (req, res)
       RETURNING user_id, username, email
     `, [
       username.trim(), hashedPassword, normalizedPhone,
-      trimmedEmail, roleId, addressId, nameId, dateOfBirth, proofImagePath,
+      trimmedEmail, roleId, addressId, nameId, birthDate.toISOString().split('T')[0], proofImagePath,
       isTempVerified, // $10 - email_verified
       verificationToken || null // $11 - verification_token (explicitly null if falsy)
     ]);
