@@ -66,12 +66,16 @@ router.get('/verify-email', async (req, res) => {
       try {
         const { pool } = require('../config/db');
         await pool.query(
-          'UPDATE users SET email_verified = true, email_verified_at = NOW() WHERE email = $1',
+          `UPDATE users 
+             SET email_verified = true,
+                 updated_at = CURRENT_TIMESTAMP
+           WHERE email = $1`,
           [emailFound]
         );
         console.log('✅ Database email_verified updated for:', emailFound);
       } catch (dbError) {
         console.error('❌ Failed to update database email_verified:', dbError.message);
+        console.error('ℹ️ Ensure users table has an email_verified column (boolean)');
         // Continue anyway - temporary verification still works
       }
       
