@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -18,9 +18,38 @@ import { API_BASE_URL } from './config';
 const LoginScreen = () => {
   const [username, setUsername] = useState(''); // this uses the email input field
   const [password, setPassword] = useState('');
+  const [maskedPassword, setMaskedPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const router = useRouter();
+
+  // Debug platform and secureTextEntry support
+  useEffect(() => {
+    console.log('🔍 Platform Debug Info:');
+    console.log('Platform.OS:', Platform.OS);
+    console.log('Platform.Version:', Platform.Version);
+    console.log('__DEV__:', __DEV__);
+  }, []);
+
+  // Handle password input with reliable masking for development builds
+  const handlePasswordChange = (text) => {
+    // Handle backspace/deletion
+    if (text.length < maskedPassword.length) {
+      const newPassword = password.slice(0, text.length);
+      setPassword(newPassword);
+      setMaskedPassword('*'.repeat(newPassword.length));
+      return;
+    }
+    
+    // Handle new character input
+    if (text.length > maskedPassword.length) {
+      const newChar = text.slice(-1);
+      const newPassword = password + newChar;
+      setPassword(newPassword);
+      setMaskedPassword('*'.repeat(newPassword.length));
+      return;
+    }
+  };
 
   const handleLogin = async () => {
     console.log('Login button pressed');
@@ -124,24 +153,67 @@ const LoginScreen = () => {
         />
 
         <Text style={styles.label}>Password</Text>
-        <Text style={{fontSize: 12, color: 'red'}}>Debug: showPassword={showPassword.toString()}, secureTextEntry={(!showPassword).toString()}</Text>
+        <Text style={{fontSize: 12, color: 'red'}}>Debug: Platform={Platform.OS}, secureTextEntry=true</Text>
+        
+        {/* Multiple test inputs to debug */}
+        <Text style={{fontSize: 10, color: 'blue'}}>Test 1 - secureTextEntry=true:</Text>
+        <TextInput
+          style={{height: 40, borderWidth: 1, borderColor: 'blue', margin: 5, padding: 10}}
+          placeholder="Test password"
+          secureTextEntry={true}
+        />
+        
+        <Text style={{fontSize: 10, color: 'green'}}>Test 2 - Asterisks:</Text>
+        <TextInput
+          style={{height: 40, borderWidth: 1, borderColor: 'green', margin: 5, padding: 10}}
+          placeholder="Type here"
+          value={'********'}
+          editable={false}
+        />
+        
+        <Text style={{fontSize: 10, color: 'red'}}>Test 3 - Bullets:</Text>
+        <TextInput
+          style={{height: 40, borderWidth: 1, borderColor: 'red', margin: 5, padding: 10}}
+          placeholder="Type here"
+          value={'••••••••'}
+          editable={false}
+        />
+        
+        <Text style={{fontSize: 10, color: 'purple'}}>Test 4 - Circles:</Text>
+        <TextInput
+          style={{height: 40, borderWidth: 1, borderColor: 'purple', margin: 5, padding: 10}}
+          placeholder="Type here"
+          value={'○○○○○○○○'}
+          editable={false}
+        />
+        
         <View style={styles.passwordContainer}>
           <TextInput
-            style={styles.passwordInput}
+            style={[styles.passwordInput, { fontFamily: 'monospace' }]}
             placeholder="Enter your password"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry={!showPassword}
+            value={showPassword ? password : maskedPassword}
+            onChangeText={handlePasswordChange}
+            secureTextEntry={false}
             autoCapitalize="none"
             autoCorrect={false}
+            autoComplete="password"
             textContentType="password"
+            keyboardType="default"
+            maxLength={50}
+            blurOnSubmit={false}
+            {...(Platform.OS === 'android' && {
+              passwordRules: undefined,
+              importantForAutofill: 'no',
+              autoCompleteType: 'password'
+            })}
+            {...(Platform.OS === 'ios' && {
+              textContentType: 'password',
+              passwordRules: 'minlength: 1;'
+            })}
           />
           <TouchableOpacity onPress={() => {
-            console.log('Current showPassword:', showPassword);
-            setShowPassword((prev) => {
-              console.log('Toggling from', prev, 'to', !prev);
-              return !prev;
-            });
+            console.log('👁️ Eye button pressed! Current showPassword:', showPassword);
+            setShowPassword(prev => !prev);
           }} style={styles.showHideButton}>
             <Feather name={showPassword ? 'eye-off' : 'eye'} size={24} color="#3498db" />
           </TouchableOpacity>

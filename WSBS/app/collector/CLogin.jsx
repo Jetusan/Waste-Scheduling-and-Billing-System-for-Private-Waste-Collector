@@ -8,9 +8,30 @@ import { Feather } from '@expo/vector-icons';
 const CollectorLoginScreen = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [maskedPassword, setMaskedPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+
+  // Handle password input with reliable masking for development builds
+  const handlePasswordChange = (text) => {
+    // Handle backspace/deletion
+    if (text.length < maskedPassword.length) {
+      const newPassword = password.slice(0, text.length);
+      setPassword(newPassword);
+      setMaskedPassword('*'.repeat(newPassword.length));
+      return;
+    }
+    
+    // Handle new character input
+    if (text.length > maskedPassword.length) {
+      const newChar = text.slice(-1);
+      const newPassword = password + newChar;
+      setPassword(newPassword);
+      setMaskedPassword('*'.repeat(newPassword.length));
+      return;
+    }
+  };
 
   const handleLogin = async () => {
     console.log('Login button pressed');
@@ -126,22 +147,23 @@ const CollectorLoginScreen = () => {
         <Text style={{fontSize: 12, color: 'red'}}>Debug: showPassword={showPassword.toString()}, secureTextEntry={(!showPassword).toString()}</Text>
         <View style={styles.passwordContainer}>
           <TextInput
+            key={`password-${showPassword}`}
             style={styles.passwordInput}
             placeholder="Enter your password"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry={!showPassword}
+            value={showPassword ? password : maskedPassword}
+            onChangeText={handlePasswordChange}
+            secureTextEntry={false}
             autoCapitalize="none"
             autoCorrect={false}
             textContentType="password"
+            keyboardType="default"
+            maxLength={50}
+            importantForAutofill="no"
           />
           <TouchableOpacity 
             onPress={() => {
               console.log('Collector - Current showPassword:', showPassword);
-              setShowPassword((prev) => {
-                console.log('Collector - Toggling from', prev, 'to', !prev);
-                return !prev;
-              });
+              setShowPassword(prev => !prev);
             }} 
             style={styles.showHideButton}
           >
