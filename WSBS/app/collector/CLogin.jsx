@@ -123,6 +123,7 @@ const CollectorLoginScreen = () => {
         />
 
         <Text style={styles.label}>Password</Text>
+        <Text style={{fontSize: 12, color: 'red'}}>Debug: showPassword={showPassword.toString()}, secureTextEntry={(!showPassword).toString()}</Text>
         <View style={styles.passwordContainer}>
           <TextInput
             style={styles.passwordInput}
@@ -130,9 +131,18 @@ const CollectorLoginScreen = () => {
             value={password}
             onChangeText={setPassword}
             secureTextEntry={!showPassword}
+            autoCapitalize="none"
+            autoCorrect={false}
+            textContentType="password"
           />
           <TouchableOpacity 
-            onPress={() => setShowPassword(!showPassword)} 
+            onPress={() => {
+              console.log('Collector - Current showPassword:', showPassword);
+              setShowPassword((prev) => {
+                console.log('Collector - Toggling from', prev, 'to', !prev);
+                return !prev;
+              });
+            }} 
             style={styles.showHideButton}
           >
             <Feather name={showPassword ? 'eye-off' : 'eye'} size={24} color="#3498db" />

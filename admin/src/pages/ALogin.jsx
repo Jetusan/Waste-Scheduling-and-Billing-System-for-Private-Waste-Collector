@@ -12,6 +12,7 @@ const ALogin = () => {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const params = new URLSearchParams(location.search);
@@ -35,6 +36,9 @@ const ALogin = () => {
 
     // Removed temporary hardcoded credentials check
     // All authentication now goes through the backend API
+
+    setIsLoading(true);
+    setError('');
 
     try {
       // Call backend admin login API
@@ -70,6 +74,8 @@ const ALogin = () => {
     } catch (err) {
       console.error('Admin login error:', err);
       setError('Login failed. Please try again.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -183,11 +189,20 @@ const ALogin = () => {
                 </div>
               </div>
               
-              <button type="submit" className="login-button">
-                Sign In to Dashboard
-                <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M4.16667 10H15.8333M15.8333 10L10.8333 5M15.8333 10L10.8333 15" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
+              <button type="submit" className="login-button" disabled={isLoading}>
+                {isLoading ? (
+                  <>
+                    <div className="loading-spinner"></div>
+                    Signing In...
+                  </>
+                ) : (
+                  <>
+                    Sign In to Dashboard
+                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M4.16667 10H15.8333M15.8333 10L10.8333 5M15.8333 10L10.8333 15" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  </>
+                )}
               </button>
             </form>
 

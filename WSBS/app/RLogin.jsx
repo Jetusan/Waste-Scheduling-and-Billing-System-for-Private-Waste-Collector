@@ -124,6 +124,7 @@ const LoginScreen = () => {
         />
 
         <Text style={styles.label}>Password</Text>
+        <Text style={{fontSize: 12, color: 'red'}}>Debug: showPassword={showPassword.toString()}, secureTextEntry={(!showPassword).toString()}</Text>
         <View style={styles.passwordContainer}>
           <TextInput
             style={styles.passwordInput}
@@ -131,9 +132,17 @@ const LoginScreen = () => {
             value={password}
             onChangeText={setPassword}
             secureTextEntry={!showPassword}
-            type={showPassword ? 'text' : 'password'}
+            autoCapitalize="none"
+            autoCorrect={false}
+            textContentType="password"
           />
-          <TouchableOpacity onPress={() => setShowPassword((prev) => !prev)} style={styles.showHideButton}>
+          <TouchableOpacity onPress={() => {
+            console.log('Current showPassword:', showPassword);
+            setShowPassword((prev) => {
+              console.log('Toggling from', prev, 'to', !prev);
+              return !prev;
+            });
+          }} style={styles.showHideButton}>
             <Feather name={showPassword ? 'eye-off' : 'eye'} size={24} color="#3498db" />
           </TouchableOpacity>
         </View>

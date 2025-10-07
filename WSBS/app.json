@@ -2,6 +2,7 @@
   "expo": {
     "name": "WSBS - Waste Management",
     "slug": "wsbs-waste-management",
+    "owner": "jyttivann",
     "version": "1.0.5",
     "orientation": "portrait",
     "icon": "./assets/images/LOGO.png",
@@ -9,7 +10,6 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "description": "Waste Scheduling and Billing System for Private Waste Collectors",
-    "privacy": "public",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.wsbs.wastemanagement"
@@ -20,7 +20,7 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.anonymous.WSBS",
+      "package": "com.jyttivann.wsbs",
       "versionCode": 6,
       "permissions": [
         "INTERNET",
@@ -70,7 +70,7 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "ac7dcefc-ef5b-4704-b66e-1f9094f0e759"
+        "projectId": "388d0e6f-374b-4983-9255-d6e7d84a68f0"
       }
     }
   }
