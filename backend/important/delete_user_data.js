@@ -5,7 +5,8 @@
  * Safely delete user data to allow re-registration with same email/username
  */
 
-const pool = require('./config/dbAdmin');
+const path = require('path');
+const pool = require(path.resolve(__dirname, '../config/dbAdmin'));
 const readline = require('readline');
 
 const rl = readline.createInterface({

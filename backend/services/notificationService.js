@@ -1,108 +1,82 @@
-const { sendVerificationEmail } = require('./emailService');
-const { getTransporter } = require('./mailer');
+const SibApiV3Sdk = require('sib-api-v3-sdk');
+const path = require('path');
+const fs = require('fs');
+const handlebars = require('handlebars');
+const API_CONFIG = require('../config/config');
 
-// Send registration approval notification to user
-const sendRegistrationApprovalEmail = async (userEmail, userName) => {
+const getTransactionalEmailApi = () => {
+  if (!process.env.BREVO_API_KEY) {
+    console.warn('Brevo API key not configured - notification emails disabled');
+    return null;
+  }
+
+  const defaultClient = SibApiV3Sdk.ApiClient.instance;
+  const apiKey = defaultClient.authentications['api-key'];
+  apiKey.apiKey = process.env.BREVO_API_KEY;
+
+  return new SibApiV3Sdk.TransactionalEmailsApi();
+};
+
+const getSenderDetails = () => {
+  const senderEmail = process.env.BREVO_SENDER_EMAIL || process.env.BREVO_SMTP_USER;
+
+  if (!senderEmail) {
+    console.warn('No Brevo sender email configured. Set BREVO_SENDER_EMAIL in env.');
+  }
+
+  return {
+    name: process.env.BREVO_SENDER_NAME || 'WSBS Notifications',
+    email: senderEmail
+  };
+};
+
+const loadTemplate = (templateName) => {
+  const templatePath = path.join(__dirname, '..', 'templates', `${templateName}.hbs`);
+  const source = fs.readFileSync(templatePath, 'utf8');
+  return handlebars.compile(source);
+};
+
+const sendEmail = async (templateName, subject, to, data) => {
   try {
-    const transporter = getTransporter();
-    
-    // Skip if email service not configured
-    if (!transporter) {
-      console.log('📧 Email service not configured - skipping approval notification');
-      return { success: true, skipped: true };
+    const template = loadTemplate(templateName);
+    const html = template(data);
+    const emailClient = getTransactionalEmailApi();
+
+    if (!emailClient) {
+      return { success: false, error: 'Email service not configured' };
     }
-    
-    const info = await transporter.sendMail({
-      from: `"WSBS" <${process.env.BREVO_SENDER_EMAIL}>`,
-      to: userEmail,
-      subject: "Registration Approved - Welcome to Waste Management System!",
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2 style="color: #4CAF50;">Registration Approved! 🎉</h2>
-          <p>Hello ${userName},</p>
-          <p>Great news! Your registration for the Waste Management System has been approved by our admin team.</p>
-          
-          <div style="background-color: #E8F5E8; padding: 20px; border-radius: 8px; margin: 20px 0;">
-            <h3 style="color: #2E7D32; margin-top: 0;">What's Next?</h3>
-            <ul style="color: #2E7D32;">
-              <li>You can now log in to your account using your credentials</li>
-              <li>Access all waste collection services</li>
-              <li>Schedule special pickups</li>
-              <li>View collection schedules for your area</li>
-              <li>Make payments for services</li>
-            </ul>
-          </div>
-          
-          <div style="margin: 30px 0; text-align: center;">
-            <p style="color: #666;">Ready to get started?</p>
-            <p style="font-size: 18px; font-weight: bold; color: #4CAF50;">Welcome to our community!</p>
-          </div>
-          
-          <p style="color: #7f8c8d; font-size: 12px; margin-top: 30px;">
-            If you have any questions, please contact our support team. Thank you for choosing our Waste Management System.
-          </p>
-        </div>
-      `,
+
+    const sender = getSenderDetails();
+    const toList = Array.isArray(to) ? to.map(email => ({ email })) : [{ email: to }];
+    const response = await emailClient.sendTransacEmail({
+      sender,
+      to: toList,
+      subject,
+      htmlContent: html
     });
 
-    console.log('✅ Registration approval email sent:', info.messageId);
-    return true;
+    console.log(`✅ Email sent: ${subject} to ${to}
+  Message ID: ${response['messageId'] || response.messageId}`);
+    return { success: true, messageId: response['messageId'] || response.messageId };
   } catch (error) {
-    console.error('❌ Failed to send registration approval email:', error);
-    throw error;
+    console.error('Error sending email:', error);
+    return { success: false, error: error.message };
   }
 };
 
-// Send registration rejection notification to user
-const sendRegistrationRejectionEmail = async (userEmail, userName, reason = '') => {
-  try {
-    const transporter = getTransporter();
-    
-    // Skip if email service not configured
-    if (!transporter) {
-      console.log('📧 Email service not configured - skipping rejection notification');
-      return { success: true, skipped: true };
-    }
-    
-    const info = await transporter.sendMail({
-      from: `"WSBS" <${process.env.BREVO_SENDER_EMAIL}>`,
-      to: userEmail,
-      subject: "Registration Update - Waste Management System",
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2 style="color: #E53935;">Registration Update</h2>
-          <p>Hello ${userName},</p>
-          <p>Thank you for your interest in our Waste Management System. After reviewing your registration, we need to inform you of the following:</p>
-          
-          <div style="background-color: #FFEBEE; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #E53935;">
-            <p style="color: #C62828; margin: 0;">
-              Your registration requires additional review or documentation.
-              ${reason ? `<br><br><strong>Reason:</strong> ${reason}` : ''}
-            </p>
-          </div>
-          
-          <div style="margin: 30px 0;">
-            <h3 style="color: #333;">What You Can Do:</h3>
-            <ul style="color: #666;">
-              <li>Contact our support team for clarification</li>
-              <li>Provide additional documentation if requested</li>
-              <li>Resubmit your registration with corrected information</li>
-            </ul>
-          </div>
-          
-          <p style="color: #7f8c8d; font-size: 12px; margin-top: 30px;">
-            We appreciate your understanding. Please contact our support team if you have any questions about this decision.
-          </p>
-        </div>
-      `,
-    });
+const sendRegistrationApprovalEmail = async (email, name) => {
+  return sendEmail('registrationApproval', 'Resident Registration Approved', email, {
+    name,
+    loginUrl: `${API_CONFIG.PUBLIC_URL || 'https://waste-scheduling-and-billing-system-for.onrender.com'}/login`
+  });
+};
 
-    console.log('✅ Registration rejection email sent:', info.messageId);
-    return true;
-  } catch (error) {
-    console.error('❌ Failed to send registration rejection email:', error);
-    throw error;
-  }
+const sendRegistrationRejectionEmail = async (email, name, reason) => {
+  return sendEmail('registrationRejection', 'Resident Registration Requires Updates', email, {
+    name,
+    reason,
+    supportEmail: process.env.SUPPORT_EMAIL || 'support@wsbs.com'
+  });
 };
 
 module.exports = {

@@ -18,7 +18,6 @@ import { API_BASE_URL } from './config';
 const LoginScreen = () => {
   const [username, setUsername] = useState(''); // this uses the email input field
   const [password, setPassword] = useState('');
-  const [maskedPassword, setMaskedPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const router = useRouter();
@@ -31,24 +30,8 @@ const LoginScreen = () => {
     console.log('__DEV__:', __DEV__);
   }, []);
 
-  // Handle password input with reliable masking for development builds
   const handlePasswordChange = (text) => {
-    // Handle backspace/deletion
-    if (text.length < maskedPassword.length) {
-      const newPassword = password.slice(0, text.length);
-      setPassword(newPassword);
-      setMaskedPassword('*'.repeat(newPassword.length));
-      return;
-    }
-    
-    // Handle new character input
-    if (text.length > maskedPassword.length) {
-      const newChar = text.slice(-1);
-      const newPassword = password + newChar;
-      setPassword(newPassword);
-      setMaskedPassword('*'.repeat(newPassword.length));
-      return;
-    }
+    setPassword(text);
   };
 
   const handleLogin = async () => {
@@ -153,47 +136,14 @@ const LoginScreen = () => {
         />
 
         <Text style={styles.label}>Password</Text>
-        <Text style={{fontSize: 12, color: 'red'}}>Debug: Platform={Platform.OS}, secureTextEntry=true</Text>
-        
-        {/* Multiple test inputs to debug */}
-        <Text style={{fontSize: 10, color: 'blue'}}>Test 1 - secureTextEntry=true:</Text>
-        <TextInput
-          style={{height: 40, borderWidth: 1, borderColor: 'blue', margin: 5, padding: 10}}
-          placeholder="Test password"
-          secureTextEntry={true}
-        />
-        
-        <Text style={{fontSize: 10, color: 'green'}}>Test 2 - Asterisks:</Text>
-        <TextInput
-          style={{height: 40, borderWidth: 1, borderColor: 'green', margin: 5, padding: 10}}
-          placeholder="Type here"
-          value={'********'}
-          editable={false}
-        />
-        
-        <Text style={{fontSize: 10, color: 'red'}}>Test 3 - Bullets:</Text>
-        <TextInput
-          style={{height: 40, borderWidth: 1, borderColor: 'red', margin: 5, padding: 10}}
-          placeholder="Type here"
-          value={'••••••••'}
-          editable={false}
-        />
-        
-        <Text style={{fontSize: 10, color: 'purple'}}>Test 4 - Circles:</Text>
-        <TextInput
-          style={{height: 40, borderWidth: 1, borderColor: 'purple', margin: 5, padding: 10}}
-          placeholder="Type here"
-          value={'○○○○○○○○'}
-          editable={false}
-        />
-        
         <View style={styles.passwordContainer}>
           <TextInput
-            style={[styles.passwordInput, { fontFamily: 'monospace' }]}
+            key={`password-${showPassword}`}
+            style={styles.passwordInput}
             placeholder="Enter your password"
-            value={showPassword ? password : maskedPassword}
+            value={password}
             onChangeText={handlePasswordChange}
-            secureTextEntry={false}
+            secureTextEntry={!showPassword}
             autoCapitalize="none"
             autoCorrect={false}
             autoComplete="password"
