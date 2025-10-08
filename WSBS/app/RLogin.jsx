@@ -77,7 +77,7 @@ const LoginScreen = () => {
           const authToken = data.token;
           // Since our API doesn't return role, we'll default to 'resident'
           const userRole = data.user.role || 'resident';
-          await saveAuth(authToken, userRole);
+          await saveAuth(authToken, userRole, data.user.user_id || data.user.id);
           console.log('After saveAuth');
         } catch (e) {
           console.error('Error in saveAuth:', e);

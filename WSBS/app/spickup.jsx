@@ -39,34 +39,56 @@ const SPickup = () => {
   useEffect(() => {
     const fetchUserInfo = async () => {
       try {
-        const userId = await getUserId();
         const token = await getToken();
         
-        if (userId) {
-          setCurrentUserId(userId);
+        if (!token) {
+          Alert.alert('Authentication Error', 'No authentication token found. Please log in again.');
+          return;
         }
 
-        // Get user profile for address prefill
-        if (token) {
-          const response = await fetch(`${API_BASE_URL}/api/auth/profile`, {
-            headers: {
-              'Authorization': `Bearer ${token}`,
-            },
-          });
+        // Always get user info from profile API for most reliable data
+        const response = await fetch(`${API_BASE_URL}/api/auth/profile`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          console.log('Profile API response:', data);
           
-          if (response.ok) {
-            const data = await response.json();
-            if (data.success && data.user) {
-              setUserProfile(data.user);
-              // Pre-fill address if available
-              if (data.user.full_address) {
-                setAddress(data.user.full_address);
-              }
+          if (data.success && data.user) {
+            setUserProfile(data.user);
+            
+            // Set user ID from profile response (most reliable source)
+            const userId = data.user.user_id || data.user.id;
+            if (userId) {
+              console.log('Setting user ID from profile:', userId);
+              setCurrentUserId(userId);
+              
+              // Update storage with correct user ID
+              const { saveAuth, getRole } = require('./auth');
+              const userRole = await getRole() || 'resident';
+              await saveAuth(token, userRole, userId);
+            } else {
+              console.error('No user ID found in profile response');
             }
+            
+            // Pre-fill address if available
+            if (data.user.full_address) {
+              setAddress(data.user.full_address);
+            }
+          } else {
+            console.error('Profile API returned unsuccessful response:', data);
+            Alert.alert('Authentication Error', 'Unable to fetch user profile. Please log in again.');
           }
+        } else {
+          console.error('Profile API request failed:', response.status);
+          Alert.alert('Authentication Error', 'Unable to verify user authentication. Please log in again.');
         }
       } catch (error) {
         console.error('Error fetching user info:', error);
+        Alert.alert('Network Error', 'Unable to connect to server. Please check your internet connection.');
       }
     };
 
@@ -81,7 +103,40 @@ const SPickup = () => {
     }
 
     if (!currentUserId) {
-      Alert.alert('Error', 'User not authenticated. Please log in again.');
+      console.log('No currentUserId available, attempting to fetch...');
+      
+      // Try to get user ID one more time before failing
+      try {
+        const token = await getToken();
+        if (token) {
+          const response = await fetch(`${API_BASE_URL}/api/auth/profile`, {
+            headers: { 'Authorization': `Bearer ${token}` },
+          });
+          if (response.ok) {
+            const data = await response.json();
+            if (data.success && data.user) {
+              const userId = data.user.user_id || data.user.id;
+              if (userId) {
+                setCurrentUserId(userId);
+                console.log('Successfully retrieved user ID:', userId);
+                // Continue with submission by calling handleSubmit again
+                setTimeout(() => handleSubmit(), 100);
+                return;
+              }
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Failed to retrieve user ID:', error);
+      }
+      
+      Alert.alert(
+        'Authentication Error', 
+        'Unable to identify user. Please log out and log back in to fix this issue.',
+        [
+          { text: 'OK', style: 'default' }
+        ]
+      );
       return;
     }
 

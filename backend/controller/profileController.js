@@ -53,6 +53,7 @@ const getOwnProfile = async (req, res) => {
       success: true,
       user: {
         id: user.user_id,
+        user_id: user.user_id,  // Add user_id field for mobile app compatibility
         username: user.username,
         phone: user.contact_number,  // Changed from contact_number to phone to match frontend
         email: user.email,
