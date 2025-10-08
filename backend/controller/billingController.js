@@ -439,19 +439,19 @@ const createMobileSubscription = async (req, res) => {
       });
     }
 
-    // Check if user already has an active subscription (not expired/cancelled)
-    const activeSubscription = await billingModel.getActiveSubscriptionByUserId(user_id);
+    // Check if user already has any subscription (active, suspended, or cancelled)
+    const existingSubscription = await billingModel.getSubscriptionByUserId(user_id);
     let subscription = null;
     
-    if (activeSubscription) {
+    if (existingSubscription && existingSubscription.status === 'active') {
       console.log('⚠️ User already has active subscription, creating new billing cycle');
       // Use existing active subscription for renewal/new billing cycle
-      subscription = activeSubscription;
-    } else {
-      // Check if user has any previous subscription (for reactivation)
-      const existingSubscription = await billingModel.getSubscriptionByUserId(user_id);
-      
-      if (existingSubscription && (existingSubscription.status === 'suspended' || existingSubscription.status === 'cancelled')) {
+      subscription = existingSubscription;
+    } else if (existingSubscription && (existingSubscription.status === 'pending_payment' || existingSubscription.status === 'suspended' || existingSubscription.status === 'cancelled')) {
+      if (existingSubscription.status === 'pending_payment') {
+        console.log('🔄 User has pending payment subscription, reusing it');
+        subscription = existingSubscription;
+      } else {
         console.log('🔄 Checking reactivation type for previous subscription');
         
         // Import enhanced reactivation module
@@ -703,9 +703,9 @@ const createGcashSource = async (req, res) => {
     let baseSuccessUrl, baseFailedUrl;
     
     if (isMobileRequest && !isAdmin) {
-      // Mobile app deep links
-      baseSuccessUrl = 'wsbs://payment/success';
-      baseFailedUrl = 'wsbs://payment/failed';
+      // Mobile app - use HTTP URLs that can redirect to deep links
+      baseSuccessUrl = `${process.env.PUBLIC_URL || config.PUBLIC_URL}/api/billing/mobile-payment-success`;
+      baseFailedUrl = `${process.env.PUBLIC_URL || config.PUBLIC_URL}/api/billing/mobile-payment-failed`;
     } else {
       // Web/Admin URLs
       baseSuccessUrl = isAdmin 

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import DropDownPicker from 'react-native-dropdown-picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator, Alert, Animated, ScrollView, Modal, Image } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { API_BASE_URL } from './config';
 import * as ImagePicker from 'expo-image-picker';
@@ -74,7 +74,6 @@ const RegisterScreen = () => {
   const [subdivisionValue, setSubdivisionValue] = useState(null);
   const [subdivisionItems, setSubdivisionItems] = useState([]);
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const modalAnimation = useRef(new Animated.Value(0)).current;
 
   // Subdivision directory mapping
   const subdivisionDirectory = {
@@ -150,26 +149,14 @@ const RegisterScreen = () => {
     });
   }, [selectedDate]);
 
-  // Animation functions for date picker modal
+  // Simple date picker functions
   const openDatePicker = useCallback(() => {
     setShowDatePicker(true);
-    Animated.spring(modalAnimation, {
-      toValue: 1,
-      tension: 100,
-      friction: 8,
-      useNativeDriver: true,
-    }).start();
-  }, [modalAnimation]);
+  }, []);
 
   const closeDatePicker = useCallback(() => {
-    Animated.timing(modalAnimation, {
-      toValue: 0,
-      duration: 200,
-      useNativeDriver: true,
-    }).start(() => {
-      setShowDatePicker(false);
-    });
-  }, [modalAnimation]);
+    setShowDatePicker(false);
+  }, []);
   
   // Fetch barangays from backend
   useEffect(() => {
@@ -395,10 +382,16 @@ const RegisterScreen = () => {
     setFormData(prev => ({ ...prev, contactNumber: formattedValue }));
   }, []);
 
-  // Handle date selection from DateTimePicker
+  // Simple date handler
   const handleDateSelected = useCallback((event, date) => {
-    // Don't close modal automatically - let user tap Done/Cancel
+    if (Platform.OS === 'android') {
+      setShowDatePicker(false);
+    }
+    
     if (event.type === 'dismissed' || !date) {
+      if (Platform.OS === 'ios') {
+        setShowDatePicker(false);
+      }
       return;
     }
 
@@ -413,6 +406,10 @@ const RegisterScreen = () => {
       birthDay: d,
       dateOfBirth: `${y}-${m}-${d}`
     }));
+
+    if (Platform.OS === 'ios') {
+      setShowDatePicker(false);
+    }
   }, []);
 
   const validateForm = useCallback(() => {
@@ -885,71 +882,26 @@ const RegisterScreen = () => {
         <Text style={styles.helperText}>You must be at least 18 years old to register</Text>
         
         <TouchableOpacity
-          style={styles.singleDateSelector}
+          style={styles.simpleDateSelector}
           onPress={openDatePicker}
-          activeOpacity={0.8}
+          activeOpacity={0.7}
         >
-          <Feather name="calendar" size={18} color="#007BFF" style={styles.dateIcon} />
-          <Text style={formattedDob ? styles.singleDateText : styles.singleDatePlaceholder}>
+          <Feather name="calendar" size={18} color="#007BFF" />
+          <Text style={formattedDob ? styles.simpleDateText : styles.simpleDatePlaceholder}>
             {formattedDob || 'Select your birth date'}
           </Text>
-          <Feather name="chevron-down" size={16} color="#888" />
         </TouchableOpacity>
 
-        {/* Custom Date Picker Modal */}
-        <Modal
-          visible={showDatePicker}
-          transparent={true}
-          animationType="fade"
-          onRequestClose={() => setShowDatePicker(false)}
-        >
-          <TouchableOpacity 
-            style={styles.dateModalOverlay}
-            activeOpacity={1}
-            onPress={closeDatePicker}
-          >
-            <Animated.View 
-              style={[
-                styles.dateModalContent,
-                {
-                  transform: [
-                    { 
-                      scale: modalAnimation.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [0.8, 1],
-                      })
-                    }
-                  ],
-                  opacity: modalAnimation,
-                }
-              ]}
-            >
-              <TouchableOpacity activeOpacity={1} onPress={() => {}}>
-                <View style={styles.dateModalHeader}>
-                  <TouchableOpacity onPress={closeDatePicker}>
-                    <Text style={styles.dateModalCancel}>Cancel</Text>
-                  </TouchableOpacity>
-                  <Text style={styles.dateModalTitle}>Select Birth Date</Text>
-                  <TouchableOpacity onPress={closeDatePicker}>
-                    <Text style={styles.dateModalDone}>Done</Text>
-                  </TouchableOpacity>
-                </View>
-                <View style={styles.datePickerContainer}>
-                  <DateTimePicker
-                    mode="date"
-                    display="spinner"
-                    value={selectedDate || maxDate}
-                    onChange={handleDateSelected}
-                    maximumDate={maxDate}
-                    minimumDate={minDate}
-                    style={styles.datePicker}
-                    textColor="#333"
-                  />
-                </View>
-              </TouchableOpacity>
-            </Animated.View>
-          </TouchableOpacity>
-        </Modal>
+        {showDatePicker && (
+          <DateTimePicker
+            mode="date"
+            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+            value={selectedDate || maxDate}
+            onChange={handleDateSelected}
+            maximumDate={maxDate}
+            minimumDate={minDate}
+          />
+        )}
       </View>
     </>
   );
@@ -1617,83 +1569,25 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#333',
   },
-  singleDateSelector: {
+  simpleDateSelector: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 12,
+    paddingVertical: 15,
     paddingHorizontal: 16,
-    borderRadius: 10,
+    borderRadius: 8,
     backgroundColor: '#fff',
     borderWidth: 1,
-    borderColor: '#ccc',
+    borderColor: '#ddd',
     marginTop: 8,
+    gap: 12,
   },
-  dateIcon: {
-    marginRight: 12,
-  },
-  singleDateText: {
-    fontSize: 15,
+  simpleDateText: {
+    fontSize: 16,
     color: '#333',
-    flex: 1,
   },
-  singleDatePlaceholder: {
-    fontSize: 15,
+  simpleDatePlaceholder: {
+    fontSize: 16,
     color: '#888',
-    flex: 1,
-  },
-  dateModalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-  },
-  dateModalContent: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    width: '100%',
-    maxWidth: 350,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 10,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 20,
-    elevation: 10,
-  },
-  dateModalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
-  },
-  dateModalCancel: {
-    fontSize: 16,
-    color: '#007BFF',
-    fontWeight: '400',
-  },
-  dateModalTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#333',
-  },
-  dateModalDone: {
-    fontSize: 16,
-    color: '#007BFF',
-    fontWeight: '600',
-  },
-  datePickerContainer: {
-    paddingHorizontal: 20,
-    paddingVertical: 20,
-  },
-  datePicker: {
-    height: 200,
-    width: '100%',
   },
   // Email verification styles
   verificationContainer: {

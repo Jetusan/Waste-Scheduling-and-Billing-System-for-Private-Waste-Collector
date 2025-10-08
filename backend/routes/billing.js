@@ -8,6 +8,56 @@ const { pool } = require('../config/db');
 // GCash payment integration routes
 router.post('/create-gcash-source', billingController.createGcashSource);
 
+// Mobile payment redirect routes (for PayMongo callbacks to mobile app)
+router.get('/mobile-payment-success', async (req, res) => {
+  console.log('📱 Mobile payment success redirect:', req.query);
+  
+  // Extract parameters
+  const sourceId = req.query.id || req.query.source || req.query.source_id || req.query.sourceId;
+  const subscriptionId = req.query.subscription_id || req.query.subscriptionId;
+  
+  try {
+    // Process the payment success (similar to web success handler)
+    if (sourceId) {
+      // Update payment status in database
+      const updateQuery = `
+        UPDATE payment_sources 
+        SET status = 'chargeable', updated_at = NOW() 
+        WHERE source_id = $1
+        RETURNING *;
+      `;
+      await pool.query(updateQuery, [sourceId]);
+      
+      // Activate subscription if needed
+      if (subscriptionId) {
+        const activateQuery = `
+          UPDATE customer_subscriptions 
+          SET status = 'active', payment_status = 'paid', updated_at = NOW()
+          WHERE subscription_id = $1;
+        `;
+        await pool.query(activateQuery, [subscriptionId]);
+      }
+    }
+    
+    // Redirect to mobile app with success deep link
+    const deepLink = `wsbs://payment/success?source_id=${sourceId}&subscription_id=${subscriptionId}&status=success`;
+    res.redirect(deepLink);
+    
+  } catch (error) {
+    console.error('❌ Mobile payment success error:', error);
+    const errorDeepLink = `wsbs://payment/failed?error=processing_error`;
+    res.redirect(errorDeepLink);
+  }
+});
+
+router.get('/mobile-payment-failed', async (req, res) => {
+  console.log('📱 Mobile payment failed redirect:', req.query);
+  
+  const subscriptionId = req.query.subscription_id || req.query.subscriptionId;
+  const errorDeepLink = `wsbs://payment/failed?subscription_id=${subscriptionId}&status=failed`;
+  res.redirect(errorDeepLink);
+});
+
 // Payment redirect routes (for PayMongo callbacks)
 router.get('/payment-redirect/success', async (req, res) => {
   console.log('✅ Payment success redirect:', req.query);
