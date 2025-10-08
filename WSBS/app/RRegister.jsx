@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import DropDownPicker from 'react-native-dropdown-picker';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator, Alert, Animated, ScrollView, Modal, Image } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
@@ -72,10 +73,8 @@ const RegisterScreen = () => {
   const [subdivisionOpen, setSubdivisionOpen] = useState(false);
   const [subdivisionValue, setSubdivisionValue] = useState(null);
   const [subdivisionItems, setSubdivisionItems] = useState([]);
-  // Date selection state
-  const [showMonthPicker, setShowMonthPicker] = useState(false);
-  const [showDayPicker, setShowDayPicker] = useState(false);
-  const [showYearPicker, setShowYearPicker] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const modalAnimation = useRef(new Animated.Value(0)).current;
 
   // Subdivision directory mapping
   const subdivisionDirectory = {
@@ -95,21 +94,7 @@ const RegisterScreen = () => {
     "Apopong": ["Rosewood Subdivision", "Yanson Village", "Loveland Subdivision"]
   };
   
-  // Generate date options
-  const monthItems = [
-    { label: 'January', value: '01' },
-    { label: 'February', value: '02' },
-    { label: 'March', value: '03' },
-    { label: 'April', value: '04' },
-    { label: 'May', value: '05' },
-    { label: 'June', value: '06' },
-    { label: 'July', value: '07' },
-    { label: 'August', value: '08' },
-    { label: 'September', value: '09' },
-    { label: 'October', value: '10' },
-    { label: 'November', value: '11' },
-    { label: 'December', value: '12' }
-  ];
+  // Date picker configuration
 
   // Add new state variables for the address fields
   const [blockOpen, setBlockOpen] = useState(false);
@@ -142,19 +127,49 @@ const RegisterScreen = () => {
     { label: 'Lot 10', value: 'Lot 10' },
   ]);
   
-  // Generate days 1-31
-  const dayItems = Array.from({ length: 31 }, (_, i) => ({
-    label: String(i + 1),
-    value: String(i + 1).padStart(2, '0')
-  }));
-  
-  // Generate years from 1950 to current year - 18 (for 18+ validation)
   const currentYear = new Date().getFullYear();
   const maxYear = currentYear - 18;
-  const yearItems = Array.from({ length: maxYear - 1949 }, (_, i) => ({
-    label: String(maxYear - i),
-    value: String(maxYear - i)
-  }));
+  const minDate = useMemo(() => new Date(1950, 0, 1), []);
+  const maxDate = useMemo(() => new Date(maxYear, 11, 31), [maxYear]);
+  
+  const selectedDate = useMemo(() => {
+    if (!formData.dateOfBirth) return null;
+    const parts = formData.dateOfBirth.split('-');
+    if (parts.length !== 3) return null;
+    const [year, month, day] = parts.map(Number);
+    if (!year || !month || !day) return null;
+    return new Date(year, month - 1, day);
+  }, [formData.dateOfBirth]);
+
+  const formattedDob = useMemo(() => {
+    if (!selectedDate) return '';
+    return selectedDate.toLocaleDateString(undefined, {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+  }, [selectedDate]);
+
+  // Animation functions for date picker modal
+  const openDatePicker = useCallback(() => {
+    setShowDatePicker(true);
+    Animated.spring(modalAnimation, {
+      toValue: 1,
+      tension: 100,
+      friction: 8,
+      useNativeDriver: true,
+    }).start();
+  }, [modalAnimation]);
+
+  const closeDatePicker = useCallback(() => {
+    Animated.timing(modalAnimation, {
+      toValue: 0,
+      duration: 200,
+      useNativeDriver: true,
+    }).start(() => {
+      setShowDatePicker(false);
+    });
+  }, [modalAnimation]);
   
   // Fetch barangays from backend
   useEffect(() => {
@@ -380,26 +395,24 @@ const RegisterScreen = () => {
     setFormData(prev => ({ ...prev, contactNumber: formattedValue }));
   }, []);
 
-  // Handle birth date dropdown changes
-  const handleBirthDateChange = useCallback((field, value) => {
-    setFormData(prev => {
-      const newData = { ...prev, [field]: value };
-      
-      // Update dateOfBirth when any component changes
-      if (field === 'birthMonth' || field === 'birthDay' || field === 'birthYear') {
-        const month = field === 'birthMonth' ? value : newData.birthMonth;
-        const day = field === 'birthDay' ? value : newData.birthDay;
-        const year = field === 'birthYear' ? value : newData.birthYear;
-        
-        if (month && day && year) {
-          newData.dateOfBirth = `${year}-${month}-${day}`;
-        } else {
-          newData.dateOfBirth = '';
-        }
-      }
-      
-      return newData;
-    });
+  // Handle date selection from DateTimePicker
+  const handleDateSelected = useCallback((event, date) => {
+    // Don't close modal automatically - let user tap Done/Cancel
+    if (event.type === 'dismissed' || !date) {
+      return;
+    }
+
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+
+    setFormData(prev => ({
+      ...prev,
+      birthYear: String(y),
+      birthMonth: m,
+      birthDay: d,
+      dateOfBirth: `${y}-${m}-${d}`
+    }));
   }, []);
 
   const validateForm = useCallback(() => {
@@ -871,175 +884,71 @@ const RegisterScreen = () => {
         <Text style={styles.label}>Date of Birth *</Text>
         <Text style={styles.helperText}>You must be at least 18 years old to register</Text>
         
-        <View style={styles.dateRowContainer}>
-          {/* Month Selector */}
-          <View style={styles.dateDropdownContainer}>
-            <Text style={styles.dateLabel}>Month</Text>
-            <TouchableOpacity
-              style={styles.dateSelector}
-              onPress={() => setShowMonthPicker(true)}
-            >
-              <Text style={formData.birthMonth ? styles.dateSelectorText : styles.dateSelectorPlaceholder}>
-                {formData.birthMonth ? monthItems.find(m => m.value === formData.birthMonth)?.label : 'Select Month'}
-              </Text>
-              <Feather name="chevron-down" size={16} color="#888" />
-            </TouchableOpacity>
-          </View>
-
-          {/* Day Selector */}
-          <View style={styles.dateDropdownContainer}>
-            <Text style={styles.dateLabel}>Day</Text>
-            <TouchableOpacity
-              style={styles.dateSelector}
-              onPress={() => setShowDayPicker(true)}
-            >
-              <Text style={formData.birthDay ? styles.dateSelectorText : styles.dateSelectorPlaceholder}>
-                {formData.birthDay || 'Day'}
-              </Text>
-              <Feather name="chevron-down" size={16} color="#888" />
-            </TouchableOpacity>
-          </View>
-
-          {/* Year Selector */}
-          <View style={styles.dateDropdownContainer}>
-            <Text style={styles.dateLabel}>Year</Text>
-            <TouchableOpacity
-              style={styles.dateSelector}
-              onPress={() => setShowYearPicker(true)}
-            >
-              <Text style={formData.birthYear ? styles.dateSelectorText : styles.dateSelectorPlaceholder}>
-                {formData.birthYear || 'Year'}
-              </Text>
-              <Feather name="chevron-down" size={16} color="#888" />
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Month Picker Modal */}
-        <Modal
-          visible={showMonthPicker}
-          transparent={true}
-          animationType="slide"
-          onRequestClose={() => setShowMonthPicker(false)}
+        <TouchableOpacity
+          style={styles.singleDateSelector}
+          onPress={openDatePicker}
+          activeOpacity={0.8}
         >
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Select Month</Text>
-                <TouchableOpacity onPress={() => setShowMonthPicker(false)}>
-                  <Feather name="x" size={24} color="#333" />
-                </TouchableOpacity>
-              </View>
-              <ScrollView style={styles.modalScroll}>
-                {monthItems.map((month) => (
-                  <TouchableOpacity
-                    key={month.value}
-                    style={[
-                      styles.modalOption,
-                      formData.birthMonth === month.value && styles.modalOptionSelected
-                    ]}
-                    onPress={() => {
-                      handleBirthDateChange('birthMonth', month.value);
-                      setShowMonthPicker(false);
-                    }}
-                  >
-                    <Text style={[
-                      styles.modalOptionText,
-                      formData.birthMonth === month.value && styles.modalOptionTextSelected
-                    ]}>
-                      {month.label}
-                    </Text>
+          <Feather name="calendar" size={18} color="#007BFF" style={styles.dateIcon} />
+          <Text style={formattedDob ? styles.singleDateText : styles.singleDatePlaceholder}>
+            {formattedDob || 'Select your birth date'}
+          </Text>
+          <Feather name="chevron-down" size={16} color="#888" />
+        </TouchableOpacity>
+
+        {/* Custom Date Picker Modal */}
+        <Modal
+          visible={showDatePicker}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={() => setShowDatePicker(false)}
+        >
+          <TouchableOpacity 
+            style={styles.dateModalOverlay}
+            activeOpacity={1}
+            onPress={closeDatePicker}
+          >
+            <Animated.View 
+              style={[
+                styles.dateModalContent,
+                {
+                  transform: [
+                    { 
+                      scale: modalAnimation.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0.8, 1],
+                      })
+                    }
+                  ],
+                  opacity: modalAnimation,
+                }
+              ]}
+            >
+              <TouchableOpacity activeOpacity={1} onPress={() => {}}>
+                <View style={styles.dateModalHeader}>
+                  <TouchableOpacity onPress={closeDatePicker}>
+                    <Text style={styles.dateModalCancel}>Cancel</Text>
                   </TouchableOpacity>
-                ))}
-              </ScrollView>
-            </View>
-          </View>
-        </Modal>
-
-        {/* Day Picker Modal */}
-        <Modal
-          visible={showDayPicker}
-          transparent={true}
-          animationType="slide"
-          onRequestClose={() => setShowDayPicker(false)}
-        >
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Select Day</Text>
-                <TouchableOpacity onPress={() => setShowDayPicker(false)}>
-                  <Feather name="x" size={24} color="#333" />
-                </TouchableOpacity>
-              </View>
-              <ScrollView style={styles.modalScroll}>
-                <View style={styles.dayGrid}>
-                  {dayItems.map((day) => (
-                    <TouchableOpacity
-                      key={day.value}
-                      style={[
-                        styles.dayGridItem,
-                        formData.birthDay === day.value && styles.dayGridItemSelected
-                      ]}
-                      onPress={() => {
-                        handleBirthDateChange('birthDay', day.value);
-                        setShowDayPicker(false);
-                      }}
-                    >
-                      <Text style={[
-                        styles.dayGridText,
-                        formData.birthDay === day.value && styles.dayGridTextSelected
-                      ]}>
-                        {day.label}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
+                  <Text style={styles.dateModalTitle}>Select Birth Date</Text>
+                  <TouchableOpacity onPress={closeDatePicker}>
+                    <Text style={styles.dateModalDone}>Done</Text>
+                  </TouchableOpacity>
                 </View>
-              </ScrollView>
-            </View>
-          </View>
-        </Modal>
-
-        {/* Year Picker Modal */}
-        <Modal
-          visible={showYearPicker}
-          transparent={true}
-          animationType="slide"
-          onRequestClose={() => setShowYearPicker(false)}
-        >
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Select Year</Text>
-                <TouchableOpacity onPress={() => setShowYearPicker(false)}>
-                  <Feather name="x" size={24} color="#333" />
-                </TouchableOpacity>
-              </View>
-              <ScrollView style={styles.modalScroll}>
-                <View style={styles.yearGrid}>
-                  {yearItems.map((year) => (
-                    <TouchableOpacity
-                      key={year.value}
-                      style={[
-                        styles.yearGridItem,
-                        formData.birthYear === year.value && styles.yearGridItemSelected
-                      ]}
-                      onPress={() => {
-                        handleBirthDateChange('birthYear', year.value);
-                        setShowYearPicker(false);
-                      }}
-                    >
-                      <Text style={[
-                        styles.yearGridText,
-                        formData.birthYear === year.value && styles.yearGridTextSelected
-                      ]}>
-                        {year.label}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
+                <View style={styles.datePickerContainer}>
+                  <DateTimePicker
+                    mode="date"
+                    display="spinner"
+                    value={selectedDate || maxDate}
+                    onChange={handleDateSelected}
+                    maximumDate={maxDate}
+                    minimumDate={minDate}
+                    style={styles.datePicker}
+                    textColor="#333"
+                  />
                 </View>
-              </ScrollView>
-            </View>
-          </View>
+              </TouchableOpacity>
+            </Animated.View>
+          </TouchableOpacity>
         </Modal>
       </View>
     </>
@@ -1708,141 +1617,83 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#333',
   },
-  dateRowContainer: {
+  singleDateSelector: {
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#ccc',
     marginTop: 8,
   },
-  dateDropdownContainer: {
-    flex: 1,
-    marginHorizontal: 4,
+  dateIcon: {
+    marginRight: 12,
   },
-  dateLabel: {
-    fontSize: 12,
-    color: '#666',
-    marginBottom: 4,
-    textAlign: 'center',
-    fontWeight: '500',
-  },
-  dateSelector: {
-    borderColor: '#ddd',
-    borderWidth: 1,
-    borderRadius: 8,
-    backgroundColor: '#fff',
-    minHeight: 50,
-    paddingHorizontal: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  dateSelectorText: {
-    fontSize: 14,
+  singleDateText: {
+    fontSize: 15,
     color: '#333',
-  },
-  dateSelectorPlaceholder: {
-    fontSize: 14,
-    color: '#888',
-  },
-  modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  singleDatePlaceholder: {
+    fontSize: 15,
+    color: '#888',
+    flex: 1,
+  },
+  dateModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
     justifyContent: 'center',
     alignItems: 'center',
+    paddingHorizontal: 20,
   },
-  modalContent: {
+  dateModalContent: {
     backgroundColor: '#fff',
-    borderRadius: 12,
-    width: '85%',
-    maxHeight: '70%',
-    paddingVertical: 20,
+    borderRadius: 16,
+    width: '100%',
+    maxWidth: 350,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 10,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    elevation: 10,
   },
-  modalHeader: {
+  dateModalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingBottom: 15,
+    paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+    borderBottomColor: '#e0e0e0',
   },
-  modalTitle: {
+  dateModalCancel: {
+    fontSize: 16,
+    color: '#007BFF',
+    fontWeight: '400',
+  },
+  dateModalTitle: {
     fontSize: 18,
     fontWeight: '600',
     color: '#333',
   },
-  modalScroll: {
-    maxHeight: 400,
+  dateModalDone: {
+    fontSize: 16,
+    color: '#007BFF',
+    fontWeight: '600',
   },
-  modalOption: {
-    paddingVertical: 15,
+  datePickerContainer: {
     paddingHorizontal: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    paddingVertical: 20,
   },
-  modalOptionSelected: {
-    backgroundColor: '#3498db',
-  },
-  modalOptionText: {
-    fontSize: 16,
-    color: '#333',
-  },
-  modalOptionTextSelected: {
-    color: '#fff',
-    fontWeight: '600',
-  },
-  dayGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    paddingHorizontal: 10,
-  },
-  dayGridItem: {
-    width: '14.28%',
-    aspectRatio: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    margin: 2,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#ddd',
-  },
-  dayGridItemSelected: {
-    backgroundColor: '#3498db',
-    borderColor: '#3498db',
-  },
-  dayGridText: {
-    fontSize: 16,
-    color: '#333',
-  },
-  dayGridTextSelected: {
-    color: '#fff',
-    fontWeight: '600',
-  },
-  yearGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    paddingHorizontal: 10,
-  },
-  yearGridItem: {
-    width: '25%',
-    aspectRatio: 2,
-    justifyContent: 'center',
-    alignItems: 'center',
-    margin: 2,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#ddd',
-  },
-  yearGridItemSelected: {
-    backgroundColor: '#3498db',
-    borderColor: '#3498db',
-  },
-  yearGridText: {
-    fontSize: 14,
-    color: '#333',
-  },
-  yearGridTextSelected: {
-    color: '#fff',
-    fontWeight: '600',
+  datePicker: {
+    height: 200,
+    width: '100%',
   },
   // Email verification styles
   verificationContainer: {
