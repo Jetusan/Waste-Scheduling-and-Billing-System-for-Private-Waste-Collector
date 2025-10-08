@@ -5,6 +5,27 @@ const createRequest = async (req, res) => {
   try {
     const data = req.body;
     
+    // Verify user authentication (req.user is set by authenticateJWT middleware)
+    if (!req.user || !req.user.userId) {
+      return res.status(401).json({ 
+        error: 'Authentication required', 
+        message: 'User not authenticated. Please log in again.' 
+      });
+    }
+    
+    // Ensure user_id matches authenticated user
+    if (data.user_id && parseInt(data.user_id) !== req.user.userId) {
+      return res.status(403).json({ 
+        error: 'Forbidden', 
+        message: 'Cannot create request for another user.' 
+      });
+    }
+    
+    // Set user_id from authenticated user if not provided
+    if (!data.user_id) {
+      data.user_id = req.user.userId;
+    }
+    
     // Handle uploaded image
     if (req.file) {
       // Store the relative path to the uploaded file
@@ -14,6 +35,7 @@ const createRequest = async (req, res) => {
     const newRequest = await specialPickupModel.createSpecialPickupRequest(data);
     res.status(201).json(newRequest);
   } catch (err) {
+    console.error('Error creating special pickup request:', err);
     res.status(500).json({ error: 'Failed to create special pickup request', details: err.message });
   }
 };
@@ -33,9 +55,27 @@ const getAllRequests = async (req, res) => {
 const getRequestsByUser = async (req, res) => {
   try {
     const { user_id } = req.params;
+    
+    // Verify user authentication
+    if (!req.user || !req.user.userId) {
+      return res.status(401).json({ 
+        error: 'Authentication required', 
+        message: 'User not authenticated. Please log in again.' 
+      });
+    }
+    
+    // Ensure user can only access their own requests
+    if (parseInt(user_id) !== req.user.userId) {
+      return res.status(403).json({ 
+        error: 'Forbidden', 
+        message: 'Cannot access another user\'s requests.' 
+      });
+    }
+    
     const requests = await specialPickupModel.getSpecialPickupRequestsByUser(user_id);
     res.json(requests);
   } catch (err) {
+    console.error('Error fetching user special pickup requests:', err);
     res.status(500).json({ error: 'Failed to fetch user special pickup requests', details: err.message });
   }
 };
