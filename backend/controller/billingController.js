@@ -486,7 +486,8 @@ const createMobileSubscription = async (req, res) => {
             notes: 'Standard subscription reactivation'
           });
         }
-      } else {
+      }
+    } else {
       // Get the single ₱199 plan (Full Plan)
       const plans = await billingModel.getAllSubscriptionPlans();
       const plan = plans.find(p => p.price == 199);
@@ -507,7 +508,6 @@ const createMobileSubscription = async (req, res) => {
       };
 
         subscription = await billingModel.createCustomerSubscription(subscriptionData);
-      }
     }
 
     // Get plan details for invoice generation
