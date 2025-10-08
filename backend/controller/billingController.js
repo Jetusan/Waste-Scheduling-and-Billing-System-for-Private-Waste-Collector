@@ -609,7 +609,7 @@ const createMobileSubscription = async (req, res) => {
       success: true,
       message: subscription.reactivated_at ? 
         'Subscription reactivated successfully' :
-        activeSubscription ? 
+        existingSubscription && existingSubscription.status === 'active' ? 
           'New billing cycle created for existing subscription' : 
           'Subscription created successfully',
       subscription: {
