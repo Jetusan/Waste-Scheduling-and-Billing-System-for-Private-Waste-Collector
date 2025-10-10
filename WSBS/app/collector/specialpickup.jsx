@@ -48,6 +48,7 @@ const SpecialPickup = () => {
     setRefreshing(false);
   }, [loadRequests]);
 
+
   const markAsCollected = async (requestId) => {
     Alert.alert(
       'Confirm Collection',
@@ -149,6 +150,34 @@ const SpecialPickup = () => {
                   <MaterialIcons name="delete" size={24} color="#FF9800" />
                   <Text style={styles.detailText}>{req.waste_type} - {req.description}</Text>
                 </View>
+                
+                {/* Price Information */}
+                {req.final_price ? (
+                  <View style={styles.detailItem}>
+                    <MaterialIcons name="attach-money" size={24} color="#4CAF50" />
+                    <Text style={[styles.detailText, styles.priceText]}>
+                      Amount: ₱{parseFloat(req.final_price).toFixed(2)}
+                    </Text>
+                  </View>
+                ) : (
+                  <View style={styles.detailItem}>
+                    <MaterialIcons name="attach-money" size={24} color="#FF9800" />
+                    <Text style={[styles.detailText, styles.pendingPriceText]}>
+                      Price: Pending Admin Approval
+                    </Text>
+                  </View>
+                )}
+                
+                {/* Price Status */}
+                {req.price_status && (
+                  <View style={styles.detailItem}>
+                    <MaterialIcons name="info" size={24} color="#2196F3" />
+                    <Text style={styles.detailText}>
+                      Price Status: {req.price_status.charAt(0).toUpperCase() + req.price_status.slice(1)}
+                    </Text>
+                  </View>
+                )}
+                
                 {req.notes ? (
                   <View style={styles.detailItem}>
                     <MaterialIcons name="note" size={24} color="#9C27B0" />
@@ -281,6 +310,15 @@ const styles = StyleSheet.create({
   },
   inputPlaceholder: {
     color: '#999',
+  },
+  priceText: {
+    fontWeight: 'bold',
+    color: '#4CAF50',
+    fontSize: 16,
+  },
+  pendingPriceText: {
+    fontStyle: 'italic',
+    color: '#FF9800',
   },
   emptyState: {
     flex: 1,
