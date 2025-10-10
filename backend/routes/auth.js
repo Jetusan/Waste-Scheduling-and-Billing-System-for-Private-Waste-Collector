@@ -451,7 +451,16 @@ router.post('/login-enhanced', async (req, res) => {
   try {
     const { username, password } = req.body;
     
+    console.log('🔐 LOGIN ATTEMPT RECEIVED:', {
+      timestamp: new Date().toISOString(),
+      username: username || 'undefined',
+      hasPassword: !!password,
+      ip: req.ip || req.connection.remoteAddress,
+      userAgent: req.get('User-Agent')
+    });
+    
     if (!username || !password) {
+      console.log('❌ Login failed: Missing credentials');
       return res.status(400).json({
         success: false,
         message: 'Username and password are required'
@@ -468,6 +477,7 @@ router.post('/login-enhanced', async (req, res) => {
     `, [username]);
 
     if (userResult.rows.length === 0) {
+      console.log('❌ Login failed: User not found for username:', username);
       return res.status(401).json({
         success: false,
         message: 'Invalid username or password'
@@ -475,16 +485,20 @@ router.post('/login-enhanced', async (req, res) => {
     }
 
     const user = userResult.rows[0];
+    console.log('🔍 User found:', { user_id: user.user_id, username: user.username, role: user.role_name });
     
     // Verify password
     const passwordMatch = await bcrypt.compare(password, user.password_hash);
     
     if (!passwordMatch) {
+      console.log('❌ Login failed: Invalid password for user:', username);
       return res.status(401).json({
         success: false,
         message: 'Invalid username or password'
       });
     }
+    
+    console.log('✅ Password verified for user:', username);
 
     // Check email verification if user has email
     if (user.email && !user.email_verified) {
@@ -547,6 +561,22 @@ router.post('/login-enhanced', async (req, res) => {
       error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
+});
+
+// Test endpoint to verify requests are reaching the server
+router.get('/test-connection', (req, res) => {
+  console.log('🔗 TEST CONNECTION REQUEST RECEIVED:', {
+    timestamp: new Date().toISOString(),
+    ip: req.ip || req.connection.remoteAddress,
+    userAgent: req.get('User-Agent')
+  });
+  
+  res.json({
+    success: true,
+    message: 'Connection test successful',
+    timestamp: new Date().toISOString(),
+    server: 'Render Production'
+  });
 });
 
 // Profile route - protected with JWT authentication
