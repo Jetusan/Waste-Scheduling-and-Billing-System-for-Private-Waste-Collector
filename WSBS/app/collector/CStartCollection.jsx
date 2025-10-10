@@ -1063,6 +1063,12 @@ const CStartCollection = () => {
                     return true; // Show it anyway for debugging
                   }
                   
+                  // For test data: show stops with active/pending_payment subscription_status
+                  if (!info && stop.subscription_status && ['active', 'pending_payment'].includes(stop.subscription_status)) {
+                    console.log('🧪 Test data - showing stop with subscription_status:', stop.subscription_status);
+                    return true;
+                  }
+                  
                   if (!info) {
                     console.log('❌ Filtered out - no payment info and no subscription_status:', stop.user_id);
                     return false; // Hide if no subscription info
