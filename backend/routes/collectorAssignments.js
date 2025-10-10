@@ -34,29 +34,36 @@ router.get('/today', async (req, res) => {
 
     console.log(`Looking for ${todayName} collections (collector_id: ${cid || 'none'})`);
 
-    // Define collection schedules based on weekday
+    // First, get all available barangays from the database
+    const barangayQuery = `SELECT DISTINCT barangay_name FROM barangays ORDER BY barangay_name`;
+    const barangayResult = await pool.query(barangayQuery);
+    const availableBarangays = barangayResult.rows.map(row => row.barangay_name);
+    
+    console.log(`🏘️ Available barangays in database:`, availableBarangays);
+
+    // Define collection schedules based on weekday - now using actual barangay names
     // This replaces the missing collection_schedules table
     const weeklySchedule = {
       'Monday': [
-        { waste_type: 'Regular', time_range: '8:00 AM - 12:00 PM', barangays: ['City Heights', 'Apopong'] },
-        { waste_type: 'Recyclable', time_range: '1:00 PM - 5:00 PM', barangays: ['Calumpang'] }
+        { waste_type: 'Regular', time_range: '8:00 AM - 12:00 PM', barangays: availableBarangays.slice(0, Math.ceil(availableBarangays.length / 3)) },
+        { waste_type: 'Recyclable', time_range: '1:00 PM - 5:00 PM', barangays: availableBarangays.slice(Math.ceil(availableBarangays.length / 3), Math.ceil(availableBarangays.length * 2 / 3)) }
       ],
       'Tuesday': [
-        { waste_type: 'Regular', time_range: '8:00 AM - 12:00 PM', barangays: ['Dadiangas East', 'Dadiangas North'] }
+        { waste_type: 'Regular', time_range: '8:00 AM - 12:00 PM', barangays: availableBarangays.slice(Math.ceil(availableBarangays.length * 2 / 3)) }
       ],
       'Wednesday': [
-        { waste_type: 'Organic', time_range: '8:00 AM - 12:00 PM', barangays: ['City Heights', 'Buayan'] },
-        { waste_type: 'Regular', time_range: '1:00 PM - 5:00 PM', barangays: ['Batomelong'] }
+        { waste_type: 'Organic', time_range: '8:00 AM - 12:00 PM', barangays: availableBarangays.slice(0, Math.ceil(availableBarangays.length / 2)) },
+        { waste_type: 'Regular', time_range: '1:00 PM - 5:00 PM', barangays: availableBarangays.slice(Math.ceil(availableBarangays.length / 2)) }
       ],
       'Thursday': [
-        { waste_type: 'Regular', time_range: '8:00 AM - 12:00 PM', barangays: ['Baluan', 'Bula'] }
+        { waste_type: 'Regular', time_range: '8:00 AM - 12:00 PM', barangays: availableBarangays.slice(0, Math.ceil(availableBarangays.length / 4)) }
       ],
       'Friday': [
-        { waste_type: 'Regular', time_range: '8:00 AM - 12:00 PM', barangays: ['City Heights', 'Apopong', 'Calumpang'] },
-        { waste_type: 'Recyclable', time_range: '1:00 PM - 5:00 PM', barangays: ['City Heights'] }
+        { waste_type: 'Regular', time_range: '8:00 AM - 12:00 PM', barangays: availableBarangays },
+        { waste_type: 'Recyclable', time_range: '1:00 PM - 5:00 PM', barangays: availableBarangays.slice(0, Math.ceil(availableBarangays.length / 2)) }
       ],
       'Saturday': [
-        { waste_type: 'Regular', time_range: '8:00 AM - 12:00 PM', barangays: ['Dadiangas South', 'Conel'] }
+        { waste_type: 'Regular', time_range: '8:00 AM - 12:00 PM', barangays: availableBarangays.slice(Math.ceil(availableBarangays.length / 2)) }
       ],
       'Sunday': [] // No collections on Sunday
     };
@@ -83,24 +90,37 @@ router.get('/today', async (req, res) => {
         b.barangay_id,
         b.barangay_name,
         cs.status as subscription_status,
+        cs.created_at as subscription_created_at,
         ass.latest_action,
         ass.updated_at AS latest_updated_at
       FROM users u
       JOIN user_names un ON u.name_id = un.name_id
       JOIN addresses a ON u.address_id = a.address_id
       JOIN barangays b ON a.barangay_id = b.barangay_id
-      LEFT JOIN customer_subscriptions cs ON cs.user_id = u.user_id AND cs.status = 'active'
+      JOIN customer_subscriptions cs ON cs.user_id = u.user_id 
+        AND cs.status IN ('active', 'pending_payment')
+        AND cs.created_at = (
+          SELECT MAX(cs2.created_at) 
+          FROM customer_subscriptions cs2 
+          WHERE cs2.user_id = u.user_id
+        )
       LEFT JOIN assignment_stop_status ass ON ass.user_id = u.user_id
       WHERE u.role_id = 3 
         AND u.approval_status = 'approved'
         AND u.address_id IS NOT NULL
         AND b.barangay_name = ANY($1::text[])
-        AND (cs.status = 'active' OR cs.status IS NULL)
       ORDER BY u.user_id, b.barangay_name, a.street NULLS LAST
     `;
 
     const result = await pool.query(q, [allBarangays]);
-    console.log(`Found ${result.rows.length} residents in scheduled barangays for ${todayName}`);
+    console.log(`🏠 Querying barangays:`, allBarangays);
+    console.log(`📊 Found ${result.rows.length} residents in scheduled barangays for ${todayName}`);
+    console.log(`👥 Residents found:`, result.rows.map(r => ({
+      user_id: r.user_id,
+      name: r.resident_name,
+      barangay: r.barangay_name,
+      subscription_status: r.subscription_status
+    })));
 
     // Build stops array with schedule information
     const stops = [];
@@ -144,13 +164,59 @@ router.get('/today', async (req, res) => {
       schedule_date: todayName,
     } : null;
 
-    console.log(`Returning assignment:`, assignment);
-    console.log(`Returning ${stops.length} stops for ${todayName}`);
+    console.log(`📋 Returning assignment:`, assignment);
+    console.log(`🚚 Returning ${stops.length} stops for ${todayName}`);
+    console.log(`📍 Final stops:`, stops.map(s => ({
+      stop_id: s.stop_id,
+      user_id: s.user_id,
+      resident_name: s.resident_name,
+      barangay_name: s.barangay_name,
+      planned_waste_type: s.planned_waste_type
+    })));
 
     return res.json({ assignment, stops });
   } catch (err) {
     console.error('Error building today assignment:', err);
     return res.status(500).json({ error: 'Failed to fetch today\'s assignment', message: err.message });
+  }
+});
+
+// Debug endpoint to check subscription data
+router.get('/debug/subscriptions', async (req, res) => {
+  try {
+    const query = `
+      SELECT 
+        u.user_id,
+        CONCAT(un.first_name, ' ', un.last_name) AS resident_name,
+        b.barangay_name,
+        cs.status as subscription_status,
+        cs.created_at as subscription_created_at,
+        sp.plan_name,
+        sp.price
+      FROM users u
+      JOIN user_names un ON u.name_id = un.name_id
+      JOIN addresses a ON u.address_id = a.address_id
+      JOIN barangays b ON a.barangay_id = b.barangay_id
+      LEFT JOIN customer_subscriptions cs ON cs.user_id = u.user_id
+      LEFT JOIN subscription_plans sp ON cs.plan_id = sp.plan_id
+      WHERE u.role_id = 3 
+        AND u.approval_status = 'approved'
+      ORDER BY u.user_id, cs.created_at DESC
+    `;
+    
+    const result = await pool.query(query);
+    
+    res.json({
+      success: true,
+      total_residents: result.rows.length,
+      residents: result.rows,
+      subscribed_residents: result.rows.filter(r => r.subscription_status),
+      active_subscriptions: result.rows.filter(r => r.subscription_status === 'active'),
+      pending_subscriptions: result.rows.filter(r => r.subscription_status === 'pending_payment')
+    });
+  } catch (error) {
+    console.error('Debug subscriptions error:', error);
+    res.status(500).json({ error: 'Failed to fetch debug data', details: error.message });
   }
 });
 
