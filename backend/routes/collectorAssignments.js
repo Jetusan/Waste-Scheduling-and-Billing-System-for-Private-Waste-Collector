@@ -40,6 +40,27 @@ router.get('/today', async (req, res) => {
     const availableBarangays = barangayResult.rows.map(row => row.barangay_name);
     
     console.log(`🏘️ Available barangays in database:`, availableBarangays);
+    
+    // Quick check: How many total residents exist?
+    const totalResidentsQuery = `
+      SELECT COUNT(*) as total_count,
+             COUNT(CASE WHEN u.approval_status = 'approved' THEN 1 END) as approved_count
+      FROM users u 
+      WHERE u.role_id = 3
+    `;
+    const totalResidentsResult = await pool.query(totalResidentsQuery);
+    console.log(`👥 Total residents in database:`, totalResidentsResult.rows[0]);
+    
+    // Quick check: How many subscriptions exist?
+    const totalSubscriptionsQuery = `
+      SELECT 
+        COUNT(*) as total_subscriptions,
+        COUNT(CASE WHEN status = 'active' THEN 1 END) as active_count,
+        COUNT(CASE WHEN status = 'pending_payment' THEN 1 END) as pending_count
+      FROM customer_subscriptions
+    `;
+    const totalSubscriptionsResult = await pool.query(totalSubscriptionsQuery);
+    console.log(`💳 Total subscriptions in database:`, totalSubscriptionsResult.rows[0]);
 
     // Define collection schedules based on weekday - now using actual barangay names
     // This replaces the missing collection_schedules table
@@ -79,8 +100,9 @@ router.get('/today', async (req, res) => {
     const allBarangays = [...new Set(todaySchedules.flatMap(s => s.barangays))];
     console.log(`Today's scheduled barangays:`, allBarangays);
 
-    const q = `
-      SELECT DISTINCT ON (u.user_id)
+    // First, let's get all residents in the scheduled barangays
+    const residentsQuery = `
+      SELECT DISTINCT
         u.user_id,
         CONCAT(un.first_name, ' ', un.last_name) AS resident_name,
         COALESCE(
@@ -88,23 +110,11 @@ router.get('/today', async (req, res) => {
           CONCAT_WS(', ', NULLIF(TRIM(a.street), ''), NULLIF(TRIM(a.subdivision), ''), b.barangay_name, NULLIF(TRIM(a.city_municipality), ''))
         ) AS address,
         b.barangay_id,
-        b.barangay_name,
-        cs.status as subscription_status,
-        cs.created_at as subscription_created_at,
-        ass.latest_action,
-        ass.updated_at AS latest_updated_at
+        b.barangay_name
       FROM users u
       JOIN user_names un ON u.name_id = un.name_id
       JOIN addresses a ON u.address_id = a.address_id
       JOIN barangays b ON a.barangay_id = b.barangay_id
-      JOIN customer_subscriptions cs ON cs.user_id = u.user_id 
-        AND cs.status IN ('active', 'pending_payment')
-        AND cs.created_at = (
-          SELECT MAX(cs2.created_at) 
-          FROM customer_subscriptions cs2 
-          WHERE cs2.user_id = u.user_id
-        )
-      LEFT JOIN assignment_stop_status ass ON ass.user_id = u.user_id
       WHERE u.role_id = 3 
         AND u.approval_status = 'approved'
         AND u.address_id IS NOT NULL
@@ -112,10 +122,96 @@ router.get('/today', async (req, res) => {
       ORDER BY u.user_id, b.barangay_name, a.street NULLS LAST
     `;
 
-    const result = await pool.query(q, [allBarangays]);
+    // Then get their subscription status separately
+    const subscriptionQuery = `
+      SELECT DISTINCT ON (cs.user_id)
+        cs.user_id,
+        cs.status as subscription_status,
+        cs.created_at as subscription_created_at
+      FROM customer_subscriptions cs
+      WHERE cs.user_id = ANY($1::int[])
+        AND cs.status IN ('active', 'pending_payment')
+      ORDER BY cs.user_id, cs.created_at DESC
+    `;
+
+    // Get assignment status
+    const assignmentQuery = `
+      SELECT 
+        ass.user_id,
+        ass.latest_action,
+        ass.updated_at AS latest_updated_at
+      FROM assignment_stop_status ass
+      WHERE ass.user_id = ANY($1::int[])
+    `;
+
+    const residentsResult = await pool.query(residentsQuery, [allBarangays]);
+    console.log(`🏠 Found ${residentsResult.rows.length} total residents in barangays:`, allBarangays);
+    
+    if (residentsResult.rows.length === 0) {
+      console.log(`❌ No residents found in any of the scheduled barangays`);
+      return res.json({ assignment: null, stops: [] });
+    }
+
+    const userIds = residentsResult.rows.map(r => r.user_id);
+    console.log(`👥 User IDs found:`, userIds);
+
+    const subscriptionResult = await pool.query(subscriptionQuery, [userIds]);
+    const assignmentResult = await pool.query(assignmentQuery, [userIds]);
+
+    console.log(`💳 Found ${subscriptionResult.rows.length} active/pending subscriptions`);
+    console.log(`📋 Subscription details:`, subscriptionResult.rows);
+
+    // Combine the data
+    const combinedResult = { rows: [] };
+    for (const resident of residentsResult.rows) {
+      const subscription = subscriptionResult.rows.find(s => s.user_id === resident.user_id);
+      const assignment = assignmentResult.rows.find(a => a.user_id === resident.user_id);
+      
+      // Include residents with active or pending_payment subscriptions
+      if (subscription) {
+        combinedResult.rows.push({
+          ...resident,
+          subscription_status: subscription.subscription_status,
+          subscription_created_at: subscription.subscription_created_at,
+          latest_action: assignment?.latest_action || null,
+          latest_updated_at: assignment?.latest_updated_at || null
+        });
+      } else {
+        // For debugging: also log residents without subscriptions
+        console.log(`⚠️ Resident without subscription:`, {
+          user_id: resident.user_id,
+          name: resident.resident_name,
+          barangay: resident.barangay_name
+        });
+      }
+    }
+
+    // If no subscribed residents found, let's show what we have for debugging
+    if (combinedResult.rows.length === 0) {
+      console.log(`❌ No residents with active/pending subscriptions found!`);
+      console.log(`🔍 Debug: All residents in scheduled barangays:`, residentsResult.rows.map(r => ({
+        user_id: r.user_id,
+        name: r.resident_name,
+        barangay: r.barangay_name
+      })));
+      
+      // For debugging purposes, let's temporarily include all residents
+      console.log(`🚨 DEBUG MODE: Including all residents regardless of subscription status`);
+      for (const resident of residentsResult.rows) {
+        const assignment = assignmentResult.rows.find(a => a.user_id === resident.user_id);
+        combinedResult.rows.push({
+          ...resident,
+          subscription_status: 'debug_no_subscription',
+          subscription_created_at: null,
+          latest_action: assignment?.latest_action || null,
+          latest_updated_at: assignment?.latest_updated_at || null
+        });
+      }
+    }
+
     console.log(`🏠 Querying barangays:`, allBarangays);
-    console.log(`📊 Found ${result.rows.length} residents in scheduled barangays for ${todayName}`);
-    console.log(`👥 Residents found:`, result.rows.map(r => ({
+    console.log(`📊 Found ${combinedResult.rows.length} residents with subscriptions in scheduled barangays for ${todayName}`);
+    console.log(`👥 Residents found:`, combinedResult.rows.map(r => ({
       user_id: r.user_id,
       name: r.resident_name,
       barangay: r.barangay_name,
@@ -129,7 +225,7 @@ router.get('/today', async (req, res) => {
 
     for (let scheduleIndex = 0; scheduleIndex < todaySchedules.length; scheduleIndex++) {
       const schedule = todaySchedules[scheduleIndex];
-      const scheduleResidents = result.rows.filter(r => schedule.barangays.includes(r.barangay_name));
+      const scheduleResidents = combinedResult.rows.filter(r => schedule.barangays.includes(r.barangay_name));
       
       for (const resident of scheduleResidents) {
         const stopId = `${todayName.toLowerCase()}-${schedule.waste_type.toLowerCase()}-${resident.user_id}-${scheduleIndex}`;

@@ -1040,16 +1040,41 @@ const CStartCollection = () => {
             {stops && stops.length > 0 ? (
               (() => {
                 const filteredStops = stops.filter((stop) => {
-                  // Filter 1: Only show stops with active or pending subscriptions
-                  const info = paymentInfo[stop.user_id];
-                  if (!info) return false; // Hide if no subscription info
+                  console.log('🔍 Filtering stop:', {
+                    user_id: stop.user_id,
+                    resident_name: stop.resident_name,
+                    latest_action: stop.latest_action,
+                    subscription_status: stop.subscription_status
+                  });
                   
-                  // Filter 2: Hide if already collected
-                  if (stop.latest_action === 'collected') return false;
+                  // Filter 1: Hide if already collected
+                  if (stop.latest_action === 'collected') {
+                    console.log('❌ Filtered out - already collected:', stop.user_id);
+                    return false;
+                  }
+                  
+                  // Filter 2: Check subscription info from payment API
+                  const info = paymentInfo[stop.user_id];
+                  console.log('💳 Payment info for user', stop.user_id, ':', info);
+                  
+                  // For debugging: show stops even without payment info if they have subscription_status from backend
+                  if (!info && stop.subscription_status && stop.subscription_status !== 'debug_no_subscription') {
+                    console.log('⚠️ No payment info but has subscription_status:', stop.subscription_status);
+                    return true; // Show it anyway for debugging
+                  }
+                  
+                  if (!info) {
+                    console.log('❌ Filtered out - no payment info and no subscription_status:', stop.user_id);
+                    return false; // Hide if no subscription info
+                  }
                   
                   // Filter 3: Only show active or pending_payment subscriptions
-                  if (info.status && !['active', 'pending_payment'].includes(info.status)) return false;
+                  if (info.status && !['active', 'pending_payment'].includes(info.status)) {
+                    console.log('❌ Filtered out - invalid subscription status:', info.status);
+                    return false;
+                  }
                   
+                  console.log('✅ Stop included:', stop.user_id);
                   return true; // Show this stop
                 });
 
