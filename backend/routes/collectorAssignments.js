@@ -19,54 +19,100 @@ router.get('/today', async (req, res) => {
     
     console.log(`🕐 Looking for ${todayName} collections (collector_id: ${collector_id || 'none'})`);
 
-    // Simple test: return some dummy data to see if the endpoint works
-    const testStops = [
-      {
-        stop_id: `test-${todayName.toLowerCase()}-1`,
-        sequence_no: 1,
-        user_id: 141, // Your test user
-        resident_name: 'Test Resident 1',
-        address: 'Test Address 1, Lagao, General Santos City',
-        barangay_id: 1,
-        barangay_name: 'Lagao',
-        planned_waste_type: 'Regular',
-        schedule_id: `${todayName.toLowerCase()}-regular-0`,
-        time_range: '8:00 AM - 12:00 PM',
-        latest_action: null,
-        latest_updated_at: null,
-        subscription_status: 'active'
-      },
-      {
-        stop_id: `test-${todayName.toLowerCase()}-2`,
-        sequence_no: 2,
-        user_id: 142,
-        resident_name: 'Test Resident 2',
-        address: 'Test Address 2, Lagao, General Santos City',
-        barangay_id: 1,
-        barangay_name: 'Lagao',
-        planned_waste_type: 'Regular',
-        schedule_id: `${todayName.toLowerCase()}-regular-0`,
-        time_range: '8:00 AM - 12:00 PM',
-        latest_action: null,
-        latest_updated_at: null,
-        subscription_status: 'active'
-      },
-      {
-        stop_id: `test-${todayName.toLowerCase()}-3`,
-        sequence_no: 3,
-        user_id: 143,
-        resident_name: 'Test Resident 3',
-        address: 'Test Address 3, Lagao, General Santos City',
-        barangay_id: 1,
-        barangay_name: 'Lagao',
-        planned_waste_type: 'Regular',
-        schedule_id: `${todayName.toLowerCase()}-regular-0`,
-        time_range: '8:00 AM - 12:00 PM',
-        latest_action: null,
-        latest_updated_at: null,
-        subscription_status: 'pending_payment'
+    // Now get real data from database
+    // Step 1: Get all residents with subscriptions (simplified query)
+    const residentsQuery = `
+      SELECT DISTINCT
+        u.user_id,
+        COALESCE(un.first_name || ' ' || un.last_name, 'Unknown Resident') AS resident_name,
+        COALESCE(a.full_address, COALESCE(a.street, '') || ', ' || COALESCE(b.barangay_name, '')) AS address,
+        COALESCE(b.barangay_id, 0) as barangay_id,
+        COALESCE(b.barangay_name, 'Unknown Barangay') as barangay_name
+      FROM users u
+      LEFT JOIN user_names un ON u.name_id = un.name_id
+      LEFT JOIN addresses a ON u.address_id = a.address_id
+      LEFT JOIN barangays b ON a.barangay_id = b.barangay_id
+      WHERE u.role_id = 3 
+        AND u.approval_status = 'approved'
+        AND u.user_id IS NOT NULL
+      ORDER BY u.user_id
+      LIMIT 20
+    `;
+
+    let residentsResult;
+    try {
+      residentsResult = await pool.query(residentsQuery);
+      console.log(`🏠 Found ${residentsResult.rows.length} total approved residents`);
+    } catch (e) {
+      console.error(`❌ Error querying residents:`, e.message);
+      // Fallback to test data if database fails
+      return res.json({ 
+        assignment: {
+          schedule_id: `${todayName.toLowerCase()}-regular-0`,
+          waste_type: 'Regular',
+          time_range: '8:00 AM - 12:00 PM',
+          date_label: todayName,
+          schedule_date: todayName,
+        }, 
+        stops: [] 
+      });
+    }
+
+    if (residentsResult.rows.length === 0) {
+      console.log(`❌ No approved residents found in database`);
+      return res.json({ assignment: null, stops: [] });
+    }
+
+    // Step 2: Get subscription status for these residents
+    const userIds = residentsResult.rows.map(r => r.user_id);
+    console.log(`👥 Checking subscriptions for user IDs:`, userIds);
+
+    let subscriptionResult = { rows: [] };
+    try {
+      const subscriptionQuery = `
+        SELECT 
+          cs.user_id,
+          cs.status as subscription_status,
+          cs.created_at as subscription_created_at
+        FROM customer_subscriptions cs
+        WHERE cs.user_id = ANY($1::int[])
+          AND cs.status IN ('active', 'pending_payment')
+        ORDER BY cs.created_at DESC
+      `;
+      subscriptionResult = await pool.query(subscriptionQuery, [userIds]);
+      console.log(`💳 Found ${subscriptionResult.rows.length} active/pending subscriptions`);
+    } catch (e) {
+      console.error(`❌ Error querying subscriptions:`, e.message);
+      // Continue without subscription filtering
+    }
+
+    // Step 3: Build stops from residents with subscriptions
+    const stops = [];
+    let stopCounter = 1;
+
+    for (const resident of residentsResult.rows) {
+      const subscription = subscriptionResult.rows.find(s => s.user_id === resident.user_id);
+      
+      // Include residents with subscriptions OR if no subscription data available (fallback)
+      if (subscription || subscriptionResult.rows.length === 0) {
+        const stopId = `${todayName.toLowerCase()}-regular-${resident.user_id}`;
+        stops.push({
+          stop_id: stopId,
+          sequence_no: stopCounter++,
+          user_id: resident.user_id,
+          resident_name: resident.resident_name,
+          address: resident.address,
+          barangay_id: resident.barangay_id,
+          barangay_name: resident.barangay_name,
+          planned_waste_type: 'Regular',
+          schedule_id: `${todayName.toLowerCase()}-regular-0`,
+          time_range: '8:00 AM - 12:00 PM',
+          latest_action: null,
+          latest_updated_at: null,
+          subscription_status: subscription?.subscription_status || 'active' // Default to active if no subscription data
+        });
       }
-    ];
+    }
 
     const assignment = {
       schedule_id: `${todayName.toLowerCase()}-regular-0`,
@@ -76,10 +122,11 @@ router.get('/today', async (req, res) => {
       schedule_date: todayName,
     };
 
-    console.log(`📋 Returning test assignment for ${todayName}`);
-    console.log(`🚚 Returning ${testStops.length} test stops`);
+    console.log(`📋 Returning real assignment for ${todayName}`);
+    console.log(`🚚 Returning ${stops.length} real stops from database`);
+    console.log(`👥 Residents:`, stops.map(s => ({ user_id: s.user_id, name: s.resident_name, barangay: s.barangay_name })));
 
-    return res.json({ assignment, stops: testStops });
+    return res.json({ assignment, stops });
   } catch (err) {
     console.error('Error building today assignment:', err);
     return res.status(500).json({ error: 'Failed to fetch today\'s assignment', message: err.message });
