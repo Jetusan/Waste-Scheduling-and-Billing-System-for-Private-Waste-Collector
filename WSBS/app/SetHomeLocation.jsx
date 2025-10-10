@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ActivityIndicator, Alert, Linking, Platform } from 'react-native';
 import * as Location from 'expo-location';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -12,30 +12,93 @@ export default function SetHomeLocation() {
   const [coords, setCoords] = useState(null); // { latitude, longitude, accuracy }
   const [busy, setBusy] = useState(false);
 
+  const openAppSettings = () => {
+    if (Platform.OS === 'ios') {
+      Linking.openURL('app-settings:');
+    } else {
+      Linking.openSettings();
+    }
+  };
+
   const requestPermissionAndLocate = useCallback(async () => {
     try {
       setBusy(true);
+      
+      // Check current permission status first
+      const currentPermission = await Location.getForegroundPermissionsAsync();
+      
+      if (currentPermission.status === 'denied' && currentPermission.canAskAgain === false) {
+        // Permission was permanently denied
+        Alert.alert(
+          '📍 Location Permission Required',
+          'Location access is permanently denied. Please enable it in your device settings to set your home location.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Open Settings', onPress: openAppSettings }
+          ]
+        );
+        setPermissionStatus('denied');
+        return;
+      }
+      
       // Request foreground location permission
       const { status } = await Location.requestForegroundPermissionsAsync();
       setPermissionStatus(status);
+      
       if (status !== 'granted') {
-        Alert.alert('Permission required', 'Location permission is needed to set your home location.');
+        Alert.alert(
+          '📍 Location Permission Required',
+          'Location permission is needed to automatically detect and set your home location. Please allow location access when prompted.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Try Again', onPress: requestPermissionAndLocate },
+            { text: 'Open Settings', onPress: openAppSettings }
+          ]
+        );
         return;
       }
+      
+      // Check if location services are enabled
       const enabled = await Location.hasServicesEnabledAsync();
       if (!enabled) {
-        Alert.alert('Location services off', 'Please turn on Location Services (GPS) and try again.');
+        Alert.alert(
+          '🛰️ Location Services Required',
+          'Please turn on Location Services (GPS) in your device settings and try again.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Open Settings', onPress: openAppSettings }
+          ]
+        );
         return;
       }
-      // Get current location
-      const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      
+      console.log('🔍 Getting current location...');
+      
+      // Get current location with better accuracy
+      const pos = await Location.getCurrentPositionAsync({ 
+        accuracy: Location.Accuracy.Balanced,
+        timeInterval: 10000,
+        distanceInterval: 10
+      });
+      
+      console.log('📍 Location obtained:', pos.coords);
+      
       setCoords({
         latitude: pos.coords.latitude,
         longitude: pos.coords.longitude,
         accuracy: pos.coords.accuracy,
       });
+      
     } catch (e) {
-      Alert.alert('Error', 'Failed to get your location. Please try again.');
+      console.error('❌ Location error:', e);
+      Alert.alert(
+        '⚠️ Location Error', 
+        'Failed to get your location. Please check your GPS settings and try again.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Try Again', onPress: requestPermissionAndLocate }
+        ]
+      );
     } finally {
       setBusy(false);
     }

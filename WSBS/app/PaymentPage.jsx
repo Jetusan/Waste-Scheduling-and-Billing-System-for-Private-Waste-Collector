@@ -18,11 +18,17 @@ const PaymentPage = ({
 
   // Enhanced deep linking with subscription activation
   const handleDeepLink = React.useCallback(async (event) => {
-    if (event.url.includes('wsbs://payment/success')) {
+    console.log('🔗 Deep link received:', event.url);
+    
+    if (event.url.includes('wsbs://payment/success') || event.url.includes('payment/success')) {
       try {
+        console.log('✅ Payment success detected');
+        
         // Get stored subscription and payment data
         const pendingPaymentId = await AsyncStorage.getItem('pendingPaymentId');
         const pendingSubscriptionId = await AsyncStorage.getItem('pendingSubscriptionId');
+        
+        console.log('📦 Pending data:', { pendingPaymentId, pendingSubscriptionId });
         
         if (pendingPaymentId && pendingSubscriptionId) {
           // Confirm payment and activate subscription
@@ -40,33 +46,66 @@ const PaymentPage = ({
           });
           
           const confirmData = await confirmResponse.json();
+          console.log('🔄 Confirmation response:', confirmData);
           
           if (confirmData.success) {
             // Clear stored data
             await AsyncStorage.removeItem('pendingPaymentId');
             await AsyncStorage.removeItem('pendingSubscriptionId');
             
-            Alert.alert(
-              'Subscription Activated!', 
-              'Your payment was successful and subscription is now active!', 
-              [{ text: 'OK', onPress: onSuccess }]
-            );
+            // Hide any existing alerts and show success
+            setTimeout(() => {
+              Alert.alert(
+                '🎉 Subscription Activated!', 
+                'Your payment was successful and subscription is now active!', 
+                [{ 
+                  text: 'Continue', 
+                  onPress: () => {
+                    setIsProcessing(false);
+                    onSuccess();
+                  }
+                }]
+              );
+            }, 100);
           } else {
-            Alert.alert('Error', 'Payment successful but subscription activation failed. Please contact support.');
+            Alert.alert('⚠️ Payment Issue', 'Payment successful but subscription activation failed. Please contact support.');
+            setIsProcessing(false);
           }
         } else {
-          Alert.alert('Payment Successful!', 'Your payment has been processed successfully.', [
-            { text: 'OK', onPress: onSuccess }
-          ]);
+          // No pending data, just show success
+          setTimeout(() => {
+            Alert.alert(
+              '✅ Payment Successful!', 
+              'Your payment has been processed successfully.', 
+              [{ 
+                text: 'Continue', 
+                onPress: () => {
+                  setIsProcessing(false);
+                  onSuccess();
+                }
+              }]
+            );
+          }, 100);
         }
       } catch (error) {
-        console.error('Error handling payment success:', error);
-        Alert.alert('Payment Successful!', 'Your payment has been processed successfully.', [
-          { text: 'OK', onPress: onSuccess }
-        ]);
+        console.error('❌ Error handling payment success:', error);
+        setTimeout(() => {
+          Alert.alert(
+            '✅ Payment Successful!', 
+            'Your payment has been processed successfully.', 
+            [{ 
+              text: 'Continue', 
+              onPress: () => {
+                setIsProcessing(false);
+                onSuccess();
+              }
+            }]
+          );
+        }, 100);
       }
-    } else if (event.url.includes('wsbs://payment/failed')) {
-      Alert.alert('Payment Failed', 'Your payment could not be processed. Please try again.');
+    } else if (event.url.includes('wsbs://payment/failed') || event.url.includes('payment/failed')) {
+      console.log('❌ Payment failed detected');
+      Alert.alert('❌ Payment Failed', 'Your payment could not be processed. Please try again.');
       setIsProcessing(false);
     }
   }, [onSuccess]);

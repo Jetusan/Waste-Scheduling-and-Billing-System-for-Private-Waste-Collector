@@ -1,45 +1,79 @@
 import { Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import React, { useEffect, useState } from "react";
-import { View, Text } from "react-native";
+import React, { useEffect, useState, useRef } from "react";
+import { View, Text, AppState } from "react-native";
 import { API_BASE_URL } from "../config";
 import { getToken } from "../auth";
 
 export default function ResidentLayout() {
   const [unread, setUnread] = useState(0);
+  const appState = useRef(AppState.currentState);
+  const [appStateVisible, setAppStateVisible] = useState(appState.current);
+  const intervalRef = useRef(null);
 
-  useEffect(() => {
-    let mounted = true;
-    let timer;
-    const fetchUnread = async () => {
-      try {
-        const token = await getToken();
-        if (!token) {
-          if (mounted) setUnread(0);
-          return;
-        }
-        const res = await fetch(`${API_BASE_URL}/api/notifications/me/unread-count`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        const data = await res.json().catch(() => ({}));
-        if (mounted) {
-          if (res.ok && data?.success) {
-            setUnread(Number(data.count) || 0);
-          }
-        }
-      } catch (_) {
-        // ignore; keep previous
+  const fetchUnread = async () => {
+    try {
+      const token = await getToken();
+      if (!token) {
+        setUnread(0);
+        return;
       }
+      
+      console.log('🔔 Fetching notification count...');
+      const res = await fetch(`${API_BASE_URL}/api/notifications/me/unread-count`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      
+      const data = await res.json().catch(() => ({}));
+      
+      if (res.ok && data?.success) {
+        const newCount = Number(data.count) || 0;
+        console.log('🔔 Notification count:', newCount);
+        setUnread(newCount);
+      }
+    } catch (error) {
+      console.error('🔔 Error fetching notifications:', error);
+    }
+  };
+
+  // Handle app state changes for better real-time updates
+  useEffect(() => {
+    const handleAppStateChange = (nextAppState) => {
+      if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
+        console.log('🔔 App has come to the foreground - refreshing notifications');
+        fetchUnread(); // Refresh immediately when app becomes active
+      }
+      appState.current = nextAppState;
+      setAppStateVisible(appState.current);
     };
 
-    fetchUnread();
-    timer = setInterval(fetchUnread, 10000);
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    return () => subscription?.remove();
+  }, []);
+
+  // Main notification polling effect
+  useEffect(() => {
+    let mounted = true;
+    
+    // Initial fetch
+    if (mounted) {
+      fetchUnread();
+    }
+
+    // Set up more frequent polling (3 seconds instead of 10)
+    intervalRef.current = setInterval(() => {
+      if (mounted && appStateVisible === 'active') {
+        fetchUnread();
+      }
+    }, 3000); // Reduced from 10000ms to 3000ms for more real-time feel
 
     return () => {
       mounted = false;
-      if (timer) clearInterval(timer);
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
     };
-  }, []);
+  }, [appStateVisible]);
 
   return (
     <Tabs

@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, FlatList, ActivityIndicator, RefreshControl, TouchableOpacity, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import { API_BASE_URL } from '../config';
 import { getToken } from '../auth';
 import { useWebSocket } from '../../contexts/WebSocketContext';
@@ -40,6 +41,14 @@ export default function NotifPage() {
   useEffect(() => {
     fetchNotifications();
   }, [fetchNotifications]);
+
+  // Refresh notifications when page is focused
+  useFocusEffect(
+    useCallback(() => {
+      console.log('🔔 NotifPage focused - refreshing notifications');
+      fetchNotifications();
+    }, [fetchNotifications])
+  );
 
   // Subscribe to real-time notifications
   useEffect(() => {

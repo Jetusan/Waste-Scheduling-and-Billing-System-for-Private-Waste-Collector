@@ -3,11 +3,12 @@ import { View, Text, TouchableOpacity, StyleSheet, ScrollView, SafeAreaView, Ale
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import TermsAndConditions from './TermsAndConditions';
-import { getToken } from './auth';
+import { getToken, getUserId } from './auth';
 import Invoice from './Invoice';
 import * as Linking from 'expo-linking';
 import PaymentPage from './PaymentPage';
 import { API_BASE_URL } from './config';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Single plan - Full Plan only
 const singlePlan = {
@@ -46,14 +47,41 @@ const paymentMethods = [
 
 const Subscription = () => {
   const [showDetails, setShowDetails] = useState(false);
-  const [showTerms, setShowTerms] = useState(true); // Start with terms
+  const [showTerms, setShowTerms] = useState(false); // Will be set based on previous acceptance
   const [showPlanSelection, setShowPlanSelection] = useState(false);
   const [showInvoice, setShowInvoice] = useState(false);
   const [showPaymentPage, setShowPaymentPage] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [checkingTerms, setCheckingTerms] = useState(true);
   const router = useRouter();
   const [userProfile, setUserProfile] = useState(null);
   const [profileLoading, setProfileLoading] = useState(true);
   const [profileError, setProfileError] = useState(null);
+
+  // Check if user has previously accepted terms
+  useEffect(() => {
+    const checkTermsAcceptance = async () => {
+      try {
+        const userId = await getUserId();
+        const termsKey = `terms_accepted_${userId}`;
+        const hasAcceptedTerms = await AsyncStorage.getItem(termsKey);
+        
+        if (hasAcceptedTerms === 'true') {
+          setTermsAccepted(true);
+          setShowPlanSelection(true); // Skip terms, go directly to plan selection
+        } else {
+          setShowTerms(true); // Show terms for first-time users
+        }
+      } catch (error) {
+        console.error('Error checking terms acceptance:', error);
+        setShowTerms(true); // Default to showing terms if error
+      } finally {
+        setCheckingTerms(false);
+      }
+    };
+    
+    checkTermsAcceptance();
+  }, []);
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -91,10 +119,24 @@ const Subscription = () => {
   // Remove payment-related state and functions
   // Remove: selectedPaymentMethod, isProcessing, handlePaymentMethodSelect, handleConfirmPayment, handleGcashPayment
 
-  const handleTermsAccept = () => {
-    setShowTerms(true);
-    setShowTerms(false);
-    setShowPlanSelection(true);
+  const handleTermsAccept = async () => {
+    try {
+      // Save terms acceptance to AsyncStorage
+      const userId = await getUserId();
+      const termsKey = `terms_accepted_${userId}`;
+      await AsyncStorage.setItem(termsKey, 'true');
+      
+      setTermsAccepted(true);
+      setShowTerms(false);
+      setShowPlanSelection(true);
+      
+      console.log('✅ Terms & Conditions accepted and saved for user:', userId);
+    } catch (error) {
+      console.error('Error saving terms acceptance:', error);
+      // Still proceed even if saving fails
+      setShowTerms(false);
+      setShowPlanSelection(true);
+    }
   };
 
   const handleTermsDecline = () => {
@@ -122,6 +164,17 @@ const Subscription = () => {
     setShowPlanSelection(true);
     router.push('/resident/HomePage');
   };
+
+  // Show loading while checking terms acceptance
+  if (checkingTerms) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>Loading...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   if (showTerms) {
     return (
@@ -706,4 +759,13 @@ const styles = StyleSheet.create({
   },
   gcashButton: { backgroundColor: '#34c759', padding: 12, borderRadius: 8, alignItems: 'center', marginVertical: 10 },
   gcashButtonText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    fontSize: 16,
+    color: '#666',
+  },
 });
