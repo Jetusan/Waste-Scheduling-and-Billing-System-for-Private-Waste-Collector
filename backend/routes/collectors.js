@@ -18,11 +18,17 @@ router.get('/', async (req, res) => {
         u.contact_number,
         u.email,
         c.status as employment_status,
+        c.license_number,
+        c.license_expiry_date,
+        c.truck_id,
+        t.truck_number,
+        t.model as truck_model,
         'Collection Department' as department,
         u.created_at
       FROM users u
       JOIN collectors c ON c.user_id = u.user_id
       LEFT JOIN user_names n ON u.name_id = n.name_id
+      LEFT JOIN trucks t ON c.truck_id = t.truck_id
       WHERE u.role_id = 2
       ORDER BY u.created_at DESC
     `;
@@ -146,7 +152,7 @@ router.post('/register-optimized', async (req, res) => {
 
     const barangayId = barangayResult.rows[0].barangay_id;
 
-    // Get collector role ID (role_id = 2 for collectors)
+    // Get collector role ID
     const roleResult = await pool.query(
       'SELECT role_id FROM roles WHERE role_name = $1',
       ['collector']
@@ -231,6 +237,168 @@ router.post('/register-optimized', async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Registration failed. Please try again.',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
+// POST - Verify collector identity for self password reset
+router.post('/verify-identity', async (req, res) => {
+  try {
+    const { username, contact_number } = req.body;
+
+    if (!username || !contact_number) {
+      return res.status(400).json({
+        success: false,
+        message: 'Username and contact number are required'
+      });
+    }
+
+    // Verify collector identity
+    const verifyResult = await pool.query(`
+      SELECT u.user_id, u.username, u.contact_number
+      FROM users u
+      JOIN collectors c ON c.user_id = u.user_id
+      WHERE LOWER(u.username) = LOWER($1) 
+      AND u.contact_number = $2 
+      AND u.role_id = 2
+    `, [username.trim(), contact_number.trim()]);
+
+    if (verifyResult.rows.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid username or contact number'
+      });
+    }
+
+    console.log(`✅ Collector identity verified: ${username}`);
+
+    res.json({
+      success: true,
+      message: 'Identity verified successfully'
+    });
+
+  } catch (error) {
+    console.error('❌ Collector identity verification error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Verification failed. Please try again.',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
+// POST - Self password reset for collectors
+router.post('/self-reset-password', async (req, res) => {
+  try {
+    const { username, contact_number, new_password } = req.body;
+
+    if (!username || !contact_number || !new_password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Username, contact number, and new password are required'
+      });
+    }
+
+    if (new_password.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password must be at least 6 characters long'
+      });
+    }
+
+    // Verify collector identity again for security
+    const verifyResult = await pool.query(`
+      SELECT u.user_id, u.username
+      FROM users u
+      JOIN collectors c ON c.user_id = u.user_id
+      WHERE LOWER(u.username) = LOWER($1) 
+      AND u.contact_number = $2 
+      AND u.role_id = 2
+    `, [username.trim(), contact_number.trim()]);
+
+    if (verifyResult.rows.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid credentials'
+      });
+    }
+
+    const userId = verifyResult.rows[0].user_id;
+
+    // Hash new password
+    const hashedPassword = await bcrypt.hash(new_password, 12);
+
+    // Update collector's password
+    const updateResult = await pool.query(
+      'UPDATE users SET password_hash = $1, updated_at = CURRENT_TIMESTAMP WHERE user_id = $2',
+      [hashedPassword, userId]
+    );
+
+    console.log(`✅ Self password reset successful for collector: ${username}`);
+
+    res.json({
+      success: true,
+      message: 'Password reset successfully'
+    });
+
+  } catch (error) {
+    console.error('❌ Collector self password reset error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Password reset failed. Please try again.',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
+// POST - Reset collector password (admin only)
+router.post('/reset-password', async (req, res) => {
+  try {
+    const { collector_id, new_password } = req.body;
+
+    if (!collector_id || !new_password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Collector ID and new password are required'
+      });
+    }
+
+    if (new_password.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password must be at least 6 characters long'
+      });
+    }
+
+    // Hash new password
+    const hashedPassword = await bcrypt.hash(new_password, 12);
+
+    // Update collector's password
+    const updateResult = await pool.query(
+      'UPDATE users SET password_hash = $1, updated_at = CURRENT_TIMESTAMP WHERE user_id = $2 AND role_id = 2',
+      [hashedPassword, collector_id]
+    );
+
+    if (updateResult.rowCount === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Collector not found'
+      });
+    }
+
+    console.log(`✅ Password reset for collector ID: ${collector_id}`);
+
+    res.json({
+      success: true,
+      message: 'Collector password reset successfully'
+    });
+
+  } catch (error) {
+    console.error('❌ Collector password reset error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Password reset failed. Please try again.',
       error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }

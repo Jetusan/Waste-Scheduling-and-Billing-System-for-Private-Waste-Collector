@@ -25,12 +25,14 @@ const forgotPassword = async (req, res) => {
 
     console.log('🔐 Forgot password request:', { username, ip: clientIp });
 
-    // Find user by username OR email and get their email
+    // Find user by username OR email and get their email (residents only)
     const userResult = await pool.query(`
-      SELECT u.user_id, u.username, u.email, un.first_name, un.last_name
+      SELECT u.user_id, u.username, u.email, un.first_name, un.last_name, r.role_name
       FROM users u
       LEFT JOIN user_names un ON u.name_id = un.name_id
-      WHERE LOWER(u.username) = LOWER($1) OR LOWER(u.email) = LOWER($1)
+      LEFT JOIN roles r ON u.role_id = r.role_id
+      WHERE (LOWER(u.username) = LOWER($1) OR LOWER(u.email) = LOWER($1))
+      AND r.role_name = 'resident'
     `, [username.trim()]);
 
     // Always send success response to prevent user enumeration

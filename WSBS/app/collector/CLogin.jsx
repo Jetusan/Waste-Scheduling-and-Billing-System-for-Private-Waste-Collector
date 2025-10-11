@@ -1,5 +1,15 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator, Alert } from 'react-native';
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  KeyboardAvoidingView,
+  Platform,
+  ActivityIndicator,
+  Alert,
+} from 'react-native';
 import { useRouter } from 'expo-router';
 import { saveAuth } from '../auth'; // Import the auth utility
 import { API_BASE_URL } from '../config';
@@ -154,7 +164,7 @@ const CollectorLoginScreen = () => {
         </View>
 
         {/* Forgot Password Link */}
-        <TouchableOpacity onPress={() => router.push('/forgotPassword')}>
+        <TouchableOpacity onPress={() => router.push('/collector/forgotPassword')}>
           <Text style={styles.forgotPassword}>Forgot password?</Text>
         </TouchableOpacity>
 

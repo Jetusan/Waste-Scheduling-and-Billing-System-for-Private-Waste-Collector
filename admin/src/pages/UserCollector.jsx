@@ -188,6 +188,7 @@ const UsersCollectors = () => {
           ...u, // keep all fields from backend
           truck_number: u.truck_number || 'No truck assigned',
           license_number: u.license_number || 'Not provided',
+          truck_display: u.truck_number ? `${u.truck_number}${u.truck_model ? ` (${u.truck_model})` : ''}` : 'No truck assigned',
           status: u.employment_status || u.status || 'inactive', // Fix: backend returns employment_status
           joined: u.created_at,
         }));
@@ -773,7 +774,7 @@ const UsersCollectors = () => {
                         <tr key={u.collector_id || u.user_id}>
                           <td>{u.username}</td>
                           <td>{u.contact_number}</td>
-                          <td>{u.truck_number || 'No truck assigned'}</td>
+                          <td>{u.truck_display || u.truck_number || 'No truck assigned'}</td>
                           <td>{u.license_number || 'Not provided'}</td>
                           <td>
                             <span className={`status ${(u.status || 'inactive').toLowerCase()}`}>
