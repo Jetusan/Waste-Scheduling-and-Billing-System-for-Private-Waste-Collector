@@ -188,7 +188,7 @@ const UsersCollectors = () => {
           ...u, // keep all fields from backend
           truck_number: u.truck_number || 'No truck assigned',
           license_number: u.license_number || 'Not provided',
-          truck_display: u.truck_number ? `${u.truck_number}${u.truck_model ? ` (${u.truck_model})` : ''}` : 'No truck assigned',
+          truck_display: u.truck_number ? `${u.truck_number}${u.plate_number ? ` (${u.plate_number})` : ''}` : 'No truck assigned',
           status: u.employment_status || u.status || 'inactive', // Fix: backend returns employment_status
           joined: u.created_at,
         }));

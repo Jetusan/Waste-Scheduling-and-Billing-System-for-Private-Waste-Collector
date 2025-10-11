@@ -22,7 +22,7 @@ router.get('/', async (req, res) => {
         c.license_expiry_date,
         c.truck_id,
         t.truck_number,
-        t.model as truck_model,
+        t.plate_number,
         'Collection Department' as department,
         u.created_at
       FROM users u

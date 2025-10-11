@@ -43,7 +43,7 @@ const ForgotPasswordScreen = () => {
         setStep(2);
         Alert.alert(
           'Email Sent!', 
-          'If an account with that username/email exists, a password reset link has been sent to the associated email address. Please check your email and follow the instructions.',
+          'If an account with that username/email exists, a password reset token has been sent to your email. Please check your email, copy the token, and enter it below.',
           [{ text: 'OK' }]
         );
       } else {

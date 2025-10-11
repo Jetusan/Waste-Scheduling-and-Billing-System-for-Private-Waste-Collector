@@ -323,14 +323,28 @@ const sendPasswordResetEmail = async (email, userName, resetToken) => {
             <h2>Password Reset Request</h2>
             <p>Hello <strong>${userName}</strong>,</p>
             
-            <p>We received a request to reset your password for your WSBS account. If you made this request, click the button below to reset your password:</p>
+            <p>We received a request to reset your password for your WSBS account.</p>
             
-            <div style="text-align: center; margin: 30px 0;">
-              <a href="${resetLink}" class="reset-button">Reset My Password</a>
+            <p><strong>Please use this reset token in your mobile app:</strong></p>
+            
+            <div style="text-align: center; margin: 30px 0; background: #f8f9fa; padding: 20px; border-radius: 8px; border: 2px dashed #667eea;">
+              <div style="font-size: 24px; font-weight: bold; color: #333; font-family: monospace; letter-spacing: 2px; word-break: break-all;">
+                ${resetToken}
+              </div>
+              <p style="margin: 10px 0 0 0; font-size: 12px; color: #666;">
+                Copy this token and paste it in the mobile app
+              </p>
             </div>
             
-            <p><strong>Or copy and paste this link into your browser:</strong></p>
-            <div class="token-box">${resetLink}</div>
+            <div style="background: #e3f2fd; padding: 15px; border-radius: 6px; margin: 20px 0;">
+              <p style="margin: 0; font-size: 14px; color: #1976d2;">
+                <strong>📱 How to reset your password:</strong><br>
+                1. Open the WSBS mobile app<br>
+                2. Go to "Forgot Password"<br>
+                3. Enter this token: <strong>${resetToken}</strong><br>
+                4. Set your new password
+              </p>
+            </div>
             
             <div class="warning">
               <strong>⚠️ Important Security Information:</strong>
@@ -338,7 +352,6 @@ const sendPasswordResetEmail = async (email, userName, resetToken) => {
                 <li>This link will expire in <strong>1 hour</strong></li>
                 <li>If you didn't request this reset, please ignore this email</li>
                 <li>Never share this link with anyone</li>
-                <li>For security, this link can only be used once</li>
               </ul>
             </div>
             
@@ -368,10 +381,13 @@ const sendPasswordResetEmail = async (email, userName, resetToken) => {
       
       We received a request to reset your password for your WSBS account.
       
-      To reset your password, please visit this link:
-      ${resetLink}
+      RESET TOKEN: ${resetToken}
       
-      Or use this reset token in the app: ${resetToken}
+      How to reset your password:
+      1. Open the WSBS mobile app
+      2. Go to "Forgot Password"
+      3. Enter this token: ${resetToken}
+      4. Set your new password
       
       IMPORTANT:
       - This link expires in 1 hour
