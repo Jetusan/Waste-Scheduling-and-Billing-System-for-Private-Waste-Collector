@@ -164,7 +164,7 @@ const CollectorLoginScreen = () => {
         </View>
 
         {/* Forgot Password Link */}
-        <TouchableOpacity onPress={() => router.push('/collector/forgotPassword')}>
+        <TouchableOpacity onPress={() => router.push('/collector/ForgotPassword')}>
           <Text style={styles.forgotPassword}>Forgot password?</Text>
         </TouchableOpacity>
 

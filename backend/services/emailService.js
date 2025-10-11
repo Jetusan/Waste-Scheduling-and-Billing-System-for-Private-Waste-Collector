@@ -282,9 +282,7 @@ const sendPasswordResetEmail = async (email, userName, resetOTP) => {
     throw new Error('Email service not configured - sender email missing');
   }
 
-  // Create reset link - use frontend URL for user interface
-  const frontendUrl = process.env.FRONTEND_URL || 'https://wsbs-admin.onrender.com';
-  const resetLink = `${frontendUrl}/reset-password?token=${resetToken}`;
+  // OTP-based system - no links needed
   
   // Create email content
   const emailContent = {

@@ -108,7 +108,7 @@ const CollectorForgotPassword = () => {
       <View style={styles.innerContainer}>
         <TouchableOpacity
           style={styles.backButton}
-          onPress={() => router.push('/collector/CLogin')}
+          onPress={() => router.back()}
         >
           <Text style={styles.backButtonText}>← Back</Text>
         </TouchableOpacity>
