@@ -242,8 +242,8 @@ router.post('/register-optimized', async (req, res) => {
   }
 });
 
-// POST - Verify collector identity for self password reset
-router.post('/verify-identity', async (req, res) => {
+// POST - Send OTP to collector for password reset
+router.post('/send-otp', async (req, res) => {
   try {
     const { username, contact_number } = req.body;
 
@@ -254,11 +254,12 @@ router.post('/verify-identity', async (req, res) => {
       });
     }
 
-    // Verify collector identity
+    // Verify collector and get email
     const verifyResult = await pool.query(`
-      SELECT u.user_id, u.username, u.contact_number
+      SELECT u.user_id, u.username, u.contact_number, u.email, un.first_name, un.last_name
       FROM users u
       JOIN collectors c ON c.user_id = u.user_id
+      LEFT JOIN user_names un ON u.name_id = un.name_id
       WHERE LOWER(u.username) = LOWER($1) 
       AND u.contact_number = $2 
       AND u.role_id = 2
@@ -271,11 +272,39 @@ router.post('/verify-identity', async (req, res) => {
       });
     }
 
-    console.log(`✅ Collector identity verified: ${username}`);
+    const collector = verifyResult.rows[0];
+    
+    if (!collector.email) {
+      return res.status(400).json({
+        success: false,
+        message: 'No email address found for this collector'
+      });
+    }
+
+    // Generate 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+
+    // Clean up existing tokens
+    await pool.query('DELETE FROM password_reset_tokens WHERE user_id = $1', [collector.user_id]);
+
+    // Store OTP
+    await pool.query(`
+      INSERT INTO password_reset_tokens (user_id, token, expires_at)
+      VALUES ($1, $2, $3)
+    `, [collector.user_id, otp, expiresAt]);
+
+    // Send OTP email
+    const { sendPasswordResetEmail } = require('../services/emailService');
+    const userName = collector.first_name ? `${collector.first_name} ${collector.last_name || ''}`.trim() : collector.username;
+    
+    await sendPasswordResetEmail(collector.email, userName, otp);
+
+    console.log(`✅ OTP sent to collector: ${username}`);
 
     res.json({
       success: true,
-      message: 'Identity verified successfully'
+      message: 'Reset code sent to your email'
     });
 
   } catch (error) {

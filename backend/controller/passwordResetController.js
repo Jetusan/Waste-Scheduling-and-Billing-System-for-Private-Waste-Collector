@@ -48,19 +48,19 @@ const forgotPassword = async (req, res) => {
 
     const user = userResult.rows[0];
     
-    // Check if user has an email address
     if (!user.email) {
       console.log(`❌ User ${username} has no email address`);
       return res.status(200).json(genericResponse);
     }
 
-    // Generate secure token
-    const token = generateSecureToken();
-    const expiresAt = new Date(Date.now() + 3600000); // 1 hour expiration
+    // Generate 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes from now expiration
 
-    console.log('📧 Generating password reset token for:', { 
+    console.log('📧 Generating password reset OTP for:', { 
       userId: user.user_id, 
       email: user.email,
+      otp: otp,
       expiresAt 
     });
 
@@ -70,24 +70,24 @@ const forgotPassword = async (req, res) => {
       [user.user_id]
     );
 
-    // Insert new token into database
+    // Insert new OTP into database
     await pool.query(`
       INSERT INTO password_reset_tokens (
-        user_id, email, token, expires_at, ip_address, user_agent
-      ) VALUES ($1, $2, $3, $4, $5, $6)
-    `, [user.user_id, user.email, token, expiresAt, clientIp, userAgent]);
+        user_id, token, expires_at, ip_address, user_agent
+      ) VALUES ($1, $2, $3, $4, $5)
+    `, [user.user_id, otp, expiresAt, clientIp, userAgent]);
 
     // Send password reset email
     try {
       const userName = user.first_name ? `${user.first_name} ${user.last_name || ''}`.trim() : user.username;
-      await sendPasswordResetEmail(user.email, userName, token);
+      await sendPasswordResetEmail(user.email, userName, otp);
       
       console.log(`✅ Password reset email sent to: ${user.email}`);
     } catch (emailError) {
       console.error('❌ Failed to send password reset email:', emailError);
       
-      // Clean up the token if email sending failed
-      await pool.query('DELETE FROM password_reset_tokens WHERE token = $1', [token]);
+      // Clean up the OTP if email sending failed
+      await pool.query('DELETE FROM password_reset_tokens WHERE token = $1', [otp]);
       
       return res.status(500).json({
         success: false,
@@ -145,7 +145,7 @@ const resetPassword = async (req, res) => {
     // Validate token and get user info
     console.log('🔍 Validating reset token...');
     const tokenResult = await pool.query(`
-      SELECT prt.user_id, prt.email, prt.expires_at, prt.used_at,
+      SELECT prt.user_id, prt.expires_at, prt.used,
              u.username, un.first_name, un.last_name
       FROM password_reset_tokens prt
       JOIN users u ON prt.user_id = u.user_id
@@ -162,32 +162,30 @@ const resetPassword = async (req, res) => {
     }
 
     const tokenData = tokenResult.rows[0];
-    const { user_id: userId, expires_at: expiresAt, used_at: usedAt, email, username } = tokenData;
+    const { user_id: userId, expires_at: expiresAt, used, username } = tokenData;
 
-    // Check if token has already been used
-    if (usedAt) {
-      console.log('❌ Token already used');
+    // Check if OTP has already been used
+    if (used) {
+      console.log('❌ OTP already used');
       return res.status(400).json({ 
         success: false,
-        message: 'This reset token has already been used' 
+        message: 'This reset OTP has already been used. Please request a new one.' 
       });
     }
 
-    // Check if token is expired
+    // Check if OTP is expired
     if (new Date(expiresAt) < new Date()) {
-      console.log('❌ Token expired');
-      // Clean up expired token
+      console.log('❌ OTP expired');
+      // Clean up expired OTP
       await pool.query('DELETE FROM password_reset_tokens WHERE token = $1', [token]);
       
       return res.status(400).json({ 
         success: false,
-        message: 'Reset token has expired. Please request a new password reset.' 
+        message: 'Reset OTP has expired. Please request a new one.' 
       });
     }
 
-    console.log('✅ Token validated for user:', { userId, username, email });
-
-    // Hash new password with high salt rounds for security
+    console.log('✅ OTP validated for user:', { userId, username });
     const hashedPassword = await bcrypt.hash(newPassword, 12);
 
     // Update user's password

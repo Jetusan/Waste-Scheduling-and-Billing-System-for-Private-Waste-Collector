@@ -270,7 +270,7 @@ const sendRejectionEmail = async (userEmail, firstName, lastName, reason) => {
 };
 
 // Send password reset email
-const sendPasswordResetEmail = async (email, userName, resetToken) => {
+const sendPasswordResetEmail = async (email, userName, resetOTP) => {
   const apiInstance = getTransactionalEmailApi();
   
   if (!apiInstance) {
@@ -325,23 +325,23 @@ const sendPasswordResetEmail = async (email, userName, resetToken) => {
             
             <p>We received a request to reset your password for your WSBS account.</p>
             
-            <p><strong>Please use this reset token in your mobile app:</strong></p>
+            <p><strong>Your 6-digit reset code:</strong></p>
             
-            <div style="text-align: center; margin: 30px 0; background: #f8f9fa; padding: 20px; border-radius: 8px; border: 2px dashed #667eea;">
-              <div style="font-size: 24px; font-weight: bold; color: #333; font-family: monospace; letter-spacing: 2px; word-break: break-all;">
-                ${resetToken}
+            <div style="text-align: center; margin: 30px 0; background: #f8f9fa; padding: 25px; border-radius: 12px; border: 3px solid #4CAF50;">
+              <div style="font-size: 48px; font-weight: bold; color: #2E7D32; font-family: 'Courier New', monospace; letter-spacing: 8px;">
+                ${resetOTP}
               </div>
-              <p style="margin: 10px 0 0 0; font-size: 12px; color: #666;">
-                Copy this token and paste it in the mobile app
+              <p style="margin: 15px 0 0 0; font-size: 14px; color: #666; font-weight: 500;">
+                Enter this code in your mobile app
               </p>
             </div>
             
-            <div style="background: #e3f2fd; padding: 15px; border-radius: 6px; margin: 20px 0;">
-              <p style="margin: 0; font-size: 14px; color: #1976d2;">
+            <div style="background: #e8f5e8; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #4CAF50;">
+              <p style="margin: 0; font-size: 16px; color: #2E7D32;">
                 <strong>📱 How to reset your password:</strong><br>
                 1. Open the WSBS mobile app<br>
                 2. Go to "Forgot Password"<br>
-                3. Enter this token: <strong>${resetToken}</strong><br>
+                3. Enter this code: <strong style="font-size: 18px; color: #1B5E20;">${resetOTP}</strong><br>
                 4. Set your new password
               </p>
             </div>
@@ -349,18 +349,16 @@ const sendPasswordResetEmail = async (email, userName, resetToken) => {
             <div class="warning">
               <strong>⚠️ Important Security Information:</strong>
               <ul>
-                <li>This link will expire in <strong>1 hour</strong></li>
+                <li>This code will expire in <strong>15 minutes</strong></li>
                 <li>If you didn't request this reset, please ignore this email</li>
-                <li>Never share this link with anyone</li>
+                <li>Never share this code with anyone</li>
+                <li>Use this code only once</li>
               </ul>
             </div>
             
-            <p>If you're having trouble clicking the button, you can also reset your password by:</p>
-            <ol>
-              <li>Going to the WSBS login page</li>
-              <li>Clicking "Forgot Password?"</li>
-              <li>Entering this reset token: <code>${resetToken}</code></li>
-            </ol>
+            <p style="text-align: center; margin-top: 30px; color: #666; font-size: 14px;">
+              This code is valid for 15 minutes only. Please use it promptly.
+            </p>
           </div>
           
           <div class="footer">
@@ -381,19 +379,19 @@ const sendPasswordResetEmail = async (email, userName, resetToken) => {
       
       We received a request to reset your password for your WSBS account.
       
-      RESET TOKEN: ${resetToken}
+      YOUR 6-DIGIT RESET CODE: ${resetOTP}
       
       How to reset your password:
       1. Open the WSBS mobile app
       2. Go to "Forgot Password"
-      3. Enter this token: ${resetToken}
+      3. Enter this code: ${resetOTP}
       4. Set your new password
       
       IMPORTANT:
-      - This link expires in 1 hour
+      - This code expires in 15 minutes
       - If you didn't request this reset, please ignore this email
-      - Never share this link with anyone
-      - This link can only be used once
+      - Never share this code with anyone
+      - This code can only be used once
       
       If you need help, please contact your system administrator.
       

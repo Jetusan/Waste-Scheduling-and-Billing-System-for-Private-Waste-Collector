@@ -17,12 +17,13 @@ const CollectorForgotPassword = () => {
   const [step, setStep] = useState(1);
   const [username, setUsername] = useState('');
   const [contactNumber, setContactNumber] = useState('');
+  const [resetOTP, setResetOTP] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
-  const handleVerifyCollector = async () => {
+  const handleSendOTP = async () => {
     if (!username.trim() || !contactNumber.trim()) {
       Alert.alert('Error', 'Please enter both username and contact number');
       return;
@@ -30,7 +31,7 @@ const CollectorForgotPassword = () => {
 
     setLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/api/collectors/verify-identity`, {
+      const response = await fetch(`${API_BASE_URL}/api/collectors/send-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -43,7 +44,7 @@ const CollectorForgotPassword = () => {
 
       if (data.success) {
         setStep(2);
-        Alert.alert('Verified!', 'Identity confirmed. Please enter your new password.');
+        Alert.alert('OTP Sent!', 'A 6-digit code has been sent to your registered email. Please enter it below.');
       } else {
         Alert.alert('Error', data.message || 'Invalid username or contact number');
       }
@@ -55,8 +56,8 @@ const CollectorForgotPassword = () => {
   };
 
   const handleResetPassword = async () => {
-    if (!newPassword || !confirmPassword) {
-      Alert.alert('Error', 'Please fill in all password fields');
+    if (!resetOTP || !newPassword || !confirmPassword) {
+      Alert.alert('Error', 'Please fill in all fields');
       return;
     }
 
@@ -72,13 +73,12 @@ const CollectorForgotPassword = () => {
 
     setLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/api/collectors/self-reset-password`, {
+      const response = await fetch(`${API_BASE_URL}/api/auth/reset-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          username: username.trim(),
-          contact_number: contactNumber.trim(),
-          new_password: newPassword 
+          token: resetOTP,
+          newPassword: newPassword 
         }),
       });
 
@@ -120,7 +120,7 @@ const CollectorForgotPassword = () => {
         {step === 1 ? (
           <>
             <Text style={styles.description}>
-              Enter your username and contact number to verify your identity.
+              Enter your username and contact number to receive a reset code.
             </Text>
             
             <Text style={styles.label}>Username</Text>
@@ -143,21 +143,31 @@ const CollectorForgotPassword = () => {
 
             <TouchableOpacity
               style={[styles.button, loading && styles.disabledButton]}
-              onPress={handleVerifyCollector}
+              onPress={handleSendOTP}
               disabled={loading}
             >
               {loading ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <Text style={styles.buttonText}>Verify Identity</Text>
+                <Text style={styles.buttonText}>Send Reset Code</Text>
               )}
             </TouchableOpacity>
           </>
         ) : (
           <>
             <Text style={styles.description}>
-              Identity verified! Please enter your new password.
+              Check your email for the 6-digit code, then enter it and your new password.
             </Text>
+            
+            <Text style={styles.label}>6-Digit Reset Code</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Enter code from email"
+              value={resetOTP}
+              onChangeText={setResetOTP}
+              keyboardType="number-pad"
+              maxLength={6}
+            />
             
             <Text style={styles.label}>New Password</Text>
             <TextInput

@@ -16,7 +16,7 @@ import { API_BASE_URL } from './config';
 const ForgotPasswordScreen = () => {
   const [username, setUsername] = useState('');
   const [loading, setLoading] = useState(false);
-  const [resetToken, setResetToken] = useState('');
+  const [resetOTP, setResetOTP] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [step, setStep] = useState(1); // 1: enter username, 2: enter new password
@@ -43,7 +43,7 @@ const ForgotPasswordScreen = () => {
         setStep(2);
         Alert.alert(
           'Email Sent!', 
-          'If an account with that username/email exists, a password reset token has been sent to your email. Please check your email, copy the token, and enter it below.',
+          'If an account with that username/email exists, a 6-digit reset code has been sent to your email. Please check your email and enter the code below.',
           [{ text: 'OK' }]
         );
       } else {
@@ -57,7 +57,7 @@ const ForgotPasswordScreen = () => {
   };
 
   const handleResetPassword = async () => {
-    if (!resetToken || !newPassword || !confirmPassword) {
+    if (!resetOTP || !newPassword || !confirmPassword) {
       Alert.alert('Error', 'Please fill in all fields');
       return;
     }
@@ -79,7 +79,7 @@ const ForgotPasswordScreen = () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          token: resetToken, 
+          token: resetOTP, 
           newPassword, 
           confirmNewPassword: confirmPassword 
         }),
@@ -121,7 +121,7 @@ const ForgotPasswordScreen = () => {
         {step === 1 ? (
           <>
             <Text style={styles.description}>
-              Enter your username or email address and we'll send you a password reset link.
+              Enter your username or email address and we'll send you a 6-digit reset code.
             </Text>
             
             <Text style={styles.label}>Username or Email Address</Text>
@@ -147,15 +147,17 @@ const ForgotPasswordScreen = () => {
         ) : (
           <>
             <Text style={styles.description}>
-              Check your email for the password reset link, then enter the token and your new password below.
+              Check your email for the 6-digit reset code, then enter it and your new password below.
             </Text>
             
-            <Text style={styles.label}>Reset Token</Text>
+            <Text style={styles.label}>6-Digit Reset Code</Text>
             <TextInput
               style={styles.input}
-              placeholder="Enter reset token from email"
-              value={resetToken}
-              onChangeText={setResetToken}
+              placeholder="Enter 6-digit code from email"
+              value={resetOTP}
+              onChangeText={setResetOTP}
+              keyboardType="number-pad"
+              maxLength={6}
               autoCapitalize="none"
             />
 
