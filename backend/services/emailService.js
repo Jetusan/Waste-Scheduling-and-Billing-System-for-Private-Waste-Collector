@@ -282,14 +282,15 @@ const sendPasswordResetEmail = async (email, userName, resetToken) => {
     throw new Error('Email service not configured - sender email missing');
   }
 
-  // Create reset link
-  const resetLink = `${API_CONFIG.PUBLIC_URL}/reset-password?token=${resetToken}`;
+  // Create reset link - use frontend URL for user interface
+  const frontendUrl = process.env.FRONTEND_URL || 'https://wsbs-admin.onrender.com';
+  const resetLink = `${frontendUrl}/reset-password?token=${resetToken}`;
   
   // Create email content
   const emailContent = {
     sender: sender,
     to: [{ email: email, name: userName }],
-    subject: 'Reset Your WSBS Password',
+    subject: 'WSBS - Password Reset Request',
     htmlContent: `
       <!DOCTYPE html>
       <html>
