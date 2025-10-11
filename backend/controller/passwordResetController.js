@@ -196,7 +196,7 @@ const resetPassword = async (req, res) => {
 
     // Mark token as used instead of deleting (for audit trail)
     await pool.query(
-      'UPDATE password_reset_tokens SET used_at = CURRENT_TIMESTAMP WHERE token = $1',
+      'UPDATE password_reset_tokens SET used = TRUE WHERE token = $1',
       [token]
     );
 
