@@ -266,13 +266,138 @@ const sendRejectionEmail = async (userEmail, firstName, lastName, reason) => {
     console.log('Rejection email sent successfully to:', userEmail);
     return { success: true };
   } catch (error) {
-    console.error('Error sending rejection email:', error);
-    return { success: false, error: error.message };
+  }
+};
+
+// Send password reset email
+const sendPasswordResetEmail = async (email, userName, resetToken) => {
+  const apiInstance = getTransactionalEmailApi();
+  
+  if (!apiInstance) {
+    throw new Error('Email service not configured - BREVO_API_KEY missing');
+  }
+
+  const sender = getSenderDetails();
+  if (!sender.email) {
+    throw new Error('Email service not configured - sender email missing');
+  }
+
+  // Create reset link
+  const resetLink = `${API_CONFIG.PUBLIC_URL}/reset-password?token=${resetToken}`;
+  
+  // Create email content
+  const emailContent = {
+    sender: sender,
+    to: [{ email: email, name: userName }],
+    subject: 'Reset Your WSBS Password',
+    htmlContent: `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Password Reset - WSBS</title>
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; background-color: #f4f4f4; }
+          .container { max-width: 600px; margin: 0 auto; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+          .header { background: linear-gradient(135deg, #4CAF50, #45a049); color: white; padding: 30px 20px; text-align: center; }
+          .header h1 { margin: 0; font-size: 28px; font-weight: bold; }
+          .content { padding: 30px 20px; }
+          .content h2 { color: #4CAF50; margin-top: 0; }
+          .reset-button { display: inline-block; background: #4CAF50; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; font-weight: bold; margin: 20px 0; }
+          .reset-button:hover { background: #45a049; }
+          .warning { background: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; border-radius: 5px; margin: 20px 0; }
+          .footer { background: #f8f9fa; padding: 20px; text-align: center; color: #666; font-size: 14px; }
+          .token-box { background: #f8f9fa; border: 1px solid #dee2e6; padding: 15px; border-radius: 5px; font-family: monospace; word-break: break-all; margin: 15px 0; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>🗑️ WSBS</h1>
+            <p>Waste Scheduling & Billing System</p>
+          </div>
+          
+          <div class="content">
+            <h2>Password Reset Request</h2>
+            <p>Hello <strong>${userName}</strong>,</p>
+            
+            <p>We received a request to reset your password for your WSBS account. If you made this request, click the button below to reset your password:</p>
+            
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${resetLink}" class="reset-button">Reset My Password</a>
+            </div>
+            
+            <p><strong>Or copy and paste this link into your browser:</strong></p>
+            <div class="token-box">${resetLink}</div>
+            
+            <div class="warning">
+              <strong>⚠️ Important Security Information:</strong>
+              <ul>
+                <li>This link will expire in <strong>1 hour</strong></li>
+                <li>If you didn't request this reset, please ignore this email</li>
+                <li>Never share this link with anyone</li>
+                <li>For security, this link can only be used once</li>
+              </ul>
+            </div>
+            
+            <p>If you're having trouble clicking the button, you can also reset your password by:</p>
+            <ol>
+              <li>Going to the WSBS login page</li>
+              <li>Clicking "Forgot Password?"</li>
+              <li>Entering this reset token: <code>${resetToken}</code></li>
+            </ol>
+          </div>
+          
+          <div class="footer">
+            <p>This email was sent from the WSBS system.</p>
+            <p>If you need help, please contact your system administrator.</p>
+            <p style="margin-top: 20px; font-size: 12px; color: #999;">
+              This is an automated message, please do not reply to this email.
+            </p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `,
+    textContent: `
+      WSBS - Password Reset Request
+      
+      Hello ${userName},
+      
+      We received a request to reset your password for your WSBS account.
+      
+      To reset your password, please visit this link:
+      ${resetLink}
+      
+      Or use this reset token in the app: ${resetToken}
+      
+      IMPORTANT:
+      - This link expires in 1 hour
+      - If you didn't request this reset, please ignore this email
+      - Never share this link with anyone
+      - This link can only be used once
+      
+      If you need help, please contact your system administrator.
+      
+      This is an automated message, please do not reply.
+    `
+  };
+
+  try {
+    console.log('📧 Sending password reset email to:', email);
+    const result = await apiInstance.sendTransacEmail(emailContent);
+    console.log('✅ Password reset email sent successfully:', result.messageId);
+    return result;
+  } catch (error) {
+    console.error('❌ Failed to send password reset email:', error);
+    throw new Error(`Email sending failed: ${error.message}`);
   }
 };
 
 module.exports = {
   sendVerificationEmail,
+  sendPasswordResetEmail,
   sendApprovalEmail,
   sendRejectionEmail
 };

@@ -1,6 +1,15 @@
 const dotenv = require('dotenv');
 dotenv.config(); // Load environment variables FIRST
 
+// Validate environment variables before starting the server
+const { validateEnvironment } = require('./config/envValidator');
+try {
+  validateEnvironment();
+} catch (error) {
+  console.error('🚫 Server startup aborted due to environment validation errors');
+  process.exit(1);
+}
+
 const config = require('./config/config');
 
 // Add error handling for uncaught exceptions

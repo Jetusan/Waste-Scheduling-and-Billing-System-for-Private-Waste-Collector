@@ -24,6 +24,12 @@ export const WebSocketProvider = ({ children }) => {
   // Initialize WebSocket connection
   const connect = useCallback(async () => {
     try {
+      // Disconnect existing socket first to prevent multiple connections
+      if (socket) {
+        console.log('🔌 Closing existing WebSocket connection');
+        socket.close();
+      }
+
       // Get user info
       const uid = await getUserId();
       const role = await getRole();
@@ -47,7 +53,8 @@ export const WebSocketProvider = ({ children }) => {
         reconnectionDelay: 1000,
         reconnectionDelayMax: 5000,
         reconnectionAttempts: Infinity,
-        timeout: 20000
+        timeout: 20000,
+        forceNew: true // Force new connection to prevent reusing old connections
       });
 
       newSocket.on('connect', () => {
@@ -121,12 +128,16 @@ export const WebSocketProvider = ({ children }) => {
         console.log('🏓 Pong received');
       });
 
-      setSocket(newSocket);
-
-      return () => {
+      // Store cleanup function for this connection
+      newSocket.cleanup = () => {
         clearInterval(pingInterval);
+        newSocket.removeAllListeners();
         newSocket.close();
       };
+
+      setSocket(newSocket);
+
+      return newSocket.cleanup;
     } catch (error) {
       console.error('Failed to initialize WebSocket:', error);
     }
@@ -136,7 +147,11 @@ export const WebSocketProvider = ({ children }) => {
   const disconnect = useCallback(() => {
     if (socket) {
       console.log('🔌 Disconnecting WebSocket');
-      socket.close();
+      if (socket.cleanup) {
+        socket.cleanup();
+      } else {
+        socket.close();
+      }
       setSocket(null);
       setIsConnected(false);
     }

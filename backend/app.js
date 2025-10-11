@@ -30,6 +30,7 @@ const collectorRouter = require('./routes/collector');
 const feedbackRouter = require('./routes/feedback');
 const collectorEmergencyRouter = require('./routes/collectorEmergency');
 const reportsRouter = require('./routes/reports');
+const healthRouter = require('./routes/health');
 
 const app = express();
 
@@ -72,20 +73,20 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.get('/', (req, res) => {
   res.status(200).json({ 
     message: 'WSBS Backend API is running',
-    status: 'ok', 
     time: new Date().toISOString(),
     version: '1.0.0'
   });
 });
 
-// Health check for Render
-app.get('/health', (req, res) => {
+// Health check endpoints - Enhanced with database monitoring
+app.use('/health', healthRouter);
+// Legacy health check endpoint for backward compatibility
+app.get('/health-simple', (req, res) => {
   res.status(200).json({ status: 'ok', time: new Date().toISOString() });
 });
 app.use('/api/auth', authRouter);
 app.use('/api/billing', billingRouter);
 app.use('/api/receipt', require('./routes/receipt'));
-app.use('/api/transactions', require('./routes/transactions'));
 app.use('/api/collection-schedules', collectionSchedulesRouter);
 app.use('/api/dashboard', dashboardRouter);
 app.use('/api/special-pickup', specialPickupRouter);

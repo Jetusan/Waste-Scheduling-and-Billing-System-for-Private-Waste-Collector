@@ -3,6 +3,7 @@ const router = express.Router();
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const pool = require('../config/dbAdmin');
+const { forgotPassword, resetPassword } = require('../controller/passwordResetController');
 const multer = require('multer');
 const path = require('path');
 const crypto = require('crypto');
@@ -795,5 +796,9 @@ router.get('/puroks/:barangayId', async (req, res) => {
     });
   }
 });
+
+// Forgot Password Routes
+router.post('/forgot-password', forgotPassword);
+router.post('/reset-password', resetPassword);
 
 module.exports = router;

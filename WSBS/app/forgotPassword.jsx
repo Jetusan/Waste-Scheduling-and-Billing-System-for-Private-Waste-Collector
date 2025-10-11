@@ -40,11 +40,14 @@ const ForgotPasswordScreen = () => {
       const data = await response.json();
 
       if (data.success) {
-        setResetToken(data.resetToken);
         setStep(2);
-        Alert.alert('Token Generated', `Your reset token is: ${data.resetToken}\nPlease save this token and proceed to reset your password.`);
+        Alert.alert(
+          'Email Sent!', 
+          'If an account with that username/email exists, a password reset link has been sent to the associated email address. Please check your email and follow the instructions.',
+          [{ text: 'OK' }]
+        );
       } else {
-        Alert.alert('Error', data.message || 'Failed to generate reset token');
+        Alert.alert('Error', data.message || 'Failed to send reset email');
       }
     } catch (err) {
       Alert.alert('Error', 'Failed to connect to server');
@@ -118,14 +121,13 @@ const ForgotPasswordScreen = () => {
         {step === 1 ? (
           <>
             <Text style={styles.description}>
-              Enter your username and we'll generate a password reset token for you.
+              Enter your username or email address and we'll send you a password reset link.
             </Text>
             
-            <Text style={styles.label}>Username</Text>
+            <Text style={styles.label}>Username or Email Address</Text>
             <TextInput
               style={styles.input}
-              placeholder="Enter your username"
-              value={username}
+              placeholder="Enter your username or email address"
               onChangeText={setUsername}
               autoCapitalize="none"
             />
@@ -138,20 +140,20 @@ const ForgotPasswordScreen = () => {
               {loading ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <Text style={styles.buttonText}>Generate Reset Token</Text>
+                <Text style={styles.buttonText}>Send Reset Email</Text>
               )}
             </TouchableOpacity>
           </>
         ) : (
           <>
             <Text style={styles.description}>
-              Enter your new password and confirm it.
+              Check your email for the password reset link, then enter the token and your new password below.
             </Text>
             
             <Text style={styles.label}>Reset Token</Text>
             <TextInput
               style={styles.input}
-              placeholder="Enter reset token"
+              placeholder="Enter reset token from email"
               value={resetToken}
               onChangeText={setResetToken}
               autoCapitalize="none"

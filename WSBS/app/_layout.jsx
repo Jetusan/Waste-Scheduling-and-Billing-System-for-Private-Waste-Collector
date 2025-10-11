@@ -1,15 +1,17 @@
 import { Stack } from 'expo-router';
 import { WebSocketProvider } from '../contexts/WebSocketContext';
+import ErrorBoundary from '../components/ErrorBoundary';
 
 export default function Layout() {
   return (
-    <WebSocketProvider>
-      <Stack
-        screenOptions={{
-          headerShown: false,
-          contentStyle: { backgroundColor: '#fff' },
-        }}
-      >
+    <ErrorBoundary fallbackMessage="The app encountered an error. Please restart the app.">
+      <WebSocketProvider>
+        <Stack
+          screenOptions={{
+            headerShown: false,
+            contentStyle: { backgroundColor: '#fff' },
+          }}
+        >
       <Stack.Screen name="welcome" />
       <Stack.Screen name="role" />
       <Stack.Screen name="RLogin" />
@@ -51,6 +53,7 @@ export default function Layout() {
         }}
       />
     </Stack>
-    </WebSocketProvider>
+      </WebSocketProvider>
+    </ErrorBoundary>
   );
 }
