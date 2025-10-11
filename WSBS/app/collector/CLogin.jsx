@@ -13,7 +13,7 @@ import {
 import { useRouter } from 'expo-router';
 import { saveAuth } from '../auth'; // Import the auth utility
 import { API_BASE_URL } from '../config';
-import { Feather } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 
 const CollectorLoginScreen = () => {
   const [username, setUsername] = useState('');
@@ -156,14 +156,19 @@ const CollectorLoginScreen = () => {
             }} 
             style={styles.showHideButton}
           >
-            <Feather name={showPassword ? 'eye-off' : 'eye'} size={24} color="#3498db" />
+            <Ionicons name={showPassword ? 'eye-off' : 'eye'} size={24} color="#3498db" />
           </TouchableOpacity>
         </View>
 
         {/* Forgot Password Link */}
         <TouchableOpacity onPress={() => {
           console.log('🔗 Navigating to collector forgot password...');
-          router.push('/collector/CForgotPassword');
+          try {
+            router.push('/collector/forgot');
+          } catch (error) {
+            console.log('❌ Navigation error:', error);
+            Alert.alert('Navigation Error', 'Unable to open forgot password page. Please try again.');
+          }
         }}>
           <Text style={styles.forgotPassword}>Forgot password?</Text>
         </TouchableOpacity>

@@ -11,7 +11,7 @@ import {
   Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Feather } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import { API_BASE_URL } from './config';
 
 const ForgotPasswordScreen = () => {
@@ -187,7 +187,7 @@ const ForgotPasswordScreen = () => {
                 }}
                 style={styles.eyeButton}
               >
-                <Feather name={showNewPassword ? 'eye-off' : 'eye'} size={20} color="#666" />
+                <Ionicons name={showNewPassword ? 'eye-off' : 'eye'} size={20} color="#666" />
               </TouchableOpacity>
             </View>
 
@@ -211,7 +211,7 @@ const ForgotPasswordScreen = () => {
                 }}
                 style={styles.eyeButton}
               >
-                <Feather name={showConfirmPassword ? 'eye-off' : 'eye'} size={20} color="#666" />
+                <Ionicons name={showConfirmPassword ? 'eye-off' : 'eye'} size={20} color="#666" />
               </TouchableOpacity>
             </View>
 

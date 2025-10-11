@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { saveAuth } from './auth'; // Import the auth utility
-import { Feather } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import { API_BASE_URL } from './config';
 
 const LoginScreen = () => {
@@ -152,7 +152,7 @@ const LoginScreen = () => {
             console.log('👁️ Eye button pressed! Current showPassword:', showPassword);
             setShowPassword(prev => !prev);
           }} style={styles.showHideButton}>
-            <Feather name={showPassword ? 'eye-off' : 'eye'} size={24} color="#3498db" />
+            <Ionicons name={showPassword ? 'eye-off' : 'eye'} size={24} color="#3498db" />
           </TouchableOpacity>
         </View>
 

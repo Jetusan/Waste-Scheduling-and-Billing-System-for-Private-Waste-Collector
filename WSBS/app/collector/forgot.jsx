@@ -117,13 +117,12 @@ const CollectorForgotPassword = () => {
         </TouchableOpacity>
 
         <Text style={styles.title}>
-          {step === 1 ? 'Collector Password Reset' : 'Set New Password'}
+          {step === 1 ? '🚛 Collector Password Reset' : 'Set New Password'}
         </Text>
 
         {step === 1 ? (
           <>
             <Text style={styles.description}>
-              🚛 Collector Account Recovery{'\n'}
               Enter your collector username and registered contact number to receive a reset code.
             </Text>
             
