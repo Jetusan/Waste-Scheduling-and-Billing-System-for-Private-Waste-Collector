@@ -135,8 +135,7 @@ const ForgotPasswordScreen = () => {
               onChangeText={setUsername}
               autoCapitalize="none"
               keyboardType="email-address"
-              autoComplete="email"
-              textContentType="emailAddress"
+              autoCorrect={false}
             />
 
             <TouchableOpacity
@@ -177,9 +176,14 @@ const ForgotPasswordScreen = () => {
                 onChangeText={setNewPassword}
                 secureTextEntry={!showNewPassword}
                 autoCapitalize="none"
+                autoCorrect={false}
+                textContentType="newPassword"
               />
               <TouchableOpacity 
-                onPress={() => setShowNewPassword(!showNewPassword)}
+                onPress={() => {
+                  console.log('👁️ New Password Eye pressed! Current:', showNewPassword);
+                  setShowNewPassword(!showNewPassword);
+                }}
                 style={styles.eyeButton}
               >
                 <Feather name={showNewPassword ? 'eye-off' : 'eye'} size={20} color="#666" />
@@ -195,9 +199,14 @@ const ForgotPasswordScreen = () => {
                 onChangeText={setConfirmPassword}
                 secureTextEntry={!showConfirmPassword}
                 autoCapitalize="none"
+                autoCorrect={false}
+                textContentType="newPassword"
               />
               <TouchableOpacity 
-                onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                onPress={() => {
+                  console.log('👁️ Confirm Password Eye pressed! Current:', showConfirmPassword);
+                  setShowConfirmPassword(!showConfirmPassword);
+                }}
                 style={styles.eyeButton}
               >
                 <Feather name={showConfirmPassword ? 'eye-off' : 'eye'} size={20} color="#666" />

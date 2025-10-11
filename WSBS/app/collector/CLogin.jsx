@@ -139,7 +139,6 @@ const CollectorLoginScreen = () => {
         <Text style={styles.label}>Password</Text>
         <View style={styles.passwordContainer}>
           <TextInput
-            key={`password-${showPassword}`}
             style={styles.passwordInput}
             placeholder="Enter your password"
             value={password}
@@ -147,10 +146,6 @@ const CollectorLoginScreen = () => {
             secureTextEntry={!showPassword}
             autoCapitalize="none"
             autoCorrect={false}
-            textContentType="password"
-            keyboardType="default"
-            maxLength={50}
-            importantForAutofill="no"
           />
           <TouchableOpacity 
             onPress={() => {
@@ -164,7 +159,7 @@ const CollectorLoginScreen = () => {
         </View>
 
         {/* Forgot Password Link */}
-        <TouchableOpacity onPress={() => router.push('/collector/ForgotPassword')}>
+        <TouchableOpacity onPress={() => router.push('/collector/forgot-password')}>
           <Text style={styles.forgotPassword}>Forgot password?</Text>
         </TouchableOpacity>
 

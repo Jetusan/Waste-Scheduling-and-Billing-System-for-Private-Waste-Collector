@@ -138,7 +138,6 @@ const LoginScreen = () => {
         <Text style={styles.label}>Password</Text>
         <View style={styles.passwordContainer}>
           <TextInput
-            key={`password-${showPassword}`}
             style={styles.passwordInput}
             placeholder="Enter your password"
             value={password}
@@ -146,20 +145,6 @@ const LoginScreen = () => {
             secureTextEntry={!showPassword}
             autoCapitalize="none"
             autoCorrect={false}
-            autoComplete="password"
-            textContentType="password"
-            keyboardType="default"
-            maxLength={50}
-            blurOnSubmit={false}
-            {...(Platform.OS === 'android' && {
-              passwordRules: undefined,
-              importantForAutofill: 'no',
-              autoCompleteType: 'password'
-            })}
-            {...(Platform.OS === 'ios' && {
-              textContentType: 'password',
-              passwordRules: 'minlength: 1;'
-            })}
           />
           <TouchableOpacity onPress={() => {
             console.log('👁️ Eye button pressed! Current showPassword:', showPassword);

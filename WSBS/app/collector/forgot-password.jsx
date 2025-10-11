@@ -181,9 +181,14 @@ const CollectorForgotPassword = () => {
                 onChangeText={setNewPassword}
                 secureTextEntry={!showNewPassword}
                 autoCapitalize="none"
+                autoCorrect={false}
+                textContentType="newPassword"
               />
               <TouchableOpacity 
-                onPress={() => setShowNewPassword(!showNewPassword)}
+                onPress={() => {
+                  console.log('👁️ Collector New Password Eye pressed! Current:', showNewPassword);
+                  setShowNewPassword(!showNewPassword);
+                }}
                 style={styles.eyeButton}
               >
                 <Feather name={showNewPassword ? 'eye-off' : 'eye'} size={20} color="#666" />
@@ -199,9 +204,14 @@ const CollectorForgotPassword = () => {
                 onChangeText={setConfirmPassword}
                 secureTextEntry={!showConfirmPassword}
                 autoCapitalize="none"
+                autoCorrect={false}
+                textContentType="newPassword"
               />
               <TouchableOpacity 
-                onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                onPress={() => {
+                  console.log('👁️ Collector Confirm Password Eye pressed! Current:', showConfirmPassword);
+                  setShowConfirmPassword(!showConfirmPassword);
+                }}
                 style={styles.eyeButton}
               >
                 <Feather name={showConfirmPassword ? 'eye-off' : 'eye'} size={20} color="#666" />
