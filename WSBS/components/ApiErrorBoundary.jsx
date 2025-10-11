@@ -122,7 +122,7 @@ export const useApiErrorHandler = () => {
     // Handle auth errors
     if (error.status === 401 || error.message?.includes('401')) {
       // Clear auth and redirect to login
-      import('../auth').then(({ logout }) => {
+      import('../app/auth').then(({ logout }) => {
         logout().then(() => {
           router.replace('/role');
         });

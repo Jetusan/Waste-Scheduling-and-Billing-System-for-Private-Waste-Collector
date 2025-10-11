@@ -2,7 +2,7 @@ import { Stack, useRouter, usePathname } from "expo-router";
 import React, { useEffect, useState } from 'react';
 import { View, ActivityIndicator } from 'react-native';
 import { getToken, getRole } from "../auth";
-import ApiErrorBoundary from "../components/ApiErrorBoundary";
+import ApiErrorBoundary from "../../components/ApiErrorBoundary";
 
 export default function CollectorLayout() {
   const router = useRouter();
