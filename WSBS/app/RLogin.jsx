@@ -138,6 +138,7 @@ const LoginScreen = () => {
         <Text style={styles.label}>Password</Text>
         <View style={styles.passwordContainer}>
           <TextInput
+            key={`resident-password-${showPassword ? 'visible' : 'hidden'}`}
             style={styles.passwordInput}
             placeholder="Enter your password"
             value={password}
@@ -145,6 +146,7 @@ const LoginScreen = () => {
             secureTextEntry={!showPassword}
             autoCapitalize="none"
             autoCorrect={false}
+            textContentType={showPassword ? "none" : "password"}
           />
           <TouchableOpacity onPress={() => {
             console.log('👁️ Eye button pressed! Current showPassword:', showPassword);

@@ -117,13 +117,14 @@ const CollectorForgotPassword = () => {
         </TouchableOpacity>
 
         <Text style={styles.title}>
-          {step === 1 ? 'Reset Password' : 'Set New Password'}
+          {step === 1 ? 'Collector Password Reset' : 'Set New Password'}
         </Text>
 
         {step === 1 ? (
           <>
             <Text style={styles.description}>
-              Enter your username and contact number to receive a reset code.
+              🚛 Collector Account Recovery{'\n'}
+              Enter your collector username and registered contact number to receive a reset code.
             </Text>
             
             <Text style={styles.label}>Username</Text>
@@ -175,6 +176,7 @@ const CollectorForgotPassword = () => {
             <Text style={styles.label}>New Password</Text>
             <View style={styles.passwordContainer}>
               <TextInput
+                key={`collector-new-password-${showNewPassword ? 'visible' : 'hidden'}`}
                 style={styles.passwordInput}
                 placeholder="Enter new password"
                 value={newPassword}
@@ -182,7 +184,7 @@ const CollectorForgotPassword = () => {
                 secureTextEntry={!showNewPassword}
                 autoCapitalize="none"
                 autoCorrect={false}
-                textContentType="newPassword"
+                textContentType={showNewPassword ? "none" : "newPassword"}
               />
               <TouchableOpacity 
                 onPress={() => {
@@ -198,6 +200,7 @@ const CollectorForgotPassword = () => {
             <Text style={styles.label}>Confirm Password</Text>
             <View style={styles.passwordContainer}>
               <TextInput
+                key={`collector-confirm-password-${showConfirmPassword ? 'visible' : 'hidden'}`}
                 style={styles.passwordInput}
                 placeholder="Confirm new password"
                 value={confirmPassword}
@@ -205,7 +208,7 @@ const CollectorForgotPassword = () => {
                 secureTextEntry={!showConfirmPassword}
                 autoCapitalize="none"
                 autoCorrect={false}
-                textContentType="newPassword"
+                textContentType={showConfirmPassword ? "none" : "newPassword"}
               />
               <TouchableOpacity 
                 onPress={() => {

@@ -170,6 +170,7 @@ const ForgotPasswordScreen = () => {
             <Text style={styles.label}>New Password</Text>
             <View style={styles.passwordContainer}>
               <TextInput
+                key={`resident-new-password-${showNewPassword ? 'visible' : 'hidden'}`}
                 style={styles.passwordInput}
                 placeholder="Enter new password"
                 value={newPassword}
@@ -177,7 +178,7 @@ const ForgotPasswordScreen = () => {
                 secureTextEntry={!showNewPassword}
                 autoCapitalize="none"
                 autoCorrect={false}
-                textContentType="newPassword"
+                textContentType={showNewPassword ? "none" : "newPassword"}
               />
               <TouchableOpacity 
                 onPress={() => {
@@ -193,6 +194,7 @@ const ForgotPasswordScreen = () => {
             <Text style={styles.label}>Confirm Password</Text>
             <View style={styles.passwordContainer}>
               <TextInput
+                key={`resident-confirm-password-${showConfirmPassword ? 'visible' : 'hidden'}`}
                 style={styles.passwordInput}
                 placeholder="Confirm new password"
                 value={confirmPassword}
@@ -200,7 +202,7 @@ const ForgotPasswordScreen = () => {
                 secureTextEntry={!showConfirmPassword}
                 autoCapitalize="none"
                 autoCorrect={false}
-                textContentType="newPassword"
+                textContentType={showConfirmPassword ? "none" : "newPassword"}
               />
               <TouchableOpacity 
                 onPress={() => {
