@@ -96,11 +96,11 @@ const AccountPage = () => {
       // Clear the token from secure storage
       const { logout } = require('../auth');
       await logout();
-      router.replace('/RLogin');
+      router.replace('/role');
     } catch (error) {
       console.error('Logout error:', error);
       // Force navigation even if logout fails
-      router.replace('/RLogin');
+      router.replace('/role');
     }
   };
 

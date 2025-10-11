@@ -2,9 +2,23 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, StatusBar, ScrollView } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { logout } from './auth';
 
 const CSettings = () => {
   const router = useRouter();
+
+  const handleLogout = async () => {
+    try {
+      // Clear all authentication data from SecureStore
+      await logout();
+      // Navigate to role selection page
+      router.replace('/role');
+    } catch (error) {
+      console.error('Logout error:', error);
+      // Force navigation even if logout fails
+      router.replace('/role');
+    }
+  };
 
   return (
     <View style={styles.container}>
@@ -49,7 +63,7 @@ const CSettings = () => {
         </TouchableOpacity>
 
         {/* Log Out Button */}
-        <TouchableOpacity style={styles.logoutButton} onPress={() => router.push('/collector/CLogin')}>
+        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
           <Text style={styles.logoutText}>Log Out</Text>
         </TouchableOpacity>
 

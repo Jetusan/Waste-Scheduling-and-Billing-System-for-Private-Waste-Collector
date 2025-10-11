@@ -230,30 +230,49 @@ const CStartCollection = () => {
   const fetchResidentLocations = useCallback(async () => {
     try {
       const token = await getToken();
-      if (!token) return;
+      if (!token) {
+        console.log('❌ No token available for fetching resident locations');
+        return;
+      }
       
       // Extract user_ids from stops
       const userIds = stops.map(stop => stop.user_id).filter(id => id);
       
       if (userIds.length === 0) {
-        // Fallback: Add test user_id 140 for debugging
-        userIds.push(140);
+        console.log('❌ No user IDs found in stops for location fetching');
+        return;
       }
       
+      console.log('📍 Fetching locations for user IDs:', userIds);
       const url = `${API_BASE_URL}/api/residents/locations?user_ids=${userIds.join(',')}`;
       
       const res = await fetch(url, {
         headers: { Authorization: `Bearer ${token}` },
       });
       
+      console.log('📍 Location API response status:', res.status);
+      
       if (res.ok) {
         const data = await res.json();
+        console.log('📍 Location API response data:', data);
+        
         if (data.success && data.locations) {
+          console.log(`✅ Found ${data.locations.length} resident locations`);
           setResidentLocations(data.locations);
+          
+          // Log each location for debugging
+          data.locations.forEach(loc => {
+            console.log(`📍 Location for user ${loc.user_id}: ${loc.name} at (${loc.latitude}, ${loc.longitude})`);
+          });
+        } else {
+          console.log('⚠️ API returned success but no locations data');
         }
+      } else {
+        const errorText = await res.text();
+        console.error('❌ Failed to fetch resident locations:', res.status, errorText);
       }
     } catch (e) {
-      // Silent error handling
+      console.error('❌ Error fetching resident locations:', e.message);
     }
   }, [stops]);
 
@@ -841,10 +860,15 @@ const CStartCollection = () => {
   }, [resolveCollectorId]);
 
   const showResidentOnMap = useCallback((userId) => {
+    console.log(`🗺️ Attempting to show user ${userId} on map`);
+    console.log(`📍 Available resident locations:`, residentLocations.map(loc => ({ user_id: loc.user_id, name: loc.name })));
+    
     const location = residentLocations.find(loc => loc.user_id === userId);
     
     if (location && mapRef) {
+      console.log(`✅ Found location for user ${userId}:`, location);
       setSelectedResidentLocation(location);
+      
       // Send location to map via WebView messaging
       sendToMap({
         type: 'show_resident_location',
@@ -859,6 +883,7 @@ const CStartCollection = () => {
       
       // Draw route from collector to resident if collector location is available
       if (collectorLocation) {
+        console.log(`🛣️ Drawing route from collector to resident`);
         sendToMap({
           type: 'draw_route',
           from: {
@@ -870,7 +895,23 @@ const CStartCollection = () => {
             longitude: location.longitude
           }
         });
+      } else {
+        console.log(`⚠️ No collector location available for route drawing`);
       }
+    } else if (!location) {
+      console.log(`❌ No location found for user ${userId}`);
+      Alert.alert(
+        'Location Not Available',
+        `This resident hasn't set their home location yet. Please ask them to use the "Set Home Location" feature in the app.`,
+        [{ text: 'OK' }]
+      );
+    } else if (!mapRef) {
+      console.log(`❌ Map not ready yet`);
+      Alert.alert(
+        'Map Not Ready',
+        'Please wait for the map to load before trying to navigate.',
+        [{ text: 'OK' }]
+      );
     }
   }, [residentLocations, mapRef, collectorLocation, sendToMap]);
 
@@ -963,9 +1004,16 @@ const CStartCollection = () => {
 
       {/* Small hint if no resident locations available while there are stops */}
       {stops && stops.length > 0 && (!residentLocations || residentLocations.length === 0) && (
-        <View style={[styles.card, { marginTop: 8 }]}> 
-          <Text style={{ color: '#555' }}>
-            No pinned resident locations available to show on the map. Residents need to set their Home location.
+        <View style={[styles.card, { marginTop: 8, backgroundColor: '#fff3cd', borderColor: '#ffeaa7', borderWidth: 1 }]}> 
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+            <Ionicons name="information-circle" size={20} color="#856404" />
+            <Text style={{ color: '#856404', fontWeight: 'bold', marginLeft: 8 }}>Map Navigation Info</Text>
+          </View>
+          <Text style={{ color: '#856404', lineHeight: 20 }}>
+            No resident locations available for map navigation. Residents need to set their home location using the "Set Home Location" feature in their app.
+          </Text>
+          <Text style={{ color: '#856404', marginTop: 8, fontSize: 12, fontStyle: 'italic' }}>
+            You can still collect waste - just use the address information shown in each stop.
           </Text>
         </View>
       )}
