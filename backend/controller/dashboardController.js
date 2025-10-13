@@ -222,53 +222,82 @@ const getUpcomingSchedules = async (req, res) => {
     const currentDayIndex = today.getDay(); // 0 = Sunday, 1 = Monday, etc.
     const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     
-    // Calculate next occurrence dates for each day
-    const getNextOccurrence = (dayName) => {
-      const targetDayIndex = daysOfWeek.indexOf(dayName);
-      if (targetDayIndex === -1) return null;
-      
-      let daysUntilTarget = targetDayIndex - currentDayIndex;
-      if (daysUntilTarget <= 0) {
-        daysUntilTarget += 7; // Next week
+    // Calculate next occurrence dates for each day or parse specific dates
+    const getNextOccurrence = (scheduleDate) => {
+      // Check if it's a day name (Monday, Tuesday, etc.)
+      const targetDayIndex = daysOfWeek.indexOf(scheduleDate);
+      if (targetDayIndex !== -1) {
+        let daysUntilTarget = targetDayIndex - currentDayIndex;
+        if (daysUntilTarget <= 0) {
+          daysUntilTarget += 7; // Next week
+        }
+        
+        const nextDate = new Date(today);
+        nextDate.setDate(today.getDate() + daysUntilTarget);
+        return nextDate;
       }
       
-      const nextDate = new Date(today);
-      nextDate.setDate(today.getDate() + daysUntilTarget);
-      return nextDate;
+      // Check if it's a specific date (YYYY-MM-DD format or timestamp)
+      try {
+        const parsedDate = new Date(scheduleDate);
+        if (!isNaN(parsedDate.getTime())) {
+          // Only return future dates
+          if (parsedDate >= today) {
+            return parsedDate;
+          }
+          // If it's a past specific date, calculate next occurrence based on day of week
+          const dayName = daysOfWeek[parsedDate.getDay()];
+          return getNextOccurrence(dayName);
+        }
+      } catch (e) {
+        console.log('Could not parse date:', scheduleDate);
+      }
+      
+      return null;
     };
     
     const query = `
       SELECT 
         cs.*,
-        json_agg(
-          json_build_object(
-            'barangay_id', b.barangay_id,
-            'barangay_name', b.barangay_name
-          )
+        COALESCE(
+          json_agg(
+            CASE WHEN b.barangay_id IS NOT NULL THEN
+              json_build_object(
+                'barangay_id', b.barangay_id,
+                'barangay_name', b.barangay_name
+              )
+            END
+          ) FILTER (WHERE b.barangay_id IS NOT NULL),
+          '[]'::json
         ) as barangays
       FROM collection_schedules cs
       LEFT JOIN schedule_barangays sb ON cs.schedule_id = sb.schedule_id
       LEFT JOIN barangays b ON sb.barangay_id = b.barangay_id
       GROUP BY cs.schedule_id, cs.schedule_date, cs.created_at, cs.waste_type, cs.time_range
-      ORDER BY cs.schedule_date, cs.time_range
-      LIMIT $1
+      ORDER BY cs.created_at DESC
     `;
 
-    const result = await pool.query(query, [limit]);
+    const result = await pool.query(query);
+    console.log(`Found ${result.rows.length} collection schedules in database`);
     
     // Transform the data to include actual next occurrence dates
     const transformedSchedules = result.rows.map(schedule => {
       const nextDate = getNextOccurrence(schedule.schedule_date);
-      return {
+      const scheduleData = {
         ...schedule,
         next_occurrence: nextDate ? nextDate.toISOString().split('T')[0] : null,
         actual_schedule_date: nextDate,
         day_of_week: schedule.schedule_date,
         status: 'Scheduled' // Default status for upcoming schedules
       };
+      
+      console.log(`Schedule ${schedule.schedule_id}: ${schedule.schedule_date} -> ${scheduleData.next_occurrence}`);
+      return scheduleData;
     }).filter(schedule => schedule.next_occurrence) // Only include valid dates
-      .sort((a, b) => new Date(a.next_occurrence) - new Date(b.next_occurrence)); // Sort by next occurrence
+      .sort((a, b) => new Date(a.next_occurrence) - new Date(b.next_occurrence)) // Sort by next occurrence
+      .slice(0, limit); // Apply limit after filtering and sorting
 
+    console.log(`Returning ${transformedSchedules.length} upcoming schedules`);
     res.json(transformedSchedules);
 
   } catch (error) {
