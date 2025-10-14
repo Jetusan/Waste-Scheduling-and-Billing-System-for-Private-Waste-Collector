@@ -914,7 +914,96 @@ const Reports = () => {
               {/* Billing/Payment Filters */}
               {reportFocus === 'billing-payment' && (
                 <div className="form-section">
-                  <h4>Billing & Payment Filters</h4>
+                  <div className="filter-header">
+                    <h4>💰 Billing & Payment Filters</h4>
+                    <div className="modern-filter-suggestions">
+                      <div className="filter-category">
+                        <span className="category-label">📅 Time-based Filters</span>
+                        <div className="filter-chips">
+                          <button type="button" className="filter-chip primary" onClick={() => {
+                            setReportForm(prev => ({...prev, status: 'paid', startDate: getToday(), endDate: getToday()}));
+                          }}>
+                            <i className="fas fa-calendar-day"></i>
+                            Today's Payments
+                          </button>
+                          <button type="button" className="filter-chip success" onClick={() => {
+                            setReportForm(prev => ({...prev, startDate: getThisWeekStart(), endDate: getThisWeekEnd()}));
+                          }}>
+                            <i className="fas fa-calendar-week"></i>
+                            This Week
+                          </button>
+                          <button type="button" className="filter-chip info" onClick={() => {
+                            setReportForm(prev => ({...prev, startDate: getThisMonthStart(), endDate: getThisMonthEnd()}));
+                          }}>
+                            <i className="fas fa-calendar-alt"></i>
+                            This Month
+                          </button>
+                        </div>
+                      </div>
+                      
+                      <div className="filter-category">
+                        <span className="category-label">📊 Payment Status</span>
+                        <div className="filter-chips">
+                          <button type="button" className="filter-chip success" onClick={() => {
+                            setReportForm(prev => ({...prev, status: 'paid'}));
+                          }}>
+                            <i className="fas fa-check-circle"></i>
+                            Paid Invoices
+                          </button>
+                          <button type="button" className="filter-chip warning" onClick={() => {
+                            setReportForm(prev => ({...prev, status: 'unpaid'}));
+                          }}>
+                            <i className="fas fa-exclamation-triangle"></i>
+                            Unpaid Invoices
+                          </button>
+                          <button type="button" className="filter-chip secondary" onClick={() => {
+                            setReportForm(prev => ({...prev, status: 'overdue'}));
+                          }}>
+                            <i className="fas fa-clock"></i>
+                            Overdue Payments
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="filter-category">
+                        <span className="category-label">💎 Revenue Analytics</span>
+                        <div className="filter-chips">
+                          <button type="button" className="filter-chip gradient-primary" onClick={() => {
+                            setReportForm(prev => ({
+                              ...prev, 
+                              status: 'paid',
+                              startDate: getThisMonthStart(),
+                              endDate: getThisMonthEnd()
+                            }));
+                          }}>
+                            <i className="fas fa-chart-bar"></i>
+                            Monthly Revenue
+                          </button>
+                          <button type="button" className="filter-chip gradient-success" onClick={() => {
+                            setReportForm(prev => ({
+                              ...prev,
+                              minAmount: '1000',
+                              status: 'all'
+                            }));
+                          }}>
+                            <i className="fas fa-gem"></i>
+                            High Value (₱1000+)
+                          </button>
+                          <button type="button" className="filter-chip gradient-info" onClick={() => {
+                            setReportForm(prev => ({
+                              ...prev,
+                              status: 'unpaid',
+                              startDate: getLastMonthStart(),
+                              endDate: getLastMonthEnd()
+                            }));
+                          }}>
+                            <i className="fas fa-exclamation-circle"></i>
+                            Collection Issues
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                   <div className="filters-grid">
                     <div className="form-group">
                       <label>Barangay</label>
@@ -1007,7 +1096,95 @@ const Reports = () => {
               {/* Special Pickup Filters */}
               {reportFocus === 'special-pickup' && (
                 <div className="form-section">
-                  <h4>Special Pickup Filters</h4>
+                  <div className="filter-header">
+                    <h4>🚛 Special Pickup Filters</h4>
+                    <div className="modern-filter-suggestions">
+                      <div className="filter-category">
+                        <span className="category-label">📅 Time-based Filters</span>
+                        <div className="filter-chips">
+                          <button type="button" className="filter-chip primary" onClick={() => {
+                            setReportForm(prev => ({...prev, status: 'collected', startDate: getToday(), endDate: getToday()}));
+                          }}>
+                            <i className="fas fa-calendar-day"></i>
+                            Today's Pickups
+                          </button>
+                          <button type="button" className="filter-chip success" onClick={() => {
+                            setReportForm(prev => ({...prev, startDate: getThisWeekStart(), endDate: getThisWeekEnd()}));
+                          }}>
+                            <i className="fas fa-calendar-week"></i>
+                            This Week
+                          </button>
+                          <button type="button" className="filter-chip info" onClick={() => {
+                            setReportForm(prev => ({...prev, startDate: getThisMonthStart(), endDate: getThisMonthEnd()}));
+                          }}>
+                            <i className="fas fa-calendar-alt"></i>
+                            This Month
+                          </button>
+                        </div>
+                      </div>
+                      
+                      <div className="filter-category">
+                        <span className="category-label">📊 Status Filters</span>
+                        <div className="filter-chips">
+                          <button type="button" className="filter-chip warning" onClick={() => {
+                            setReportForm(prev => ({...prev, status: 'pending'}));
+                          }}>
+                            <i className="fas fa-clock"></i>
+                            Pending Requests
+                          </button>
+                          <button type="button" className="filter-chip success" onClick={() => {
+                            setReportForm(prev => ({...prev, status: 'collected'}));
+                          }}>
+                            <i className="fas fa-check-circle"></i>
+                            Completed Pickups
+                          </button>
+                          <button type="button" className="filter-chip secondary" onClick={() => {
+                            setReportForm(prev => ({...prev, status: 'in_progress'}));
+                          }}>
+                            <i className="fas fa-spinner"></i>
+                            In Progress
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="filter-category">
+                        <span className="category-label">💰 Value-based Filters</span>
+                        <div className="filter-chips">
+                          <button type="button" className="filter-chip gradient-primary" onClick={() => {
+                            setReportForm(prev => ({
+                              ...prev, 
+                              minAmount: '500',
+                              status: 'all'
+                            }));
+                          }}>
+                            <i className="fas fa-gem"></i>
+                            High Value (₱500+)
+                          </button>
+                          <button type="button" className="filter-chip gradient-success" onClick={() => {
+                            setReportForm(prev => ({
+                              ...prev,
+                              priceStatus: 'agreed',
+                              status: 'all'
+                            }));
+                          }}>
+                            <i className="fas fa-handshake"></i>
+                            Price Agreed
+                          </button>
+                          <button type="button" className="filter-chip gradient-info" onClick={() => {
+                            setReportForm(prev => ({
+                              ...prev,
+                              startDate: getToday(),
+                              endDate: getToday(),
+                              status: 'collected'
+                            }));
+                          }}>
+                            <i className="fas fa-chart-line"></i>
+                            Today's Revenue
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                   <div className="filters-grid">
                     <div className="form-group">
                       <label>Barangay</label>

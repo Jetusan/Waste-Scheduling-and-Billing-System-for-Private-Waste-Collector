@@ -602,6 +602,7 @@ class ReportController {
 
       // Calculate summary based on real collection data
       const summary = {
+        totalSchedules: result.rows.length, // Changed from totalCollections to match PDF
         totalCollections: result.rows.length,
         completed: result.rows.filter(r => r.status === 'collected').length,
         missed: result.rows.filter(r => r.status === 'missed').length,
@@ -617,11 +618,22 @@ class ReportController {
         summary.completionRate = ((summary.completed / summary.totalCollections) * 100).toFixed(2);
       }
 
-      // Waste type breakdown
+      // Waste type breakdown with percentages
       const wasteTypeBreakdown = {};
+      const totalCollections = result.rows.length;
+      
       result.rows.forEach(row => {
         const wasteType = row.waste_type || 'Mixed Waste';
         wasteTypeBreakdown[wasteType] = (wasteTypeBreakdown[wasteType] || 0) + 1;
+      });
+
+      // Add percentage calculation
+      Object.keys(wasteTypeBreakdown).forEach(wasteType => {
+        const count = wasteTypeBreakdown[wasteType];
+        wasteTypeBreakdown[wasteType] = {
+          count: count,
+          percentage: totalCollections > 0 ? ((count / totalCollections) * 100).toFixed(1) : 0
+        };
       });
 
       // Barangay breakdown
@@ -680,7 +692,7 @@ class ReportController {
       const validStartDate = startDate && !isNaN(Date.parse(startDate)) ? startDate : '1900-01-01';
       const validEndDate = endDate && !isNaN(Date.parse(endDate)) ? endDate : '2100-12-31';
 
-      // FIXED: Real billing query with correct column names
+      // FIXED: Enhanced billing query with real data and safe joins
       let query = `
         SELECT 
           i.invoice_id,
@@ -694,57 +706,110 @@ class ReportController {
           i.notes,
           i.created_at,
           i.updated_at,
-          cs.user_id,
-          sp.plan_name,
-          sp.price as plan_price,
-          b.barangay_name,
-          b.barangay_id,
-          u.username
+          DATE(i.generated_date) as billing_date,
+          -- Calculate payment status
+          CASE 
+            WHEN i.status = 'paid' THEN 'Paid'
+            WHEN i.status = 'unpaid' AND i.due_date < CURRENT_DATE THEN 'Overdue'
+            WHEN i.status = 'unpaid' THEN 'Pending'
+            ELSE UPPER(SUBSTRING(i.status, 1, 1)) || SUBSTRING(i.status, 2)
+          END as payment_status_display,
+          -- Get subscription and user info (with safe joins)
+          COALESCE(cs.user_id, 0) as user_id,
+          COALESCE(u.username, 'Unknown User') as resident_name,
+          COALESCE(sp.plan_name, 'Unknown Plan') as plan_name,
+          COALESCE(sp.price, 0) as plan_price,
+          COALESCE(b.barangay_name, 'Unknown Barangay') as barangay_name,
+          COALESCE(b.barangay_id, 0) as barangay_id
         FROM invoices i
-        LEFT JOIN customer_subscriptions cs ON i.subscription_id = cs.subscription_id
-        LEFT JOIN subscription_plans sp ON cs.plan_id = sp.plan_id
-        LEFT JOIN users u ON cs.user_id = u.user_id
-        LEFT JOIN addresses a ON u.address_id = a.address_id
-        LEFT JOIN barangays b ON a.barangay_id = b.barangay_id
+        LEFT JOIN customer_subscriptions cs ON CAST(i.subscription_id AS INTEGER) = CAST(cs.subscription_id AS INTEGER)
+        LEFT JOIN subscription_plans sp ON CAST(cs.plan_id AS INTEGER) = CAST(sp.plan_id AS INTEGER)
+        LEFT JOIN users u ON CAST(cs.user_id AS INTEGER) = CAST(u.user_id AS INTEGER)
+        LEFT JOIN addresses a ON CAST(u.address_id AS INTEGER) = CAST(a.address_id AS INTEGER)
+        LEFT JOIN barangays b ON CAST(a.barangay_id AS INTEGER) = CAST(b.barangay_id AS INTEGER)
         WHERE 1=1
       `;
 
       const params = [];
       let paramCount = 0;
 
-      // Apply date filters
+      // Apply date filters using actual invoice dates
       if (validStartDate && validEndDate) {
         paramCount += 2;
-        query += ` AND i.generated_date BETWEEN $${paramCount-1} AND $${paramCount}`;
+        query += ` AND DATE(i.generated_date) BETWEEN CAST($${paramCount-1} AS DATE) AND CAST($${paramCount} AS DATE)`;
         params.push(validStartDate, validEndDate);
       }
 
       // Apply barangay filter
-      if (filters.barangay) {
-        paramCount++;
-        query += ` AND b.barangay_id = $${paramCount}::integer`;
-        params.push(filters.barangay);
+      if (filters.barangay && filters.barangay !== '' && filters.barangay !== 'all') {
+        console.log('Applying barangay filter:', filters.barangay, 'Type:', typeof filters.barangay);
+        if (!isNaN(parseInt(filters.barangay))) {
+          paramCount++;
+          query += ` AND b.barangay_id = CAST($${paramCount} AS INTEGER)`;
+          params.push(parseInt(filters.barangay));
+        }
       }
 
       // Apply plan filter
-      if (filters.plan) {
-        paramCount++;
-        query += ` AND sp.plan_id = $${paramCount}::integer`;
-        params.push(filters.plan);
+      if (filters.plan && filters.plan !== '' && filters.plan !== 'all') {
+        console.log('Applying plan filter:', filters.plan, 'Type:', typeof filters.plan);
+        if (!isNaN(parseInt(filters.plan))) {
+          paramCount++;
+          query += ` AND sp.plan_id = CAST($${paramCount} AS INTEGER)`;
+          params.push(parseInt(filters.plan));
+        }
       }
 
-      // Apply status filter
-      if (filters.status && filters.status !== 'all') {
+      // Apply status filter with mapping
+      if (filters.status && filters.status !== 'all' && filters.status !== '') {
+        console.log('Applying status filter:', filters.status);
+        
+        // Map frontend status values to database status values
+        let dbStatus = filters.status;
+        switch (filters.status) {
+          case 'paymentStatus':
+          case 'paid_ontime':
+          case 'paid_late':
+            dbStatus = 'paid';
+            break;
+          case 'unpaid':
+          case 'overdue':
+            dbStatus = 'unpaid';
+            break;
+          case 'partially_paid':
+            dbStatus = 'partially_paid';
+            break;
+          case 'cancelled':
+            dbStatus = 'cancelled';
+            break;
+          default:
+            dbStatus = filters.status;
+        }
+        
         paramCount++;
         query += ` AND i.status = $${paramCount}`;
-        params.push(filters.status);
+        params.push(dbStatus);
       }
 
       // Apply payment method filter
-      if (filters.paymentMethod && filters.paymentMethod !== 'all') {
+      if (filters.paymentMethod && filters.paymentMethod !== 'all' && filters.paymentMethod !== '') {
+        console.log('Applying payment method filter:', filters.paymentMethod);
         paramCount++;
         query += ` AND i.payment_method = $${paramCount}`;
         params.push(filters.paymentMethod);
+      }
+
+      // Apply amount range filters
+      if (filters.minAmount && !isNaN(parseFloat(filters.minAmount))) {
+        paramCount++;
+        query += ` AND i.amount >= $${paramCount}`;
+        params.push(parseFloat(filters.minAmount));
+      }
+
+      if (filters.maxAmount && !isNaN(parseFloat(filters.maxAmount))) {
+        paramCount++;
+        query += ` AND i.amount <= $${paramCount}`;
+        params.push(parseFloat(filters.maxAmount));
       }
 
       query += ` ORDER BY i.generated_date DESC`;
@@ -828,7 +893,7 @@ class ReportController {
     try {
       console.log('Generating Special Pickups Report with filters:', filters);
       
-      // FIXED: Simple special pickups query using only confirmed existing columns
+      // FIXED: Enhanced special pickups query with real data and safe joins
       let query = `
         SELECT 
           spr.request_id,
@@ -848,23 +913,25 @@ class ReportController {
           spr.price_status,
           spr.created_at,
           spr.updated_at,
+          DATE(spr.created_at) as request_date,
           -- Calculate response time
           CASE 
             WHEN spr.updated_at IS NOT NULL AND spr.created_at IS NOT NULL THEN
               EXTRACT(EPOCH FROM (spr.updated_at - spr.created_at))/3600
             ELSE 0
           END as response_time_hours,
-          -- Get barangay info if available
-          b.barangay_name,
-          b.barangay_id,
-          -- Get collector info if available
-          u_collector.username as collector_username
+          -- Get user and barangay info (with safe joins)
+          COALESCE(u.username, 'Unknown User') as resident_name,
+          COALESCE(b.barangay_name, 'Unknown Barangay') as barangay_name,
+          COALESCE(b.barangay_id, 0) as barangay_id,
+          -- Get collector info (with safe joins)
+          COALESCE(u_collector.username, 'Unassigned') as collector_name
         FROM special_pickup_requests spr
-        LEFT JOIN users u ON spr.user_id = u.user_id
-        LEFT JOIN addresses a ON u.address_id = a.address_id
-        LEFT JOIN barangays b ON a.barangay_id = b.barangay_id
-        LEFT JOIN collectors c ON spr.collector_id = c.collector_id
-        LEFT JOIN users u_collector ON c.user_id = u_collector.user_id
+        LEFT JOIN users u ON CAST(spr.user_id AS INTEGER) = CAST(u.user_id AS INTEGER)
+        LEFT JOIN addresses a ON CAST(u.address_id AS INTEGER) = CAST(a.address_id AS INTEGER)
+        LEFT JOIN barangays b ON CAST(a.barangay_id AS INTEGER) = CAST(b.barangay_id AS INTEGER)
+        LEFT JOIN collectors c ON CAST(spr.collector_id AS INTEGER) = CAST(c.collector_id AS INTEGER)
+        LEFT JOIN users u_collector ON CAST(c.user_id AS INTEGER) = CAST(u_collector.user_id AS INTEGER)
         WHERE 1=1
       `;
       
@@ -875,41 +942,55 @@ class ReportController {
       const validStartDate = startDate && !isNaN(Date.parse(startDate)) ? startDate : '1900-01-01';
       const validEndDate = endDate && !isNaN(Date.parse(endDate)) ? endDate : '2100-12-31';
 
-      // Apply comprehensive filters
+      // Apply comprehensive filters with proper type casting
       if (validStartDate && validEndDate) {
         paramCount += 2;
-        query += ` AND spr.pickup_date BETWEEN $${paramCount-1} AND $${paramCount}`;
+        query += ` AND DATE(spr.created_at) BETWEEN CAST($${paramCount-1} AS DATE) AND CAST($${paramCount} AS DATE)`;
         params.push(validStartDate, validEndDate);
       }
       
-      if (filters.barangay) {
-        paramCount++;
-        query += ` AND b.barangay_id = $${paramCount}::integer`;
-        params.push(filters.barangay);
+      // Apply barangay filter
+      if (filters.barangay && filters.barangay !== '' && filters.barangay !== 'all') {
+        console.log('Applying barangay filter:', filters.barangay, 'Type:', typeof filters.barangay);
+        if (!isNaN(parseInt(filters.barangay))) {
+          paramCount++;
+          query += ` AND b.barangay_id = CAST($${paramCount} AS INTEGER)`;
+          params.push(parseInt(filters.barangay));
+        }
       }
       
-      if (filters.wasteType) {
+      // Apply waste type filter
+      if (filters.wasteType && filters.wasteType !== '' && filters.wasteType !== 'all') {
+        console.log('Applying waste type filter:', filters.wasteType);
         paramCount++;
         query += ` AND spr.waste_type ILIKE $${paramCount}`;
         params.push(`%${filters.wasteType}%`);
       }
       
-      if (filters.status && filters.status !== 'all') {
+      // Apply status filter
+      if (filters.status && filters.status !== 'all' && filters.status !== '') {
+        console.log('Applying status filter:', filters.status);
         paramCount++;
         query += ` AND spr.status = $${paramCount}`;
         params.push(filters.status);
       }
       
-      if (filters.priceStatus) {
+      // Apply price status filter
+      if (filters.priceStatus && filters.priceStatus !== '' && filters.priceStatus !== 'all') {
+        console.log('Applying price status filter:', filters.priceStatus);
         paramCount++;
         query += ` AND spr.price_status = $${paramCount}`;
         params.push(filters.priceStatus);
       }
       
-      if (filters.collector) {
-        paramCount++;
-        query += ` AND c.collector_id = $${paramCount}::integer`;
-        params.push(filters.collector);
+      // Apply collector filter
+      if (filters.collector && filters.collector !== '' && filters.collector !== 'all') {
+        console.log('Applying collector filter:', filters.collector, 'Type:', typeof filters.collector);
+        if (!isNaN(parseInt(filters.collector))) {
+          paramCount++;
+          query += ` AND c.collector_id = CAST($${paramCount} AS INTEGER)`;
+          params.push(parseInt(filters.collector));
+        }
       }
       
       if (filters.minAmount) {
