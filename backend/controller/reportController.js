@@ -223,7 +223,7 @@ class ReportController {
       
       if (planType) {
         paramCount++;
-        query += ` AND sp.plan_id = $${paramCount}`;
+        query += ` AND sp.plan_id = $${paramCount}::integer`;
         params.push(planType);
       }
       
@@ -235,7 +235,7 @@ class ReportController {
       
       if (barangay) {
         paramCount++;
-        query += ` AND b.barangay_id = $${paramCount}`;
+        query += ` AND b.barangay_id = $${paramCount}::integer`;
         params.push(barangay);
       }
       
@@ -519,7 +519,7 @@ class ReportController {
       // Apply barangay filter
       if (filters.barangay) {
         paramCount++;
-        query += ` AND b.barangay_id = $${paramCount}`;
+        query += ` AND b.barangay_id = $${paramCount}::integer`;
         params.push(filters.barangay);
       }
 
@@ -533,7 +533,7 @@ class ReportController {
       // Apply collector filter
       if (filters.collector) {
         paramCount++;
-        query += ` AND c.collector_id = $${paramCount}`;
+        query += ` AND c.collector_id = $${paramCount}::integer`;
         params.push(filters.collector);
       }
 
@@ -685,14 +685,14 @@ class ReportController {
       // Apply barangay filter
       if (filters.barangay) {
         paramCount++;
-        query += ` AND b.barangay_id = $${paramCount}`;
+        query += ` AND b.barangay_id = $${paramCount}::integer`;
         params.push(filters.barangay);
       }
 
       // Apply plan filter
       if (filters.plan) {
         paramCount++;
-        query += ` AND sp.plan_id = $${paramCount}`;
+        query += ` AND sp.plan_id = $${paramCount}::integer`;
         params.push(filters.plan);
       }
 
@@ -847,7 +847,7 @@ class ReportController {
       
       if (filters.barangay) {
         paramCount++;
-        query += ` AND b.barangay_id = $${paramCount}`;
+        query += ` AND b.barangay_id = $${paramCount}::integer`;
         params.push(filters.barangay);
       }
       
@@ -871,7 +871,7 @@ class ReportController {
       
       if (filters.collector) {
         paramCount++;
-        query += ` AND c.collector_id = $${paramCount}`;
+        query += ` AND c.collector_id = $${paramCount}::integer`;
         params.push(filters.collector);
       }
       
