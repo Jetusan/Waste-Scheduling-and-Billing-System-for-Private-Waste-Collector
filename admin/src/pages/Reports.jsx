@@ -774,7 +774,7 @@ const Reports = () => {
                             setReportForm(prev => ({...prev, status: 'collected'}));
                           }}>
                             <i className="fas fa-check-circle"></i>
-                            Completed Only
+                            Collected Only
                           </button>
                           <button type="button" className="filter-chip warning" onClick={() => {
                             setReportForm(prev => ({...prev, status: 'missed'}));
@@ -887,15 +887,14 @@ const Reports = () => {
                       <label>Collection Status</label>
                       <select name="status" value={reportForm.status} onChange={handleFormChange}>
                         <option value="all">All Collections</option>
-                        <option value="completed">✅ Completed</option>
+                        <option value="collected">✅ Collected</option>
+                        <option value="missed">⚠️ Missed</option>
                         <option value="pending">⏳ Pending</option>
-                        <option value="in_progress">🔄 In Progress</option>
                         <option value="cancelled">❌ Cancelled</option>
-                        <option value="missed">⚠️ Missed (No Results)</option>
+                        <option value="completed">📅 Completed (Legacy)</option>
+                        <option value="today_completed">📅 Today's Completed</option>
                         <option value="ontime">🟢 On-Time Collections</option>
                         <option value="late">🟡 Late Collections</option>
-                        <option value="today_completed">📅 Today's Completed</option>
-                        <option value="overdue_schedules">🔴 Overdue Schedules</option>
                       </select>
                     </div>
 

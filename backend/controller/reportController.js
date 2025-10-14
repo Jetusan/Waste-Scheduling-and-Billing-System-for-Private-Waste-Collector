@@ -517,24 +517,60 @@ class ReportController {
       }
 
       // Apply barangay filter
-      if (filters.barangay) {
-        paramCount++;
-        query += ` AND b.barangay_id = $${paramCount}::integer`;
-        params.push(filters.barangay);
+      if (filters.barangay && filters.barangay !== '' && filters.barangay !== 'all') {
+        console.log('Applying barangay filter:', filters.barangay, 'Type:', typeof filters.barangay);
+        // Validate that it's a valid integer
+        if (!isNaN(parseInt(filters.barangay))) {
+          paramCount++;
+          query += ` AND b.barangay_id = $${paramCount}::integer`;
+          params.push(parseInt(filters.barangay));
+        }
       }
 
       // Apply status filter
-      if (filters.status && filters.status !== 'all') {
+      if (filters.status && filters.status !== 'all' && filters.status !== '') {
+        console.log('Applying status filter:', filters.status);
+        
+        // Map frontend status values to database action values
+        let dbAction = filters.status;
+        switch (filters.status) {
+          case 'completed':
+          case 'today_completed':
+          case 'ontime':
+            dbAction = 'collected';
+            break;
+          case 'missed':
+            dbAction = 'missed';
+            break;
+          case 'pending':
+          case 'in_progress':
+            dbAction = 'pending';
+            break;
+          case 'cancelled':
+            dbAction = 'cancelled';
+            break;
+          case 'late':
+            // For late collections, we still want collected items but with additional time filtering
+            dbAction = 'collected';
+            break;
+          default:
+            dbAction = filters.status;
+        }
+        
         paramCount++;
         query += ` AND cse.action = $${paramCount}`;
-        params.push(filters.status);
+        params.push(dbAction);
       }
 
       // Apply collector filter
-      if (filters.collector) {
-        paramCount++;
-        query += ` AND c.collector_id = $${paramCount}::integer`;
-        params.push(filters.collector);
+      if (filters.collector && filters.collector !== '' && filters.collector !== 'all') {
+        console.log('Applying collector filter:', filters.collector, 'Type:', typeof filters.collector);
+        // Validate that it's a valid integer
+        if (!isNaN(parseInt(filters.collector))) {
+          paramCount++;
+          query += ` AND c.collector_id = $${paramCount}::integer`;
+          params.push(parseInt(filters.collector));
+        }
       }
 
       query += ` ORDER BY cse.created_at DESC`;
