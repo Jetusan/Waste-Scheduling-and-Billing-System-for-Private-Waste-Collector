@@ -292,6 +292,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 15,
     paddingRight: 50,
     fontSize: 16,
+    color: '#333', // Add explicit text color for visibility
+    backgroundColor: '#fff', // Ensure background is white
   },
   eyeButton: {
     position: 'absolute',

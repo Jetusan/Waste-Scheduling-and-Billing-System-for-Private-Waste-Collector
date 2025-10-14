@@ -250,7 +250,7 @@ const getCollectorNotifications = async (req, res) => {
   }
 };
 
-// Get collector schedules
+// Get collector schedules - Use same format as resident side
 const getCollectorSchedules = async (req, res) => {
   try {
     const { collector_id } = req.query;
@@ -259,66 +259,34 @@ const getCollectorSchedules = async (req, res) => {
       return res.status(400).json({ success: false, error: 'Collector ID is required' });
     }
 
-    // Fetch real schedules from database
+    // Use the same query structure as resident side (/api/collection-schedules)
+    // This ensures collectors see the same schedule data as residents
     const schedulesQuery = `
       SELECT 
         cs.schedule_id,
-        cs.collection_id as id,
-        cs.collection_date,
-        cs.start_time,
-        cs.end_time,
-        cs.status,
-        cr.route_name as location,
-        st.type_name as waste_type,
-        b.barangay_name,
-        EXTRACT(DOW FROM cs.collection_date) as day_of_week
+        cs.schedule_date,
+        cs.created_at,
+        cs.waste_type,
+        cs.time_range,
+        array_agg(
+          json_build_object(
+            'barangay_id', b.barangay_id,
+            'barangay_name', b.barangay_name
+          )
+        ) as barangays
       FROM collection_schedules cs
-      LEFT JOIN collection_routes cr ON cs.route_id = cr.route_id
-      LEFT JOIN schedule_types st ON cs.schedule_type_id = st.schedule_type_id
-      LEFT JOIN collection_teams ct ON cs.team_id = ct.team_id
-      LEFT JOIN barangays b ON cr.barangay_id = b.barangay_id
-      WHERE ct.team_id IN (
-        SELECT team_id 
-        FROM collection_teams 
-        WHERE driver_id = $1 
-           OR helper1_id = $1 
-           OR helper2_id = $1
-      )
-      AND cs.collection_date >= CURRENT_DATE
-      ORDER BY cs.collection_date ASC, cs.start_time ASC
-      LIMIT 50
+      LEFT JOIN schedule_barangays sb ON cs.schedule_id = sb.schedule_id
+      LEFT JOIN barangays b ON sb.barangay_id = b.barangay_id
+      GROUP BY cs.schedule_id, cs.schedule_date, cs.created_at, cs.waste_type, cs.time_range
+      ORDER BY cs.schedule_date
     `;
     
-    const result = await query(schedulesQuery, [collector_id]);
+    const result = await query(schedulesQuery);
     
-    // Format schedules for frontend
-    const formattedSchedules = result.rows.map(row => {
-      const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-      const dayName = dayNames[row.day_of_week] || '';
-      
-      // Format time
-      const startTime = row.start_time ? row.start_time.substring(0, 5) : '';
-      const endTime = row.end_time ? row.end_time.substring(0, 5) : '';
-      const timeRange = endTime ? `${startTime}-${endTime}` : startTime;
-      
-      // Format location
-      const location = row.barangay_name 
-        ? `${row.location || 'Route'}, ${row.barangay_name}`
-        : (row.location || 'Route');
-      
-      return {
-        id: row.id || `CS-${row.schedule_id}`,
-        location: location,
-        waste_type: row.waste_type || 'Mixed Waste',
-        day: dayName,
-        time: timeRange,
-        schedule_id: row.schedule_id,
-        date: row.collection_date,
-        status: row.status
-      };
-    });
-
-    res.json({ success: true, schedules: formattedSchedules });
+    // Return the same format as resident side - no additional formatting needed
+    // The data structure matches exactly what residents see
+    res.json(result.rows);
+    
   } catch (error) {
     console.error('Error fetching collector schedules:', error);
     res.status(500).json({ success: false, error: 'Failed to fetch schedules' });

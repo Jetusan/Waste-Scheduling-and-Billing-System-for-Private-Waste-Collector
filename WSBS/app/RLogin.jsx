@@ -274,6 +274,8 @@ const styles = StyleSheet.create({
     fontSize: 16,
     paddingRight: 70, // space for the show/hide button
     marginBottom: 20,
+    color: '#333', // Add explicit text color for visibility
+    backgroundColor: '#fff', // Ensure background is white
   },
   showHideButton: {
     position: 'absolute',

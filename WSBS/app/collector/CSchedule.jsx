@@ -33,6 +33,7 @@ const CSchedule = () => {
         return;
       }
 
+      // Use the same endpoint as resident side for consistent data
       const response = await fetch(`${API_BASE_URL}/api/collector/schedules?collector_id=${collectorId}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -41,9 +42,14 @@ const CSchedule = () => {
       });
 
       const data = await response.json();
+      console.log('🔄 Collector schedules data:', data);
       
-      if (data.success) {
-        setSchedules(data.schedules);
+      // Handle both old format (data.success) and new format (direct array)
+      if (Array.isArray(data)) {
+        setSchedules(data);
+        setError(null);
+      } else if (data.success) {
+        setSchedules(data.schedules || []);
         setError(null);
       } else {
         setError(data.error || 'Failed to fetch schedules');
@@ -66,10 +72,16 @@ const CSchedule = () => {
     fetchSchedules();
   }, [fetchSchedules]);
 
-  // Filter by search text (optional)
-  const filteredSchedules = schedules.filter((item) =>
-    item.location.toLowerCase().includes(searchText.toLowerCase())
-  );
+  // Filter by search text (optional) - updated for resident-side data structure
+  const filteredSchedules = schedules.filter((item) => {
+    const searchLower = searchText.toLowerCase();
+    const barangayNames = item.barangays ? item.barangays.map(b => b.barangay_name).join(', ') : '';
+    return (
+      (item.schedule_date && item.schedule_date.toLowerCase().includes(searchLower)) ||
+      (item.waste_type && item.waste_type.toLowerCase().includes(searchLower)) ||
+      barangayNames.toLowerCase().includes(searchLower)
+    );
+  });
 
   return (
     <View style={styles.container}>
@@ -120,28 +132,34 @@ const CSchedule = () => {
           </View>
         ) : (
           filteredSchedules.map((item) => (
-            <View key={item.id} style={styles.card}>
-              <Text style={styles.cardTitle}>{item.id}</Text>
-              <View style={styles.scheduleInfo}>
-                <Ionicons name="location-outline" size={16} color="#666" />
-                <Text style={styles.scheduleText}>{item.location}</Text>
-              </View>
+            <View key={item.schedule_id} style={styles.card}>
+              <Text style={styles.cardTitle}>{item.schedule_date}</Text>
+              
+              {/* Barangays */}
+              {item.barangays && item.barangays.length > 0 && (
+                <View style={styles.scheduleInfo}>
+                  <Ionicons name="location-outline" size={16} color="#666" />
+                  <Text style={styles.scheduleText}>
+                    Barangay: {item.barangays.map(b => b.barangay_name).join(', ')}
+                  </Text>
+                </View>
+              )}
+              
+              {/* Waste Type */}
               {item.waste_type && (
                 <View style={styles.scheduleInfo}>
                   <Ionicons name="trash-outline" size={16} color="#666" />
-                  <Text style={styles.scheduleText}>{item.waste_type}</Text>
+                  <Text style={styles.scheduleText}>Waste Type: {item.waste_type}</Text>
                 </View>
               )}
-              {item.day && (
+              
+              {/* Time Range */}
+              {item.time_range && (
                 <View style={styles.scheduleInfo}>
-                  <Ionicons name="calendar-outline" size={16} color="#666" />
-                  <Text style={styles.scheduleText}>{item.day}</Text>
+                  <Ionicons name="time-outline" size={16} color="#666" />
+                  <Text style={styles.scheduleText}>{item.time_range}</Text>
                 </View>
               )}
-              <View style={styles.scheduleInfo}>
-                <Ionicons name="time-outline" size={16} color="#666" />
-                <Text style={styles.scheduleText}>{item.time}</Text>
-              </View>
             </View>
           ))
         )}
