@@ -461,7 +461,7 @@ class ReportController {
     }
   }
 
-  // 📅 REGULAR PICKUP REPORT GENERATOR (FIXED)
+  // 📅 REGULAR PICKUP REPORT GENERATOR (FIXED - Uses Real Collection Data)
   static async generateWasteCollectionReport(filters = {}, startDate, endDate) {
     try {
       console.log('=== WASTE COLLECTION REPORT ===');
@@ -473,66 +473,71 @@ class ReportController {
       const validStartDate = startDate && !isNaN(Date.parse(startDate)) ? startDate : '1900-01-01';
       const validEndDate = endDate && !isNaN(Date.parse(endDate)) ? endDate : '2100-12-31';
 
-      // FIXED: Correct query based on actual table structure
+      // FIXED: Query actual collection data from collection_stop_events
       let query = `
         SELECT
-          cs.schedule_id,
-          cs.schedule_date,
+          cse.id,
+          cse.action as status,
+          cse.stop_id,
+          cse.schedule_id,
+          cse.user_id,
+          cse.collector_id,
+          cse.notes,
+          cse.amount,
+          cse.created_at,
+          DATE(cse.created_at) as collection_date,
+          -- Get user and barangay info
+          u.username as resident_name,
+          b.barangay_name,
+          b.barangay_id,
+          -- Get collector info
+          uc.username as collector_name,
+          -- Get schedule info if available
           cs.waste_type,
-          cs.time_range,
-          cs.created_at,
-          -- Simulated status based on date
-          CASE 
-            WHEN cs.schedule_date = 'Friday' THEN 'completed'
-            WHEN cs.schedule_date = 'Monday' THEN 'completed'
-            ELSE 'pending'
-          END as status
-        FROM collection_schedules cs
+          cs.schedule_date,
+          cs.time_range
+        FROM collection_stop_events cse
+        LEFT JOIN users u ON cse.user_id = u.user_id
+        LEFT JOIN addresses a ON u.address_id = a.address_id
+        LEFT JOIN barangays b ON a.barangay_id = b.barangay_id
+        LEFT JOIN collectors c ON cse.collector_id = c.collector_id
+        LEFT JOIN users uc ON c.user_id = uc.user_id
+        LEFT JOIN collection_schedules cs ON cse.schedule_id = cs.schedule_id
         WHERE 1=1
       `;
 
       const params = [];
       let paramCount = 0;
 
-      // Apply date filter (collection_schedules uses created_at for date filtering)
+      // Apply date filter using actual collection dates
       if (validStartDate && validEndDate) {
         paramCount += 2;
-        query += ` AND cs.created_at BETWEEN $${paramCount-1}::date AND $${paramCount}::date + INTERVAL '1 day'`;
+        query += ` AND DATE(cse.created_at) BETWEEN $${paramCount-1}::date AND $${paramCount}::date`;
         params.push(validStartDate, validEndDate);
       }
 
-      // Apply barangay filter (skip - collection_schedules has no user relationship)
+      // Apply barangay filter
       if (filters.barangay) {
-        console.log('Barangay filter skipped - collection_schedules has no user relationship');
-        // Skip barangay filter as collection_schedules doesn't have user relationships
+        paramCount++;
+        query += ` AND b.barangay_id = $${paramCount}`;
+        params.push(filters.barangay);
       }
 
       // Apply status filter
       if (filters.status && filters.status !== 'all') {
         paramCount++;
-        query += ` AND (
-          CASE 
-            WHEN cs.schedule_date = 'Friday' THEN 'completed'
-            WHEN cs.schedule_date = 'Monday' THEN 'completed'
-            ELSE 'pending'
-          END
-        ) = $${paramCount}`;
+        query += ` AND cse.action = $${paramCount}`;
         params.push(filters.status);
       }
 
-      // Apply team filter (ignore if not available)
-      if (filters.team) {
-        console.log('Team filter provided but no team data available in collection_schedules');
-        // Skip team filter as collection_schedules doesn't have team relationships
+      // Apply collector filter
+      if (filters.collector) {
+        paramCount++;
+        query += ` AND c.collector_id = $${paramCount}`;
+        params.push(filters.collector);
       }
 
-      // Apply truck filter (ignore if not available)
-      if (filters.truck) {
-        console.log('Truck filter provided but no truck data available in collection_schedules');
-        // Skip truck filter as collection_schedules doesn't have truck relationships
-      }
-
-      query += ` ORDER BY cs.schedule_date DESC, cs.created_at ASC`;
+      query += ` ORDER BY cse.created_at DESC`;
 
       console.log('Executing query:', query);
       console.log('Query params:', params);
@@ -540,47 +545,65 @@ class ReportController {
       const result = await pool.query(query, params);
       console.log('Query result rows:', result.rows.length);
 
-      // FIXED: Analytics query with proper date handling
+      // Analytics query for waste types and collection performance
       const analyticsQuery = `
         SELECT
-          cs.waste_type,
-          COUNT(*) as count,
-          COUNT(CASE WHEN cs.schedule_date::date <= CURRENT_DATE THEN 1 END) as completed_count
-        FROM collection_schedules cs
-        WHERE cs.schedule_date BETWEEN $1 AND $2
+          COALESCE(cs.waste_type, 'Mixed Waste') as waste_type,
+          COUNT(*) as total_collections,
+          COUNT(CASE WHEN cse.action = 'collected' THEN 1 END) as completed_count,
+          COUNT(CASE WHEN cse.action = 'missed' THEN 1 END) as missed_count,
+          ROUND(COUNT(CASE WHEN cse.action = 'collected' THEN 1 END) * 100.0 / COUNT(*), 2) as completion_rate
+        FROM collection_stop_events cse
+        LEFT JOIN collection_schedules cs ON cse.schedule_id = cs.schedule_id
+        WHERE DATE(cse.created_at) BETWEEN $1::date AND $2::date
         GROUP BY cs.waste_type
-        ORDER BY count DESC
+        ORDER BY total_collections DESC
       `;
 
       const analyticsResult = await pool.query(analyticsQuery, [validStartDate, validEndDate]);
       console.log('Analytics result:', analyticsResult.rows);
 
-      // Calculate summary
+      // Calculate summary based on real collection data
       const summary = {
-        totalSchedules: result.rows.length,
-        completed: result.rows.filter(r => r.status === 'completed').length,
+        totalCollections: result.rows.length,
+        completed: result.rows.filter(r => r.status === 'collected').length,
+        missed: result.rows.filter(r => r.status === 'missed').length,
         pending: result.rows.filter(r => r.status === 'pending').length,
         completionRate: 0,
         wasteTypesHandled: new Set(result.rows.map(r => r.waste_type).filter(Boolean)).size,
-        scheduleDays: new Set(result.rows.map(r => r.schedule_date).filter(Boolean)).size
+        barangaysCovered: new Set(result.rows.map(r => r.barangay_name).filter(Boolean)).size,
+        collectorsInvolved: new Set(result.rows.map(r => r.collector_id).filter(Boolean)).size,
+        totalWasteAmount: result.rows.reduce((sum, row) => sum + parseFloat(row.amount || 0), 0)
       };
 
-      if (summary.totalSchedules > 0) {
-        summary.completionRate = ((summary.completed / summary.totalSchedules) * 100).toFixed(2);
+      if (summary.totalCollections > 0) {
+        summary.completionRate = ((summary.completed / summary.totalCollections) * 100).toFixed(2);
       }
 
       // Waste type breakdown
       const wasteTypeBreakdown = {};
       result.rows.forEach(row => {
-        const wasteType = row.waste_type || 'Unknown';
+        const wasteType = row.waste_type || 'Mixed Waste';
         wasteTypeBreakdown[wasteType] = (wasteTypeBreakdown[wasteType] || 0) + 1;
       });
 
-      // Schedule day breakdown (since we don't have barangay data)
-      const scheduleDayBreakdown = {};
+      // Barangay breakdown
+      const barangayBreakdown = {};
       result.rows.forEach(row => {
-        const day = row.schedule_date || 'Unknown';
-        scheduleDayBreakdown[day] = (scheduleDayBreakdown[day] || 0) + 1;
+        const barangay = row.barangay_name || 'Unknown';
+        barangayBreakdown[barangay] = (barangayBreakdown[barangay] || 0) + 1;
+      });
+
+      // Collector performance breakdown
+      const collectorBreakdown = {};
+      result.rows.forEach(row => {
+        const collector = row.collector_name || `Collector ${row.collector_id}` || 'Unknown';
+        if (!collectorBreakdown[collector]) {
+          collectorBreakdown[collector] = { total: 0, completed: 0, missed: 0 };
+        }
+        collectorBreakdown[collector].total++;
+        if (row.status === 'collected') collectorBreakdown[collector].completed++;
+        if (row.status === 'missed') collectorBreakdown[collector].missed++;
       });
 
       const finalResult = {
@@ -588,7 +611,8 @@ class ReportController {
         summary,
         collections: result.rows,
         wasteTypeBreakdown,
-        scheduleDayBreakdown,
+        barangayBreakdown,
+        collectorBreakdown,
         analytics: analyticsResult.rows,
         filters: filters,
         dateRange: { startDate: validStartDate, endDate: validEndDate },

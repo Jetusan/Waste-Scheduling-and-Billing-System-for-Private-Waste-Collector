@@ -742,17 +742,96 @@ const Reports = () => {
                 <div className="form-section">
                   <div className="filter-header">
                     <h4>🚛 Collection Filters</h4>
-                    <div className="filter-suggestions">
-                      <span className="filter-hint">💡 <strong>Quick filters:</strong></span>
-                      <button type="button" className="suggestion-btn" onClick={() => {
-                        setReportForm(prev => ({...prev, status: 'completed', startDate: getToday(), endDate: getToday()}));
-                      }}>Today's Completed</button>
-                      <button type="button" className="suggestion-btn" onClick={() => {
-                        setReportForm(prev => ({...prev, status: 'missed', period: 'weekly'}));
-                      }}>Missed Collections</button>
-                      <button type="button" className="suggestion-btn" onClick={() => {
-                        setReportForm(prev => ({...prev, startDate: getThisWeekStart(), endDate: getThisWeekEnd()}));
-                      }}>This Week</button>
+                    <div className="modern-filter-suggestions">
+                      <div className="filter-category">
+                        <span className="category-label">📅 Time-based Filters</span>
+                        <div className="filter-chips">
+                          <button type="button" className="filter-chip primary" onClick={() => {
+                            setReportForm(prev => ({...prev, status: 'collected', startDate: getToday(), endDate: getToday()}));
+                          }}>
+                            <i className="fas fa-calendar-day"></i>
+                            Today's Collections
+                          </button>
+                          <button type="button" className="filter-chip success" onClick={() => {
+                            setReportForm(prev => ({...prev, startDate: getThisWeekStart(), endDate: getThisWeekEnd()}));
+                          }}>
+                            <i className="fas fa-calendar-week"></i>
+                            This Week
+                          </button>
+                          <button type="button" className="filter-chip info" onClick={() => {
+                            setReportForm(prev => ({...prev, startDate: getThisMonthStart(), endDate: getThisMonthEnd()}));
+                          }}>
+                            <i className="fas fa-calendar-alt"></i>
+                            This Month
+                          </button>
+                        </div>
+                      </div>
+                      
+                      <div className="filter-category">
+                        <span className="category-label">📊 Performance Filters</span>
+                        <div className="filter-chips">
+                          <button type="button" className="filter-chip success" onClick={() => {
+                            setReportForm(prev => ({...prev, status: 'collected'}));
+                          }}>
+                            <i className="fas fa-check-circle"></i>
+                            Completed Only
+                          </button>
+                          <button type="button" className="filter-chip warning" onClick={() => {
+                            setReportForm(prev => ({...prev, status: 'missed'}));
+                          }}>
+                            <i className="fas fa-exclamation-triangle"></i>
+                            Missed Collections
+                          </button>
+                          <button type="button" className="filter-chip secondary" onClick={() => {
+                            setReportForm(prev => ({...prev, status: 'all', startDate: getLastWeekStart(), endDate: getLastWeekEnd()}));
+                          }}>
+                            <i className="fas fa-chart-line"></i>
+                            Last Week Analysis
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="filter-category">
+                        <span className="category-label">🎯 Quick Reports</span>
+                        <div className="filter-chips">
+                          <button type="button" className="filter-chip gradient-primary" onClick={() => {
+                            setReportForm(prev => ({
+                              ...prev, 
+                              status: 'collected', 
+                              startDate: getToday(), 
+                              endDate: getToday(),
+                              includeCharts: true
+                            }));
+                          }}>
+                            <i className="fas fa-bolt"></i>
+                            Daily Performance
+                          </button>
+                          <button type="button" className="filter-chip gradient-success" onClick={() => {
+                            setReportForm(prev => ({
+                              ...prev,
+                              startDate: getThisWeekStart(),
+                              endDate: getThisWeekEnd(),
+                              includeCharts: true,
+                              includeDetails: true
+                            }));
+                          }}>
+                            <i className="fas fa-chart-bar"></i>
+                            Weekly Summary
+                          </button>
+                          <button type="button" className="filter-chip gradient-info" onClick={() => {
+                            setReportForm(prev => ({
+                              ...prev,
+                              startDate: getThisMonthStart(),
+                              endDate: getThisMonthEnd(),
+                              includeCharts: true,
+                              includeDetails: true
+                            }));
+                          }}>
+                            <i className="fas fa-analytics"></i>
+                            Monthly Analytics
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   </div>
                   <div className="filters-grid">

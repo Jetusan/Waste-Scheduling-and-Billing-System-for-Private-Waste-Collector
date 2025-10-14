@@ -1,5 +1,124 @@
 @import './shared-variables.css';
 
+/* Modern Filter Suggestions */
+.modern-filter-suggestions {
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  border-radius: 12px;
+  padding: 20px;
+  margin: 16px 0;
+  border: 1px solid #e2e8f0;
+}
+
+.filter-category {
+  margin-bottom: 20px;
+}
+
+.filter-category:last-child {
+  margin-bottom: 0;
+}
+
+.category-label {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  color: #475569;
+  margin-bottom: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border: none;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.filter-chip:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.filter-chip i {
+  font-size: 12px;
+}
+
+/* Filter Chip Variants */
+.filter-chip.primary {
+  background: #3b82f6;
+  color: white;
+}
+
+.filter-chip.primary:hover {
+  background: #2563eb;
+}
+
+.filter-chip.success {
+  background: #10b981;
+  color: white;
+}
+
+.filter-chip.success:hover {
+  background: #059669;
+}
+
+.filter-chip.warning {
+  background: #f59e0b;
+  color: white;
+}
+
+.filter-chip.warning:hover {
+  background: #d97706;
+}
+
+.filter-chip.info {
+  background: #06b6d4;
+  color: white;
+}
+
+.filter-chip.info:hover {
+  background: #0891b2;
+}
+
+.filter-chip.secondary {
+  background: #6b7280;
+  color: white;
+}
+
+.filter-chip.secondary:hover {
+  background: #4b5563;
+}
+
+/* Gradient Filter Chips */
+.filter-chip.gradient-primary {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.filter-chip.gradient-success {
+  background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+  color: white;
+}
+
+.filter-chip.gradient-info {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
 /* Reports Page Container */
 .reports-page {
   background: var(--wsbs-gray-50);
