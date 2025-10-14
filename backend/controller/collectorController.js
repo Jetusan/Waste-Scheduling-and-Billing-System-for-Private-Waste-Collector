@@ -48,7 +48,7 @@ const getDashboardStats = async (req, res) => {
         AND cse.action = 'collected'
         AND DATE(cse.created_at) = $2
         AND cse.amount IS NOT NULL
-        AND cse.amount ~ '^[0-9]+\.?[0-9]*$'
+        AND cse.amount::text ~ '^[0-9]+\.?[0-9]*$'
     `;
     const wasteResult = await query(wasteQuery, [collector_id, today]);
     let wasteCollected = wasteResult.rows[0]?.total_waste || 0;
@@ -158,7 +158,7 @@ const getLastCollectionOverview = async (req, res) => {
         AND cse.action = 'collected'
         AND DATE(cse.created_at) = $2
         AND cse.amount IS NOT NULL
-        AND cse.amount ~ '^[0-9]+\.?[0-9]*$'
+        AND cse.amount::text ~ '^[0-9]+\.?[0-9]*$'
     `;
     const wasteResult = await query(wasteQuery, [collector_id, lastDate]);
     let wasteCollected = wasteResult.rows[0]?.total_waste || 0;
