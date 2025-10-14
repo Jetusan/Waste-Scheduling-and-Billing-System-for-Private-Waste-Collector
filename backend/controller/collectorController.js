@@ -15,13 +15,13 @@ const getDashboardStats = async (req, res) => {
 
     const today = new Date().toISOString().split('T')[0];
 
-    // Get today's completed pickups count
+    // Get today's completed pickups count from collection_stop_events
     const pickupsQuery = `
-      SELECT COUNT(DISTINCT ca.user_id) as completed_pickups
-      FROM collection_actions ca
-      WHERE ca.collector_id = $1
-        AND ca.action_type = 'collected'
-        AND DATE(ca.timestamp) = $2
+      SELECT COUNT(DISTINCT cse.user_id) as completed_pickups
+      FROM collection_stop_events cse
+      WHERE cse.collector_id = $1
+        AND cse.action = 'collected'
+        AND DATE(cse.created_at) = $2
     `;
     const pickupsResult = await query(pickupsQuery, [collector_id, today]);
     const todayPickups = pickupsResult.rows[0]?.completed_pickups || 0;
@@ -29,25 +29,26 @@ const getDashboardStats = async (req, res) => {
     // Calculate hours worked today (from first to last action)
     const hoursQuery = `
       SELECT 
-        EXTRACT(EPOCH FROM (MAX(timestamp) - MIN(timestamp))) / 3600 as hours_worked
-      FROM collection_actions
+        EXTRACT(EPOCH FROM (MAX(created_at) - MIN(created_at))) / 3600 as hours_worked
+      FROM collection_stop_events
       WHERE collector_id = $1
-        AND DATE(timestamp) = $2
+        AND DATE(created_at) = $2
     `;
     const hoursResult = await query(hoursQuery, [collector_id, today]);
     const hoursWorked = hoursResult.rows[0]?.hours_worked 
       ? parseFloat(hoursResult.rows[0].hours_worked).toFixed(1)
       : '0.0';
 
-    // Get total waste collected today (from action details if available)
+    // Get total waste collected today (estimate based on amount field or default)
     const wasteQuery = `
       SELECT 
-        COALESCE(SUM(CAST(details->>'waste_kg' AS NUMERIC)), 0) as total_waste
-      FROM collection_actions
-      WHERE collector_id = $1
-        AND action_type = 'collected'
-        AND DATE(timestamp) = $2
-        AND details->>'waste_kg' IS NOT NULL
+        COALESCE(SUM(CAST(cse.amount AS NUMERIC)), 0) as total_waste
+      FROM collection_stop_events cse
+      WHERE cse.collector_id = $1
+        AND cse.action = 'collected'
+        AND DATE(cse.created_at) = $2
+        AND cse.amount IS NOT NULL
+        AND cse.amount ~ '^[0-9]+\.?[0-9]*$'
     `;
     const wasteResult = await query(wasteQuery, [collector_id, today]);
     let wasteCollected = wasteResult.rows[0]?.total_waste || 0;
@@ -87,11 +88,11 @@ const getLastCollectionOverview = async (req, res) => {
 
     // Get the most recent collection date (excluding today)
     const lastDateQuery = `
-      SELECT DATE(timestamp) as collection_date
-      FROM collection_actions
+      SELECT DATE(created_at) as collection_date
+      FROM collection_stop_events
       WHERE collector_id = $1
-        AND DATE(timestamp) < CURRENT_DATE
-      ORDER BY timestamp DESC
+        AND DATE(created_at) < CURRENT_DATE
+      ORDER BY created_at DESC
       LIMIT 1
     `;
     const lastDateResult = await query(lastDateQuery, [collector_id]);
@@ -116,10 +117,10 @@ const getLastCollectionOverview = async (req, res) => {
     // Get total pickups for last collection date
     const pickupsQuery = `
       SELECT COUNT(DISTINCT user_id) as total_pickups
-      FROM collection_actions
+      FROM collection_stop_events
       WHERE collector_id = $1
-        AND action_type = 'collected'
-        AND DATE(timestamp) = $2
+        AND action = 'collected'
+        AND DATE(created_at) = $2
     `;
     const pickupsResult = await query(pickupsQuery, [collector_id, lastDate]);
     const totalPickups = pickupsResult.rows[0]?.total_pickups || 0;
@@ -127,9 +128,10 @@ const getLastCollectionOverview = async (req, res) => {
     // Get missed collections for last date
     const missedQuery = `
       SELECT COUNT(*) as missed_count
-      FROM missed_collections
+      FROM collection_stop_events
       WHERE collector_id = $1
-        AND DATE(reported_at) = $2
+        AND action = 'missed'
+        AND DATE(created_at) = $2
     `;
     const missedResult = await query(missedQuery, [collector_id, lastDate]);
     const missedCollections = missedResult.rows[0]?.missed_count || 0;
@@ -137,10 +139,10 @@ const getLastCollectionOverview = async (req, res) => {
     // Calculate hours worked
     const hoursQuery = `
       SELECT 
-        EXTRACT(EPOCH FROM (MAX(timestamp) - MIN(timestamp))) / 3600 as hours_worked
-      FROM collection_actions
+        EXTRACT(EPOCH FROM (MAX(created_at) - MIN(created_at))) / 3600 as hours_worked
+      FROM collection_stop_events
       WHERE collector_id = $1
-        AND DATE(timestamp) = $2
+        AND DATE(created_at) = $2
     `;
     const hoursResult = await query(hoursQuery, [collector_id, lastDate]);
     const hoursWorked = hoursResult.rows[0]?.hours_worked 
@@ -150,12 +152,13 @@ const getLastCollectionOverview = async (req, res) => {
     // Get total waste collected
     const wasteQuery = `
       SELECT 
-        COALESCE(SUM(CAST(details->>'waste_kg' AS NUMERIC)), 0) as total_waste
-      FROM collection_actions
-      WHERE collector_id = $1
-        AND action_type = 'collected'
-        AND DATE(timestamp) = $2
-        AND details->>'waste_kg' IS NOT NULL
+        COALESCE(SUM(CAST(cse.amount AS NUMERIC)), 0) as total_waste
+      FROM collection_stop_events cse
+      WHERE cse.collector_id = $1
+        AND cse.action = 'collected'
+        AND DATE(cse.created_at) = $2
+        AND cse.amount IS NOT NULL
+        AND cse.amount ~ '^[0-9]+\.?[0-9]*$'
     `;
     const wasteResult = await query(wasteQuery, [collector_id, lastDate]);
     let wasteCollected = wasteResult.rows[0]?.total_waste || 0;

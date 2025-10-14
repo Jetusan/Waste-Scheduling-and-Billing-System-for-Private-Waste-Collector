@@ -1140,9 +1140,18 @@ const CStartCollection = () => {
                       <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#4CAF50', textAlign: 'center', marginBottom: 8 }}>
                         All Done! 🎉
                       </Text>
-                      <Text style={{ color: '#666', textAlign: 'center', fontSize: 14 }}>
+                      <Text style={{ color: '#666', textAlign: 'center', fontSize: 14, marginBottom: 20 }}>
                         All residents in your route have been collected or don't have active subscriptions.
                       </Text>
+                      
+                      {/* Back to Home Button */}
+                      <TouchableOpacity 
+                        style={styles.backToHomeButton}
+                        onPress={() => router.push('/collector/CHome')}
+                      >
+                        <Ionicons name="home" size={20} color="#fff" style={{ marginRight: 8 }} />
+                        <Text style={styles.backToHomeText}>Back to Home</Text>
+                      </TouchableOpacity>
                     </View>
                   );
                 }
@@ -1802,5 +1811,24 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 4,
     shadowOffset: { width: 0, height: 2 },
+  },
+  backToHomeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#4CAF50',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 1 },
+  },
+  backToHomeText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
 }); 
