@@ -474,6 +474,7 @@ class ReportController {
       const validEndDate = endDate && !isNaN(Date.parse(endDate)) ? endDate : '2100-12-31';
 
       // FIXED: Query actual collection data from collection_stop_events
+      // Start with a simple query to avoid JOIN type issues
       let query = `
         SELECT
           cse.id,
@@ -486,23 +487,23 @@ class ReportController {
           cse.amount,
           cse.created_at,
           DATE(cse.created_at) as collection_date,
-          -- Get user and barangay info
-          u.username as resident_name,
-          b.barangay_name,
-          b.barangay_id,
-          -- Get collector info
-          uc.username as collector_name,
-          -- Get schedule info if available
-          cs.waste_type,
-          cs.schedule_date,
-          cs.time_range
+          -- Get user and barangay info (with safe joins)
+          COALESCE(u.username, 'Unknown User') as resident_name,
+          COALESCE(b.barangay_name, 'Unknown Barangay') as barangay_name,
+          COALESCE(b.barangay_id, 0) as barangay_id,
+          -- Get collector info (with safe joins)
+          COALESCE(uc.username, 'Unknown Collector') as collector_name,
+          -- Get schedule info if available (with safe joins)
+          COALESCE(cs.waste_type, 'Mixed Waste') as waste_type,
+          COALESCE(cs.schedule_date, 'Unknown') as schedule_date,
+          COALESCE(cs.time_range, 'Unknown') as time_range
         FROM collection_stop_events cse
-        LEFT JOIN users u ON cse.user_id = u.user_id
-        LEFT JOIN addresses a ON u.address_id = a.address_id
-        LEFT JOIN barangays b ON a.barangay_id = b.barangay_id
-        LEFT JOIN collectors c ON cse.collector_id = c.collector_id
-        LEFT JOIN users uc ON c.user_id = uc.user_id
-        LEFT JOIN collection_schedules cs ON cse.schedule_id = cs.schedule_id
+        LEFT JOIN users u ON CAST(cse.user_id AS INTEGER) = CAST(u.user_id AS INTEGER)
+        LEFT JOIN addresses a ON CAST(u.address_id AS INTEGER) = CAST(a.address_id AS INTEGER)
+        LEFT JOIN barangays b ON CAST(a.barangay_id AS INTEGER) = CAST(b.barangay_id AS INTEGER)
+        LEFT JOIN collectors c ON CAST(cse.collector_id AS INTEGER) = CAST(c.collector_id AS INTEGER)
+        LEFT JOIN users uc ON CAST(c.user_id AS INTEGER) = CAST(uc.user_id AS INTEGER)
+        LEFT JOIN collection_schedules cs ON CAST(cse.schedule_id AS TEXT) = CAST(cs.schedule_id AS TEXT)
         WHERE 1=1
       `;
 
@@ -512,7 +513,7 @@ class ReportController {
       // Apply date filter using actual collection dates
       if (validStartDate && validEndDate) {
         paramCount += 2;
-        query += ` AND DATE(cse.created_at) BETWEEN $${paramCount-1}::date AND $${paramCount}::date`;
+        query += ` AND DATE(cse.created_at) BETWEEN CAST($${paramCount-1} AS DATE) AND CAST($${paramCount} AS DATE)`;
         params.push(validStartDate, validEndDate);
       }
 
@@ -522,7 +523,7 @@ class ReportController {
         // Validate that it's a valid integer
         if (!isNaN(parseInt(filters.barangay))) {
           paramCount++;
-          query += ` AND b.barangay_id = $${paramCount}::integer`;
+          query += ` AND b.barangay_id = CAST($${paramCount} AS INTEGER)`;
           params.push(parseInt(filters.barangay));
         }
       }
@@ -568,7 +569,7 @@ class ReportController {
         // Validate that it's a valid integer
         if (!isNaN(parseInt(filters.collector))) {
           paramCount++;
-          query += ` AND c.collector_id = $${paramCount}::integer`;
+          query += ` AND c.collector_id = CAST($${paramCount} AS INTEGER)`;
           params.push(parseInt(filters.collector));
         }
       }
@@ -590,8 +591,8 @@ class ReportController {
           COUNT(CASE WHEN cse.action = 'missed' THEN 1 END) as missed_count,
           ROUND(COUNT(CASE WHEN cse.action = 'collected' THEN 1 END) * 100.0 / COUNT(*), 2) as completion_rate
         FROM collection_stop_events cse
-        LEFT JOIN collection_schedules cs ON cse.schedule_id = cs.schedule_id
-        WHERE DATE(cse.created_at) BETWEEN $1::date AND $2::date
+        LEFT JOIN collection_schedules cs ON CAST(cse.schedule_id AS TEXT) = CAST(cs.schedule_id AS TEXT)
+        WHERE DATE(cse.created_at) BETWEEN CAST($1 AS DATE) AND CAST($2 AS DATE)
         GROUP BY cs.waste_type
         ORDER BY total_collections DESC
       `;
