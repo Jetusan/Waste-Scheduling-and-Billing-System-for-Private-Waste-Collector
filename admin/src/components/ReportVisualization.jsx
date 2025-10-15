@@ -2,14 +2,15 @@ import React from 'react';
 import { Line, Bar, Pie, Doughnut } from 'react-chartjs-2';
 
 const ReportVisualization = ({ reportData, reportType }) => {
-  if (!reportData || !reportData.data) {
+  if (!reportData) {
     return <div className="report-placeholder">No data available for visualization</div>;
   }
 
-  const data = reportData.data;
+  // Handle both old and new data structures
+  const data = reportData.data || reportData;
 
   // Waste Collection Report Visualization
-  if (reportType === 'waste-collection' && data.summary) {
+  if ((reportType === 'waste-collection' || reportType === 'regular-pickup') && data.summary) {
     const { summary, collections } = data;
     
     // Status Distribution Pie Chart
@@ -42,14 +43,28 @@ const ReportVisualization = ({ reportData, reportType }) => {
       }]
     };
 
-    // Waste Type Distribution
-    const wasteTypes = collections?.reduce((acc, collection) => {
-      const type = collection.waste_type || 'Unknown';
-      acc[type] = (acc[type] || 0) + 1;
-      return acc;
-    }, {}) || {};
+    // Waste Type Distribution - FIXED to handle new data structure
+    let wasteTypes = {};
+    let wasteTypeChartData = {};
+    
+    // Check if we have the new wasteTypeBreakdown structure
+    if (data.wasteTypeBreakdown && typeof data.wasteTypeBreakdown === 'object') {
+      // New structure: { "Mixed Waste": { count: 5, percentage: 50.0 } }
+      wasteTypes = Object.keys(data.wasteTypeBreakdown).reduce((acc, type) => {
+        const breakdown = data.wasteTypeBreakdown[type];
+        acc[type] = breakdown.count || 0;
+        return acc;
+      }, {});
+    } else {
+      // Fallback: calculate from collections array
+      wasteTypes = collections?.reduce((acc, collection) => {
+        const type = collection.waste_type || 'Unknown';
+        acc[type] = (acc[type] || 0) + 1;
+        return acc;
+      }, {}) || {};
+    }
 
-    const wasteTypeChartData = {
+    wasteTypeChartData = {
       labels: Object.keys(wasteTypes),
       datasets: [{
         label: 'Collections by Waste Type',
@@ -100,6 +115,34 @@ const ReportVisualization = ({ reportData, reportType }) => {
             <div style={{ height: '300px' }}>
               <Bar data={wasteTypeChartData} options={{ maintainAspectRatio: false }} />
             </div>
+            {/* Display waste type breakdown table */}
+            {data.wasteTypeBreakdown && (
+              <div style={{ marginTop: '16px' }}>
+                <h5>Breakdown Details:</h5>
+                <table style={{ width: '100%', fontSize: '12px', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr style={{ backgroundColor: '#f5f5f5' }}>
+                      <th style={{ padding: '8px', textAlign: 'left', border: '1px solid #ddd' }}>Waste Type</th>
+                      <th style={{ padding: '8px', textAlign: 'center', border: '1px solid #ddd' }}>Count</th>
+                      <th style={{ padding: '8px', textAlign: 'center', border: '1px solid #ddd' }}>Percentage</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Object.entries(data.wasteTypeBreakdown).map(([type, breakdown]) => (
+                      <tr key={type}>
+                        <td style={{ padding: '8px', border: '1px solid #ddd' }}>{type}</td>
+                        <td style={{ padding: '8px', textAlign: 'center', border: '1px solid #ddd' }}>
+                          {breakdown.count || 0}
+                        </td>
+                        <td style={{ padding: '8px', textAlign: 'center', border: '1px solid #ddd' }}>
+                          {breakdown.percentage || 0}%
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </div>
 
@@ -119,7 +162,7 @@ const ReportVisualization = ({ reportData, reportType }) => {
             <tbody>
               {collections?.slice(0, 10).map((collection, index) => (
                 <tr key={index}>
-                  <td>{new Date(collection.scheduled_date).toLocaleDateString()}</td>
+                  <td>{new Date(collection.collection_date || collection.created_at).toLocaleDateString()}</td>
                   <td>{collection.resident_name || 'N/A'}</td>
                   <td>{collection.barangay_name || 'N/A'}</td>
                   <td>{collection.waste_type || 'N/A'}</td>
@@ -139,7 +182,7 @@ const ReportVisualization = ({ reportData, reportType }) => {
   }
 
   // Financial Report Visualization
-  if (reportType === 'financial-summary' && data.summary) {
+  if ((reportType === 'financial-summary' || reportType === 'billing-payment') && data.summary) {
     const { summary, invoices } = data;
     
     // Payment Status Pie Chart
@@ -261,6 +304,126 @@ const ReportVisualization = ({ reportData, reportType }) => {
     );
   }
 
+  // Special Pickup Report Visualization
+  if (reportType === 'special-pickup' && data.summary) {
+    const { summary, pickups } = data;
+    
+    // Status Distribution Pie Chart
+    const statusChartData = {
+      labels: ['Pending', 'In Progress', 'Collected', 'Cancelled'],
+      datasets: [{
+        data: [
+          summary.statusBreakdown?.pending || 0,
+          summary.statusBreakdown?.in_progress || 0,
+          summary.statusBreakdown?.collected || 0,
+          summary.statusBreakdown?.cancelled || 0
+        ],
+        backgroundColor: ['#f59e0b', '#3b82f6', '#10b981', '#ef4444'],
+        borderWidth: 2,
+        borderColor: '#ffffff'
+      }]
+    };
+
+    return (
+      <div className="report-visualization">
+        <div className="report-summary-cards">
+          <div className="summary-card">
+            <h4>Total Requests</h4>
+            <p>{summary.totalRequests || 0}</p>
+          </div>
+          <div className="summary-card">
+            <h4>Completed</h4>
+            <p>{summary.collected || 0}</p>
+          </div>
+          <div className="summary-card">
+            <h4>Completion Rate</h4>
+            <p>{summary.completionRate || 0}%</p>
+          </div>
+          <div className="summary-card">
+            <h4>Total Revenue</h4>
+            <p>₱{(summary.totalRevenue || 0).toLocaleString()}</p>
+          </div>
+        </div>
+
+        <div className="report-charts">
+          <div className="chart-card">
+            <h4>Request Status Distribution</h4>
+            <div style={{ height: '300px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+              <Pie data={statusChartData} options={{ maintainAspectRatio: false }} />
+            </div>
+          </div>
+          
+          {/* Waste Type Breakdown for Special Pickups */}
+          {data.wasteTypeBreakdown && (
+            <div className="chart-card">
+              <h4>Waste Type Breakdown</h4>
+              <div style={{ marginTop: '16px' }}>
+                <table style={{ width: '100%', fontSize: '12px', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr style={{ backgroundColor: '#f5f5f5' }}>
+                      <th style={{ padding: '8px', textAlign: 'left', border: '1px solid #ddd' }}>Waste Type</th>
+                      <th style={{ padding: '8px', textAlign: 'center', border: '1px solid #ddd' }}>Requests</th>
+                      <th style={{ padding: '8px', textAlign: 'center', border: '1px solid #ddd' }}>Revenue</th>
+                      <th style={{ padding: '8px', textAlign: 'center', border: '1px solid #ddd' }}>Completion Rate</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Object.entries(data.wasteTypeBreakdown).map(([type, breakdown]) => (
+                      <tr key={type}>
+                        <td style={{ padding: '8px', border: '1px solid #ddd' }}>{type}</td>
+                        <td style={{ padding: '8px', textAlign: 'center', border: '1px solid #ddd' }}>
+                          {breakdown.totalRequests || 0}
+                        </td>
+                        <td style={{ padding: '8px', textAlign: 'center', border: '1px solid #ddd' }}>
+                          ₱{(breakdown.totalRevenue || 0).toLocaleString()}
+                        </td>
+                        <td style={{ padding: '8px', textAlign: 'center', border: '1px solid #ddd' }}>
+                          {breakdown.completionRate || 0}%
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="report-table">
+          <h4>Recent Special Pickups</h4>
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Resident</th>
+                <th>Waste Type</th>
+                <th>Status</th>
+                <th>Price</th>
+                <th>Collector</th>
+              </tr>
+            </thead>
+            <tbody>
+              {pickups?.slice(0, 10).map((pickup, index) => (
+                <tr key={index}>
+                  <td>{new Date(pickup.pickup_date || pickup.created_at).toLocaleDateString()}</td>
+                  <td>{pickup.resident_name || 'N/A'}</td>
+                  <td>{pickup.waste_type || 'N/A'}</td>
+                  <td>
+                    <span className={`status-badge ${pickup.status}`}>
+                      {pickup.status || 'Pending'}
+                    </span>
+                  </td>
+                  <td>₱{parseFloat(pickup.final_price || 0).toLocaleString()}</td>
+                  <td>{pickup.collector_name || 'Unassigned'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  }
+
   // Default fallback for other report types
   return (
     <div className="report-visualization">
@@ -268,9 +431,41 @@ const ReportVisualization = ({ reportData, reportType }) => {
         <h4>Report Generated Successfully</h4>
         <p>Report Type: {reportType}</p>
         <p>Generated: {new Date().toLocaleString()}</p>
-        <pre style={{ background: '#f5f5f5', padding: '16px', borderRadius: '8px', overflow: 'auto', maxHeight: '400px' }}>
-          {JSON.stringify(data, null, 2)}
-        </pre>
+        {data.summary && (
+          <div style={{ marginTop: '16px' }}>
+            <h5>Summary:</h5>
+            <pre style={{ background: '#f5f5f5', padding: '16px', borderRadius: '8px', overflow: 'auto', maxHeight: '200px', fontSize: '12px' }}>
+              {JSON.stringify(data.summary, null, 2)}
+            </pre>
+          </div>
+        )}
+        {data.wasteTypeBreakdown && (
+          <div style={{ marginTop: '16px' }}>
+            <h5>Waste Type Breakdown:</h5>
+            <table style={{ width: '100%', fontSize: '12px', borderCollapse: 'collapse', marginTop: '8px' }}>
+              <thead>
+                <tr style={{ backgroundColor: '#f5f5f5' }}>
+                  <th style={{ padding: '8px', textAlign: 'left', border: '1px solid #ddd' }}>Type</th>
+                  <th style={{ padding: '8px', textAlign: 'center', border: '1px solid #ddd' }}>Count</th>
+                  <th style={{ padding: '8px', textAlign: 'center', border: '1px solid #ddd' }}>Percentage</th>
+                </tr>
+              </thead>
+              <tbody>
+                {Object.entries(data.wasteTypeBreakdown).map(([type, breakdown]) => (
+                  <tr key={type}>
+                    <td style={{ padding: '8px', border: '1px solid #ddd' }}>{type}</td>
+                    <td style={{ padding: '8px', textAlign: 'center', border: '1px solid #ddd' }}>
+                      {typeof breakdown === 'object' ? breakdown.count || 0 : breakdown}
+                    </td>
+                    <td style={{ padding: '8px', textAlign: 'center', border: '1px solid #ddd' }}>
+                      {typeof breakdown === 'object' ? (breakdown.percentage || 0) + '%' : 'N/A'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );

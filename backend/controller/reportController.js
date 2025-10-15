@@ -537,10 +537,11 @@ class ReportController {
       if (filters.barangay && filters.barangay !== '' && filters.barangay !== 'all') {
         console.log('Applying barangay filter:', filters.barangay, 'Type:', typeof filters.barangay);
         // Validate that it's a valid integer
-        if (!isNaN(parseInt(filters.barangay))) {
+        const barangayId = parseInt(filters.barangay);
+        if (!isNaN(barangayId) && barangayId > 0) {
           paramCount++;
-          query += ` AND b.barangay_id = CAST($${paramCount} AS INTEGER)`;
-          params.push(parseInt(filters.barangay));
+          query += ` AND b.barangay_id = $${paramCount}::integer`;
+          params.push(barangayId);
         }
       }
 
@@ -583,10 +584,11 @@ class ReportController {
       if (filters.collector && filters.collector !== '' && filters.collector !== 'all') {
         console.log('Applying collector filter:', filters.collector, 'Type:', typeof filters.collector);
         // Validate that it's a valid integer
-        if (!isNaN(parseInt(filters.collector))) {
+        const collectorId = parseInt(filters.collector);
+        if (!isNaN(collectorId) && collectorId > 0) {
           paramCount++;
-          query += ` AND c.collector_id = CAST($${paramCount} AS INTEGER)`;
-          params.push(parseInt(filters.collector));
+          query += ` AND c.collector_id = $${paramCount}::integer`;
+          params.push(collectorId);
         }
       }
 
@@ -642,23 +644,28 @@ class ReportController {
         summary.completionRate = ((summary.completed / summary.totalCollections) * 100).toFixed(2);
       }
 
-      // Waste type breakdown with percentages
+      // Waste type breakdown with percentages - FIXED
       const wasteTypeBreakdown = {};
       const totalCollections = result.rows.length;
       
+      // First pass: count occurrences
       result.rows.forEach(row => {
         const wasteType = row.waste_type || 'Mixed Waste';
         wasteTypeBreakdown[wasteType] = (wasteTypeBreakdown[wasteType] || 0) + 1;
       });
 
-      // Add percentage calculation
+      // Second pass: convert to proper format with count and percentage
+      const formattedWasteTypeBreakdown = {};
       Object.keys(wasteTypeBreakdown).forEach(wasteType => {
         const count = wasteTypeBreakdown[wasteType];
-        wasteTypeBreakdown[wasteType] = {
+        formattedWasteTypeBreakdown[wasteType] = {
           count: count,
-          percentage: totalCollections > 0 ? ((count / totalCollections) * 100).toFixed(1) : 0
+          percentage: totalCollections > 0 ? parseFloat(((count / totalCollections) * 100).toFixed(1)) : 0
         };
       });
+      
+      // Use the formatted version
+      const finalWasteTypeBreakdown = formattedWasteTypeBreakdown;
 
       // Barangay breakdown
       const barangayBreakdown = {};
@@ -683,7 +690,7 @@ class ReportController {
         reportType: 'regular-pickup',
         summary,
         collections: result.rows,
-        wasteTypeBreakdown,
+        wasteTypeBreakdown: finalWasteTypeBreakdown,
         barangayBreakdown,
         collectorBreakdown,
         analytics: analyticsResult.rows,
@@ -765,31 +772,91 @@ class ReportController {
       }
 
       // Apply barangay filter
-      if (filters.barangay) {
-        paramCount++;
-        query += ` AND b.barangay_id = $${paramCount}::integer`;
-        params.push(filters.barangay);
+      if (filters.barangay && filters.barangay !== '' && filters.barangay !== 'all') {
+        console.log('Applying barangay filter to billing report:', filters.barangay, 'Type:', typeof filters.barangay);
+        const barangayId = parseInt(filters.barangay);
+        if (!isNaN(barangayId) && barangayId > 0) {
+          paramCount++;
+          query += ` AND b.barangay_id = $${paramCount}::integer`;
+          params.push(barangayId);
+        }
       }
 
       // Apply plan filter
-      if (filters.plan) {
-        paramCount++;
-        query += ` AND sp.plan_id = $${paramCount}::integer`;
-        params.push(filters.plan);
+      if (filters.plan && filters.plan !== '' && filters.plan !== 'all') {
+        console.log('Applying plan filter to billing report:', filters.plan, 'Type:', typeof filters.plan);
+        const planId = parseInt(filters.plan);
+        if (!isNaN(planId) && planId > 0) {
+          paramCount++;
+          query += ` AND sp.plan_id = $${paramCount}::integer`;
+          params.push(planId);
+        }
       }
 
       // Apply status filter
-      if (filters.status && filters.status !== 'all') {
-        paramCount++;
-        query += ` AND i.status = $${paramCount}`;
-        params.push(filters.status);
+      if (filters.status && filters.status !== 'all' && filters.status !== '') {
+        console.log('Applying status filter to billing report:', filters.status);
+        
+        // Map frontend status values to database status values
+        let dbStatus = filters.status;
+        switch (filters.status) {
+          case 'paid_ontime':
+          case 'paid_late':
+            dbStatus = 'paid';
+            break;
+          case 'high_value':
+          case 'low_value':
+            // These will be handled by amount filters instead
+            break;
+          default:
+            dbStatus = filters.status;
+        }
+        
+        if (dbStatus && !['high_value', 'low_value', 'paid_ontime', 'paid_late'].includes(filters.status)) {
+          paramCount++;
+          query += ` AND i.status = $${paramCount}`;
+          params.push(dbStatus);
+        }
       }
 
       // Apply payment method filter
-      if (filters.paymentMethod && filters.paymentMethod !== 'all') {
+      if (filters.paymentMethod && filters.paymentMethod !== 'all' && filters.paymentMethod !== '') {
+        console.log('Applying payment method filter to billing report:', filters.paymentMethod);
         paramCount++;
         query += ` AND i.payment_method = $${paramCount}`;
         params.push(filters.paymentMethod);
+      }
+      
+      // Apply amount filters for high/low value
+      if (filters.status === 'high_value' || (filters.minAmount && parseFloat(filters.minAmount) >= 1000)) {
+        paramCount++;
+        query += ` AND i.amount >= $${paramCount}`;
+        params.push(filters.minAmount || 1000);
+      }
+      
+      if (filters.status === 'low_value' || (filters.maxAmount && parseFloat(filters.maxAmount) <= 500)) {
+        paramCount++;
+        query += ` AND i.amount <= $${paramCount}`;
+        params.push(filters.maxAmount || 500);
+      }
+      
+      // Apply custom amount range filters
+      if (filters.minAmount && filters.status !== 'high_value' && filters.status !== 'low_value') {
+        const minAmount = parseFloat(filters.minAmount);
+        if (!isNaN(minAmount) && minAmount > 0) {
+          paramCount++;
+          query += ` AND i.amount >= $${paramCount}`;
+          params.push(minAmount);
+        }
+      }
+      
+      if (filters.maxAmount && filters.status !== 'high_value' && filters.status !== 'low_value') {
+        const maxAmount = parseFloat(filters.maxAmount);
+        if (!isNaN(maxAmount) && maxAmount > 0) {
+          paramCount++;
+          query += ` AND i.amount <= $${paramCount}`;
+          params.push(maxAmount);
+        }
       }
 
       // Apply waste type filter (join with collection schedules to get waste type context)
@@ -946,11 +1013,12 @@ class ReportController {
       
       // Apply barangay filter
       if (filters.barangay && filters.barangay !== '' && filters.barangay !== 'all') {
-        console.log('Applying barangay filter:', filters.barangay, 'Type:', typeof filters.barangay);
-        if (!isNaN(parseInt(filters.barangay))) {
+        console.log('Applying barangay filter to special pickup report:', filters.barangay, 'Type:', typeof filters.barangay);
+        const barangayId = parseInt(filters.barangay);
+        if (!isNaN(barangayId) && barangayId > 0) {
           paramCount++;
-          query += ` AND b.barangay_id = CAST($${paramCount} AS INTEGER)`;
-          params.push(parseInt(filters.barangay));
+          query += ` AND b.barangay_id = $${paramCount}::integer`;
+          params.push(barangayId);
         }
       }
       
@@ -980,24 +1048,32 @@ class ReportController {
       
       // Apply collector filter
       if (filters.collector && filters.collector !== '' && filters.collector !== 'all') {
-        console.log('Applying collector filter:', filters.collector, 'Type:', typeof filters.collector);
-        if (!isNaN(parseInt(filters.collector))) {
+        console.log('Applying collector filter to special pickup report:', filters.collector, 'Type:', typeof filters.collector);
+        const collectorId = parseInt(filters.collector);
+        if (!isNaN(collectorId) && collectorId > 0) {
           paramCount++;
-          query += ` AND c.collector_id = CAST($${paramCount} AS INTEGER)`;
-          params.push(parseInt(filters.collector));
+          query += ` AND c.collector_id = $${paramCount}::integer`;
+          params.push(collectorId);
         }
       }
       
-      if (filters.minAmount) {
-        paramCount++;
-        query += ` AND spr.final_price >= $${paramCount}`;
-        params.push(filters.minAmount);
+      // Apply amount filters
+      if (filters.minAmount && filters.minAmount !== '') {
+        const minAmount = parseFloat(filters.minAmount);
+        if (!isNaN(minAmount) && minAmount > 0) {
+          paramCount++;
+          query += ` AND spr.final_price >= $${paramCount}`;
+          params.push(minAmount);
+        }
       }
       
-      if (filters.maxAmount) {
-        paramCount++;
-        query += ` AND spr.final_price <= $${paramCount}`;
-        params.push(filters.maxAmount);
+      if (filters.maxAmount && filters.maxAmount !== '') {
+        const maxAmount = parseFloat(filters.maxAmount);
+        if (!isNaN(maxAmount) && maxAmount > 0) {
+          paramCount++;
+          query += ` AND spr.final_price <= $${paramCount}`;
+          params.push(maxAmount);
+        }
       }
       
       query += ` ORDER BY spr.pickup_date DESC, spr.created_at DESC`;
