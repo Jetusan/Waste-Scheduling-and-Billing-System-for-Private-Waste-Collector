@@ -495,8 +495,24 @@ class ReportController {
           COALESCE(uc.username, 'Unknown Collector') as collector_name,
           -- Get schedule info if available (with safe joins)
           COALESCE(cs.waste_type, 'Mixed Waste') as waste_type,
-          COALESCE(cs.schedule_date, 'Unknown') as schedule_date,
-          COALESCE(cs.time_range, 'Unknown') as time_range
+          COALESCE(cs.schedule_date, 
+            CASE EXTRACT(DOW FROM cse.created_at)
+              WHEN 0 THEN 'Sunday'
+              WHEN 1 THEN 'Monday' 
+              WHEN 2 THEN 'Tuesday'
+              WHEN 3 THEN 'Wednesday'
+              WHEN 4 THEN 'Thursday'
+              WHEN 5 THEN 'Friday'
+              WHEN 6 THEN 'Saturday'
+            END
+          ) as schedule_date,
+          COALESCE(cs.time_range, 
+            CASE 
+              WHEN EXTRACT(HOUR FROM cse.created_at) BETWEEN 6 AND 11 THEN '06:00-12:00'
+              WHEN EXTRACT(HOUR FROM cse.created_at) BETWEEN 12 AND 17 THEN '12:00-18:00'
+              ELSE '18:00-06:00'
+            END
+          ) as time_range
         FROM collection_stop_events cse
         LEFT JOIN users u ON CAST(cse.user_id AS INTEGER) = CAST(u.user_id AS INTEGER)
         LEFT JOIN addresses a ON CAST(u.address_id AS INTEGER) = CAST(a.address_id AS INTEGER)
@@ -572,6 +588,14 @@ class ReportController {
           query += ` AND c.collector_id = CAST($${paramCount} AS INTEGER)`;
           params.push(parseInt(filters.collector));
         }
+      }
+
+      // Apply waste type filter
+      if (filters.wasteType && filters.wasteType !== '' && filters.wasteType !== 'all') {
+        console.log('Applying waste type filter:', filters.wasteType);
+        paramCount++;
+        query += ` AND cs.waste_type ILIKE $${paramCount}`;
+        params.push(`%${filters.wasteType}%`);
       }
 
       query += ` ORDER BY cse.created_at DESC`;
