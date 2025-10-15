@@ -79,6 +79,18 @@ const getThisMonthEnd = () => {
   return end.toISOString().split('T')[0];
 };
 
+const getLastMonthStart = () => {
+  const today = new Date();
+  const start = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+  return start.toISOString().split('T')[0];
+};
+
+const getLastMonthEnd = () => {
+  const today = new Date();
+  const end = new Date(today.getFullYear(), today.getMonth(), 0);
+  return end.toISOString().split('T')[0];
+};
+
 const Reports = () => {
   const [showModal, setShowModal] = useState(false);
   const [showScheduleModal, setShowScheduleModal] = useState(false);

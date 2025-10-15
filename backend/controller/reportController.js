@@ -741,75 +741,31 @@ class ReportController {
       }
 
       // Apply barangay filter
-      if (filters.barangay && filters.barangay !== '' && filters.barangay !== 'all') {
-        console.log('Applying barangay filter:', filters.barangay, 'Type:', typeof filters.barangay);
-        if (!isNaN(parseInt(filters.barangay))) {
-          paramCount++;
-          query += ` AND b.barangay_id = CAST($${paramCount} AS INTEGER)`;
-          params.push(parseInt(filters.barangay));
-        }
+      if (filters.barangay) {
+        paramCount++;
+        query += ` AND b.barangay_id = $${paramCount}::integer`;
+        params.push(filters.barangay);
       }
 
       // Apply plan filter
-      if (filters.plan && filters.plan !== '' && filters.plan !== 'all') {
-        console.log('Applying plan filter:', filters.plan, 'Type:', typeof filters.plan);
-        if (!isNaN(parseInt(filters.plan))) {
-          paramCount++;
-          query += ` AND sp.plan_id = CAST($${paramCount} AS INTEGER)`;
-          params.push(parseInt(filters.plan));
-        }
+      if (filters.plan) {
+        paramCount++;
+        query += ` AND sp.plan_id = $${paramCount}::integer`;
+        params.push(filters.plan);
       }
 
-      // Apply status filter with mapping
-      if (filters.status && filters.status !== 'all' && filters.status !== '') {
-        console.log('Applying status filter:', filters.status);
-        
-        // Map frontend status values to database status values
-        let dbStatus = filters.status;
-        switch (filters.status) {
-          case 'paymentStatus':
-          case 'paid_ontime':
-          case 'paid_late':
-            dbStatus = 'paid';
-            break;
-          case 'unpaid':
-          case 'overdue':
-            dbStatus = 'unpaid';
-            break;
-          case 'partially_paid':
-            dbStatus = 'partially_paid';
-            break;
-          case 'cancelled':
-            dbStatus = 'cancelled';
-            break;
-          default:
-            dbStatus = filters.status;
-        }
-        
+      // Apply status filter
+      if (filters.status && filters.status !== 'all') {
         paramCount++;
         query += ` AND i.status = $${paramCount}`;
-        params.push(dbStatus);
+        params.push(filters.status);
       }
 
       // Apply payment method filter
-      if (filters.paymentMethod && filters.paymentMethod !== 'all' && filters.paymentMethod !== '') {
-        console.log('Applying payment method filter:', filters.paymentMethod);
+      if (filters.paymentMethod && filters.paymentMethod !== 'all') {
         paramCount++;
         query += ` AND i.payment_method = $${paramCount}`;
         params.push(filters.paymentMethod);
-      }
-
-      // Apply amount range filters
-      if (filters.minAmount && !isNaN(parseFloat(filters.minAmount))) {
-        paramCount++;
-        query += ` AND i.amount >= $${paramCount}`;
-        params.push(parseFloat(filters.minAmount));
-      }
-
-      if (filters.maxAmount && !isNaN(parseFloat(filters.maxAmount))) {
-        paramCount++;
-        query += ` AND i.amount <= $${paramCount}`;
-        params.push(parseFloat(filters.maxAmount));
       }
 
       query += ` ORDER BY i.generated_date DESC`;
