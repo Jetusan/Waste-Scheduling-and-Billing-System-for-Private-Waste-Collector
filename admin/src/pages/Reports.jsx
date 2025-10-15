@@ -220,7 +220,8 @@ const Reports = () => {
           paymentMethod: reportForm.paymentMethod,
           invoiceType: reportForm.invoiceType,
           minAmount: reportForm.minAmount,
-          maxAmount: reportForm.maxAmount
+          maxAmount: reportForm.maxAmount,
+          wasteType: reportForm.wasteType
         };
       } else if (reportFocus === 'special-pickup') {
         requestData.filters = {
@@ -849,30 +850,19 @@ const Reports = () => {
                       <div className="filter-category">
                         <span className="category-label">🗑️ Waste Type Filters</span>
                         <div className="filter-chips">
-                          <button type="button" className="filter-chip gradient-primary" onClick={() => {
-                            setReportForm(prev => ({...prev, wasteType: 'residual'}));
-                          }}>
-                            <i className="fas fa-trash"></i>
-                            Residual Waste
-                          </button>
-                          <button type="button" className="filter-chip gradient-success" onClick={() => {
-                            setReportForm(prev => ({...prev, wasteType: 'biodegradable'}));
-                          }}>
-                            <i className="fas fa-leaf"></i>
-                            Biodegradable
-                          </button>
-                          <button type="button" className="filter-chip gradient-info" onClick={() => {
-                            setReportForm(prev => ({...prev, wasteType: 'bottle'}));
-                          }}>
-                            <i className="fas fa-wine-bottle"></i>
-                            Bottles/Plastic
-                          </button>
-                          <button type="button" className="filter-chip gradient-warning" onClick={() => {
-                            setReportForm(prev => ({...prev, wasteType: 'binakbak'}));
-                          }}>
-                            <i className="fas fa-box"></i>
-                            Binakbak (Cardboard)
-                          </button>
+                          {wasteTypes.slice(0, 4).map((wasteType, index) => (
+                            <button 
+                              key={wasteType.waste_type_id} 
+                              type="button" 
+                              className={`filter-chip ${['gradient-primary', 'gradient-success', 'gradient-info', 'gradient-warning'][index]}`}
+                              onClick={() => {
+                                setReportForm(prev => ({...prev, wasteType: wasteType.waste_type_name}));
+                              }}
+                            >
+                              <i className={`fas ${['fa-trash', 'fa-leaf', 'fa-wine-bottle', 'fa-box'][index]}`}></i>
+                              {wasteType.waste_type_name}
+                            </button>
+                          ))}
                         </div>
                       </div>
                     </div>
@@ -955,13 +945,11 @@ const Reports = () => {
                       <label>Waste Type</label>
                       <select name="wasteType" value={reportForm.wasteType} onChange={handleFormChange}>
                         <option value="">All Waste Types</option>
-                        <option value="residual">🗑️ Residual Waste</option>
-                        <option value="biodegradable">🌱 Biodegradable Waste</option>
-                        <option value="bottle">🍶 Bottles/Plastic</option>
-                        <option value="binakbak">📦 Binakbak (Cardboard)</option>
-                        <option value="mixed">♻️ Mixed Waste</option>
-                        <option value="organic">🥬 Organic Waste</option>
-                        <option value="recyclable">♻️ Recyclable Materials</option>
+                        {wasteTypes.map(wasteType => (
+                          <option key={wasteType.waste_type_id} value={wasteType.waste_type_name}>
+                            {wasteType.waste_type_name}
+                          </option>
+                        ))}
                       </select>
                     </div>
                   </div>
@@ -1145,6 +1133,18 @@ const Reports = () => {
                         placeholder="0"
                         min="0"
                       />
+                    </div>
+
+                    <div className="form-group">
+                      <label>Waste Type</label>
+                      <select name="wasteType" value={reportForm.wasteType} onChange={handleFormChange}>
+                        <option value="">All Waste Types</option>
+                        {wasteTypes.map(wasteType => (
+                          <option key={wasteType.waste_type_id} value={wasteType.waste_type_name}>
+                            {wasteType.waste_type_name}
+                          </option>
+                        ))}
+                      </select>
                     </div>
                   </div>
                 </div>

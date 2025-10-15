@@ -792,6 +792,21 @@ class ReportController {
         params.push(filters.paymentMethod);
       }
 
+      // Apply waste type filter (join with collection schedules to get waste type context)
+      if (filters.wasteType && filters.wasteType !== '' && filters.wasteType !== 'all') {
+        console.log('Applying waste type filter to billing report:', filters.wasteType);
+        // Add join with collection_schedules to filter by waste type
+        query = query.replace('WHERE 1=1', `
+          LEFT JOIN collection_stop_events cse ON cse.user_id = cs.user_id 
+            AND DATE(cse.created_at) BETWEEN DATE(i.generated_date) - INTERVAL '7 days' AND DATE(i.generated_date) + INTERVAL '7 days'
+          LEFT JOIN collection_schedules sched ON CAST(cse.schedule_id AS TEXT) = CAST(sched.schedule_id AS TEXT)
+          WHERE 1=1
+        `);
+        paramCount++;
+        query += ` AND sched.waste_type ILIKE $${paramCount}`;
+        params.push(`%${filters.wasteType}%`);
+      }
+
       query += ` ORDER BY i.generated_date DESC`;
 
       console.log('Executing financial query:', query);
