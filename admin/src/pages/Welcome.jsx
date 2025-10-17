@@ -41,11 +41,10 @@ const Welcome = () => {
             <span className="logo-text">WSBS Admin</span>
           </div>
           <div className="nav-menu">
-            <button className="nav-link" onClick={() => scrollToSection('features')}>Features</button>
-            <button className="nav-link" onClick={() => scrollToSection('stats')}>Analytics</button>
-            <button className="nav-link" onClick={() => scrollToSection('pricing')}>Pricing</button>
+            <button className="nav-link" onClick={() => scrollToSection('about')}>About</button>
+            <button className="nav-link" onClick={() => scrollToSection('contact')}>Contact</button>
             <button className="nav-login-btn" onClick={handleGetStarted}>
-              Get Started
+              Admin Login
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path d="M3.33333 8H12.6667M12.6667 8L8.66667 4M12.6667 8L8.66667 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
@@ -84,16 +83,16 @@ const Welcome = () => {
             </p>
             <div className="hero-actions">
               <button className="cta-button primary" onClick={handleGetStarted}>
-                Start Free Trial
+                Access Admin Dashboard
                 <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
                   <path d="M4.16667 10H15.8333M15.8333 10L10.8333 5M15.8333 10L10.8333 15" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
               </button>
-              <button className="cta-button secondary" onClick={() => scrollToSection('demo')}>
+              <button className="cta-button secondary" onClick={() => scrollToSection('contact')}>
                 <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M8.33333 6.66667L13.3333 10L8.33333 13.3333V6.66667Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  <path d="M3 8L10.89 13.26C11.2187 13.4793 11.6049 13.5963 12 13.5963C12.3951 13.5963 12.7813 13.4793 13.11 13.26L21 8M5 19H19C20.1046 19 21 18.1046 21 17V7C21 5.89543 20.1046 5 19 5H5C3.89543 5 3 5.89543 3 7V17C3 18.1046 3.89543 19 5 19Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
-                Watch Demo
+                Contact Support
               </button>
             </div>
             <div className="hero-stats">
@@ -206,316 +205,151 @@ const Welcome = () => {
         </div>
       </section>
 
-      {/* Features Section */}
-      <section id="features" className="features-section">
-        <div className="features-content">
+      {/* About Section */}
+      <section id="about" className="about-section">
+        <div className="about-content">
           <div className="section-header">
             <div className="section-badge">
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path d="M8 1L10.09 5.26L15 6L11 9.74L11.91 14.74L8 12.77L4.09 14.74L5 9.74L1 6L5.91 5.26L8 1Z" fill="currentColor"/>
               </svg>
-              <span>Powerful Features</span>
+              <span>About WSBS</span>
             </div>
-            <h2>Comprehensive Admin Control Center</h2>
-            <p>Everything administrators need to manage, monitor, and optimize waste collection operations efficiently</p>
+            <h2>Revolutionizing Waste Management Through Technology</h2>
+            <p>Discover how WSBS transforms traditional waste collection into an intelligent, efficient, and sustainable operation</p>
           </div>
-          <div className="features-grid">
-            <div className="feature-card">
-              <div className="feature-icon">
-                <div className="icon-wrapper schedule">
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2" stroke="currentColor" strokeWidth="2"/>
-                    <line x1="16" y1="2" x2="16" y2="6" stroke="currentColor" strokeWidth="2"/>
-                    <line x1="8" y1="2" x2="8" y2="6" stroke="currentColor" strokeWidth="2"/>
-                    <line x1="3" y1="10" x2="21" y2="10" stroke="currentColor" strokeWidth="2"/>
-                  </svg>
-                </div>
+          <div className="about-grid">
+            <div className="about-card">
+              <div className="about-icon">
+                <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <rect width="48" height="48" rx="12" fill="#4CAF50" fillOpacity="0.1"/>
+                  <path d="M24 12L32 16V28C32 29.1046 31.1046 30 30 30H18C16.8954 30 16 29.1046 16 28V16L24 12Z" stroke="#4CAF50" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  <path d="M20 26V22H28V26" stroke="#4CAF50" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
               </div>
-              <h3>Operations Management</h3>
-              <p>Complete oversight of collection schedules, route assignments, and team coordination from a centralized admin interface.</p>
-              <div className="feature-tags">
-                <span className="tag">Route Control</span>
-                <span className="tag">Team Assignment</span>
-              </div>
+              <h3>Smart Automation</h3>
+              <p>WSBS leverages cutting-edge technology to automate waste collection scheduling, route optimization, and billing processes. Our intelligent system reduces manual work by 80% while increasing operational efficiency.</p>
             </div>
-            <div className="feature-card">
-              <div className="feature-icon">
-                <div className="icon-wrapper billing">
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke="currentColor" strokeWidth="2"/>
-                    <polyline points="14,2 14,8 20,8" stroke="currentColor" strokeWidth="2"/>
-                    <line x1="16" y1="13" x2="8" y2="13" stroke="currentColor" strokeWidth="2"/>
-                    <line x1="16" y1="17" x2="8" y2="17" stroke="currentColor" strokeWidth="2"/>
-                  </svg>
-                </div>
+            <div className="about-card">
+              <div className="about-icon">
+                <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <rect width="48" height="48" rx="12" fill="#2196F3" fillOpacity="0.1"/>
+                  <path d="M24 8C31.732 8 38 14.268 38 22C38 29.732 31.732 36 24 36C16.268 36 10 29.732 10 22C10 14.268 16.268 8 24 8Z" stroke="#2196F3" strokeWidth="2"/>
+                  <path d="M24 16V22L28 26" stroke="#2196F3" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
               </div>
-              <h3>Financial Administration</h3>
-              <p>Comprehensive billing oversight, payment monitoring, and financial reporting with admin-level controls and insights.</p>
-              <div className="feature-tags">
-                <span className="tag">Billing Control</span>
-                <span className="tag">Financial Reports</span>
-              </div>
+              <h3>Real-Time Intelligence</h3>
+              <p>Experience the power of real-time data analytics and monitoring. Track collection progress, monitor team performance, and make data-driven decisions with our comprehensive dashboard that updates every second.</p>
             </div>
-            <div className="feature-card">
-              <div className="feature-icon">
-                <div className="icon-wrapper analytics">
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <polyline points="22,12 18,12 15,21 9,3 6,12 2,12" stroke="currentColor" strokeWidth="2"/>
-                  </svg>
-                </div>
+            <div className="about-card">
+              <div className="about-icon">
+                <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <rect width="48" height="48" rx="12" fill="#FF9800" fillOpacity="0.1"/>
+                  <path d="M14 20H34V34C34 35.1046 33.1046 36 32 36H16C14.8954 36 14 35.1046 14 34V20Z" stroke="#FF9800" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  <path d="M20 12V20" stroke="#FF9800" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  <path d="M28 12V20" stroke="#FF9800" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
               </div>
-              <h3>System Analytics</h3>
-              <p>Advanced reporting and analytics dashboard for administrators to monitor system performance and operational metrics.</p>
-              <div className="feature-tags">
-                <span className="tag">Admin Reports</span>
-                <span className="tag">System Metrics</span>
-              </div>
-            </div>
-            <div className="feature-card">
-              <div className="feature-icon">
-                <div className="icon-wrapper team">
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" stroke="currentColor" strokeWidth="2"/>
-                    <circle cx="9" cy="7" r="4" stroke="currentColor" strokeWidth="2"/>
-                    <path d="M23 21v-2a4 4 0 0 0-3-3.87" stroke="currentColor" strokeWidth="2"/>
-                    <path d="M16 3.13a4 4 0 0 1 0 7.75" stroke="currentColor" strokeWidth="2"/>
-                  </svg>
-                </div>
-              </div>
-              <h3>User Administration</h3>
-              <p>Complete user management system for administrators to control access, manage roles, and oversee all system users.</p>
-              <div className="feature-tags">
-                <span className="tag">User Control</span>
-                <span className="tag">Access Management</span>
-              </div>
+              <h3>Sustainable Impact</h3>
+              <p>Built with environmental consciousness at its core, WSBS optimizes routes to reduce carbon emissions, minimizes waste through intelligent scheduling, and promotes sustainable practices across all operations.</p>
             </div>
           </div>
-        </div>
-      </section>
-
-      {/* Stats Section */}
-      <section id="stats" className="stats-section">
-        <div className="stats-content">
-          <div className="stats-header">
-            <h2>Trusted by Industry Leaders</h2>
-            <p>Join thousands of companies who have transformed their waste management operations</p>
-          </div>
-          <div className="stats-grid">
-            <div className="stat-item">
-              <div className="stat-icon">
-                <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M16 2L20.18 10.52L30 12L22 19.48L23.82 29.48L16 25.54L8.18 29.48L10 19.48L2 12L11.82 10.52L16 2Z" fill="currentColor"/>
-                </svg>
-              </div>
-              <div className="stat-number">500+</div>
-              <div className="stat-label">Active Companies</div>
-              <div className="stat-trend positive">↑ 12% this month</div>
+          <div className="about-stats">
+            <div className="about-stat">
+              <div className="stat-number">95%</div>
+              <div className="stat-label">Efficiency Increase</div>
             </div>
-            <div className="stat-item">
-              <div className="stat-icon">
-                <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M26 14H20L16 28L12 4L6 14H2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-              </div>
-              <div className="stat-number">98%</div>
-              <div className="stat-label">Collection Efficiency</div>
-              <div className="stat-trend positive">↑ 5% improvement</div>
-            </div>
-            <div className="stat-item">
-              <div className="stat-icon">
-                <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <circle cx="16" cy="16" r="14" stroke="currentColor" strokeWidth="2"/>
-                  <path d="M16 8V16L20 20" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-                </svg>
-              </div>
-              <div className="stat-number">24/7</div>
-              <div className="stat-label">System Uptime</div>
-              <div className="stat-trend neutral">99.9% reliability</div>
-            </div>
-            <div className="stat-item">
-              <div className="stat-icon">
-                <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M4 16L8 12L16 20L28 8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-              </div>
+            <div className="about-stat">
               <div className="stat-number">50+</div>
-              <div className="stat-label">Routes Optimized</div>
-              <div className="stat-trend positive">↓ 30% fuel savings</div>
+              <div className="stat-label">Cities Served</div>
+            </div>
+            <div className="about-stat">
+              <div className="stat-number">24/7</div>
+              <div className="stat-label">System Reliability</div>
+            </div>
+            <div className="about-stat">
+              <div className="stat-number">100K+</div>
+              <div className="stat-label">Households Connected</div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Pricing Section */}
-      <section id="pricing" className="pricing-section">
-        <div className="pricing-content">
+      {/* Contact Section */}
+      <section id="contact" className="contact-section">
+        <div className="contact-content">
           <div className="section-header">
             <div className="section-badge">
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path d="M8 1L10.09 5.26L15 6L11 9.74L11.91 14.74L8 12.77L4.09 14.74L5 9.74L1 6L5.91 5.26L8 1Z" fill="currentColor"/>
               </svg>
-              <span>Simple Pricing</span>
+              <span>Get in Touch</span>
             </div>
-            <h2>Choose Your Plan</h2>
-            <p>Start free and scale as you grow. No hidden fees, no surprises.</p>
+            <h2>Contact Our Development Team</h2>
+            <p>Have questions about WSBS or need technical support? Reach out to our dedicated development team</p>
           </div>
-          <div className="pricing-grid">
-            <div className="pricing-card">
-              <div className="pricing-header">
-                <h3>Starter</h3>
-                <div className="price">
-                  <span className="currency">$</span>
-                  <span className="amount">49</span>
-                  <span className="period">/month</span>
-                </div>
-                <p>Perfect for small operations</p>
+          <div className="contact-grid">
+            <div className="contact-card">
+              <div className="contact-icon">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M3 8L10.89 13.26C11.2187 13.4793 11.6049 13.5963 12 13.5963C12.3951 13.5963 12.7813 13.4793 13.11 13.26L21 8M5 19H19C20.1046 19 21 18.1046 21 17V7C21 5.89543 20.1046 5 19 5H5C3.89543 5 3 5.89543 3 7V17C3 18.1046 3.89543 19 5 19Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
               </div>
-              <div className="pricing-features">
-                <div className="feature">
-                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M13.5 4.5L6 12L2.5 8.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                  <span>Up to 5 routes</span>
-                </div>
-                <div className="feature">
-                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M13.5 4.5L6 12L2.5 8.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                  <span>Basic analytics</span>
-                </div>
-                <div className="feature">
-                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M13.5 4.5L6 12L2.5 8.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                  <span>Email support</span>
-                </div>
-              </div>
-              <button className="pricing-btn secondary">Get Started</button>
+              <h3>Email</h3>
+              <p>For technical inquiries, feature requests, or general support</p>
+              <a href="mailto:jetusan0o0@gmail.com" className="contact-link">
+                jetusan0o0@gmail.com
+              </a>
             </div>
-            <div className="pricing-card featured">
-              <div className="popular-badge">Most Popular</div>
-              <div className="pricing-header">
-                <h3>Professional</h3>
-                <div className="price">
-                  <span className="currency">$</span>
-                  <span className="amount">149</span>
-                  <span className="period">/month</span>
-                </div>
-                <p>Best for growing businesses</p>
+            <div className="contact-card">
+              <div className="contact-icon">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M22 16.92V19.92C22.0011 20.1985 21.9441 20.4742 21.8325 20.7293C21.7209 20.9845 21.5573 21.2136 21.3521 21.4019C21.1468 21.5901 20.9046 21.7335 20.6407 21.8227C20.3769 21.9119 20.0974 21.9451 19.82 21.92C16.7428 21.5856 13.787 20.5341 11.19 18.85C8.77382 17.3147 6.72533 15.2662 5.18999 12.85C3.49997 10.2412 2.44824 7.27099 2.11999 4.18C2.095 3.90347 2.12787 3.62476 2.21649 3.36162C2.30512 3.09849 2.44756 2.85669 2.63476 2.65162C2.82196 2.44655 3.0498 2.28271 3.30379 2.17052C3.55777 2.05833 3.83233 2.00026 4.10999 2H7.10999C7.59531 1.99522 8.06579 2.16708 8.43376 2.48353C8.80173 2.79999 9.04207 3.23945 9.10999 3.72C9.23662 4.68007 9.47144 5.62273 9.80999 6.53C9.94454 6.88792 9.97366 7.27691 9.8939 7.65088C9.81415 8.02485 9.62886 8.36811 9.35999 8.64L8.08999 9.91C9.51355 12.4135 11.5865 14.4864 14.09 15.91L15.36 14.64C15.6319 14.3711 15.9751 14.1858 16.3491 14.1061C16.7231 14.0263 17.1121 14.0555 17.47 14.19C18.3773 14.5286 19.3199 14.7634 20.28 14.89C20.7658 14.9585 21.2094 15.2032 21.5265 15.5775C21.8437 15.9518 22.0122 16.4296 22 16.92Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
               </div>
-              <div className="pricing-features">
-                <div className="feature">
-                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M13.5 4.5L6 12L2.5 8.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                  <span>Unlimited routes</span>
-                </div>
-                <div className="feature">
-                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M13.5 4.5L6 12L2.5 8.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                  <span>Advanced analytics</span>
-                </div>
-                <div className="feature">
-                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M13.5 4.5L6 12L2.5 8.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                  <span>Priority support</span>
-                </div>
-                <div className="feature">
-                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M13.5 4.5L6 12L2.5 8.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                  <span>API access</span>
-                </div>
-              </div>
-              <button className="pricing-btn primary" onClick={handleGetStarted}>Start Free Trial</button>
+              <h3>Mobile</h3>
+              <p>Direct line for urgent technical support and consultations</p>
+              <a href="tel:+639916771885" className="contact-link">
+                +63 991 677 1885
+              </a>
             </div>
-            <div className="pricing-card">
-              <div className="pricing-header">
-                <h3>Enterprise</h3>
-                <div className="price">
-                  <span className="currency">$</span>
-                  <span className="amount">399</span>
-                  <span className="period">/month</span>
-                </div>
-                <p>For large-scale operations</p>
+            <div className="contact-card">
+              <div className="contact-icon">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M9 19C-2 19 -2 5 9 5C20 5 20 19 9 19Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  <path d="M15 13.5C15.8284 13.5 16.5 12.8284 16.5 12C16.5 11.1716 15.8284 10.5 15 10.5C14.1716 10.5 13.5 11.1716 13.5 12C13.5 12.8284 14.1716 13.5 15 13.5Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  <path d="M21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
               </div>
-              <div className="pricing-features">
-                <div className="feature">
-                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M13.5 4.5L6 12L2.5 8.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                  <span>Everything in Pro</span>
-                </div>
-                <div className="feature">
-                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M13.5 4.5L6 12L2.5 8.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                  <span>Custom integrations</span>
-                </div>
-                <div className="feature">
-                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M13.5 4.5L6 12L2.5 8.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                  <span>Dedicated support</span>
-                </div>
-              </div>
-              <button className="pricing-btn secondary">Contact Sales</button>
+              <h3>GitHub</h3>
+              <p>Explore the source code, report issues, and contribute to development</p>
+              <a href="https://github.com/Jetusan" target="_blank" rel="noopener noreferrer" className="contact-link">
+                github.com/Jetusan
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M12 4L4 12M12 4H8M12 4V8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </a>
+            </div>
+          </div>
+          <div className="contact-cta">
+            <div className="contact-cta-content">
+              <h3>Ready to Transform Your Waste Management?</h3>
+              <p>Join the revolution in smart waste collection and experience the future of environmental management</p>
+              <button className="cta-button primary" onClick={handleGetStarted}>
+                Get Started Today
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M4.16667 10H15.8333M15.8333 10L10.8333 5M15.8333 10L10.8333 15" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </button>
             </div>
           </div>
         </div>
       </section>
 
-      {/* CTA Section */}
-      <section className="cta-section">
-        <div className="cta-background">
-          <div className="cta-shapes">
-            <div className="cta-shape cta-shape-1"></div>
-            <div className="cta-shape cta-shape-2"></div>
-            <div className="cta-shape cta-shape-3"></div>
-          </div>
-        </div>
-        <div className="cta-content">
-          <div className="cta-text">
-            <h2>Ready to take control of your operations?</h2>
-            <p>Join hundreds of administrators who have streamlined their waste management operations with our comprehensive admin platform. Experience the power of centralized control.</p>
-          </div>
-          <div className="cta-actions">
-            <button className="cta-button primary large" onClick={handleGetStarted}>
-              Start Your Free Trial
-              <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M4.16667 10H15.8333M15.8333 10L10.8333 5M15.8333 10L10.8333 15" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-            </button>
-            <div className="cta-benefits">
-              <div className="benefit">
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M13.5 4.5L6 12L2.5 8.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-                <span>No setup fees</span>
-              </div>
-              <div className="benefit">
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M13.5 4.5L6 12L2.5 8.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-                <span>Complete admin access</span>
-              </div>
-              <div className="benefit">
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M13.5 4.5L6 12L2.5 8.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-                <span>24/7 admin support</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Footer */}
+      {/* Simple Footer */}
       <footer className="welcome-footer">
         <div className="footer-content">
-          <div className="footer-main">
+          <div className="footer-simple">
             <div className="footer-brand">
               <div className="logo-section">
                 <div className="logo-icon">
@@ -527,34 +361,10 @@ const Welcome = () => {
                 </div>
                 <span className="logo-text">WSBS Admin</span>
               </div>
-              <p>Waste Scheduling and Billing System</p>
+              <p>Waste Scheduling and Billing System - Administrative Portal</p>
             </div>
-            <div className="footer-links">
-              <div className="link-group">
-                <h4>Product</h4>
-                <a href="#features">Features</a>
-                <a href="#pricing">Pricing</a>
-                <a href="#integrations">Integrations</a>
-              </div>
-              <div className="link-group">
-                <h4>Resources</h4>
-                <a href="#docs">Documentation</a>
-                <a href="#support">Support</a>
-                <a href="#blog">Blog</a>
-              </div>
-              <div className="link-group">
-                <h4>Company</h4>
-                <a href="#about">About</a>
-                <a href="#contact">Contact</a>
-                <a href="#careers">Careers</a>
-              </div>
-            </div>
-          </div>
-          <div className="footer-bottom">
-            <p>&copy; 2024 WSBS Admin. All rights reserved.</p>
-            <div className="footer-legal">
-              <a href="#privacy">Privacy Policy</a>
-              <a href="#terms">Terms of Service</a>
+            <div className="footer-bottom">
+              <p>&copy; 2024 WSBS Admin. All rights reserved.</p>
             </div>
           </div>
         </div>
