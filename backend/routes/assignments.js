@@ -142,7 +142,7 @@ router.post('/barangay', authenticateJWT, authorizeRoles('admin'), async (req, r
     }
 
     // Create the table if it doesn't exist
-    await pool.query(`
+    await pool.queryWithRetry(`
       CREATE TABLE IF NOT EXISTS collector_barangay_assignments (
         assignment_id SERIAL PRIMARY KEY,
         collector_id INTEGER NOT NULL,
@@ -158,14 +158,14 @@ router.post('/barangay', authenticateJWT, authorizeRoles('admin'), async (req, r
     `);
 
     const q = `
-      INSERT INTO collector_barangay_assignments (
-        collector_id, barangay_id, effective_start_date, effective_end_date, shift_label, created_by
-      ) VALUES ($1,$2,$3,$4,$5,$6)
-      RETURNING assignment_id, collector_id, barangay_id, effective_start_date, effective_end_date, shift_label, created_at
+      INSERT INTO collector_barangay_assignments 
+       (collector_id, barangay_id, effective_start_date, effective_end_date, shift_label, created_by) 
+       VALUES ($1, $2, $3, $4, $5, $6) 
+       RETURNING *
     `;
 
     const createdBy = req.user?.userId || null;
-    const result = await pool.query(q, [
+    const result = await pool.queryWithRetry(q, [
       parseInt(collector_id, 10),
       parseInt(barangay_id, 10),
       effective_start_date || null,
