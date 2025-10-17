@@ -410,9 +410,11 @@ html, body {
 .dashboard-preview {
   width: 100%;
   max-width: 500px;
-  background: var(--wsbs-white);
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(10px);
   border-radius: var(--wsbs-radius-2xl);
-  box-shadow: var(--wsbs-shadow-xl);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
   overflow: hidden;
   transform: perspective(1000px) rotateY(-5deg) rotateX(5deg);
   transition: transform var(--wsbs-transition-slow);
@@ -423,12 +425,13 @@ html, body {
 }
 
 .preview-header {
-  background: var(--wsbs-gray-100);
+  background: rgba(248, 250, 252, 0.6);
+  backdrop-filter: blur(5px);
   padding: var(--wsbs-spacing-3);
   display: flex;
   align-items: center;
   gap: var(--wsbs-spacing-3);
-  border-bottom: 1px solid var(--wsbs-gray-200);
+  border-bottom: 1px solid rgba(226, 232, 240, 0.3);
 }
 
 .preview-dots {
@@ -460,23 +463,24 @@ html, body {
 
 .preview-sidebar {
   width: 80px;
-  background: var(--wsbs-gray-50);
+  background: rgba(248, 250, 252, 0.4);
+  backdrop-filter: blur(5px);
   padding: var(--wsbs-spacing-4);
   display: flex;
   flex-direction: column;
   gap: var(--wsbs-spacing-3);
-  border-right: 1px solid var(--wsbs-gray-200);
+  border-right: 1px solid rgba(226, 232, 240, 0.3);
 }
 
 .sidebar-item {
   height: 32px;
-  background: var(--wsbs-gray-300);
+  background: rgba(203, 213, 225, 0.6);
   border-radius: var(--wsbs-radius-md);
   transition: all var(--wsbs-transition-fast);
 }
 
 .sidebar-item.active {
-  background: var(--wsbs-primary);
+  background: rgba(76, 175, 80, 0.8);
 }
 
 .preview-main {
@@ -563,7 +567,8 @@ html, body {
 
 .preview-chart {
   flex: 1;
-  background: var(--wsbs-gray-50);
+  background: rgba(248, 250, 252, 0.4);
+  backdrop-filter: blur(5px);
   border-radius: var(--wsbs-radius-lg);
   padding: var(--wsbs-spacing-3);
   display: flex;
