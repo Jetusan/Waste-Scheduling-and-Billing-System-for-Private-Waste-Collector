@@ -34,6 +34,11 @@ const SPickup = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [currentUserId, setCurrentUserId] = useState(null);
   const [userProfile, setUserProfile] = useState(null);
+  
+  // New states for preview mode
+  const [showForm, setShowForm] = useState(false);
+  const [specialRequests, setSpecialRequests] = useState([]);
+  const [requestsLoading, setRequestsLoading] = useState(true);
 
   // Get current user info on component mount
   useEffect(() => {
@@ -93,6 +98,46 @@ const SPickup = () => {
     };
 
     fetchUserInfo();
+  }, []);
+
+  // Fetch user's special pickup requests
+  useEffect(() => {
+    const fetchSpecialRequests = async () => {
+      try {
+        setRequestsLoading(true);
+        const token = await getToken();
+        const userId = await getUserId();
+        
+        if (!token || !userId) {
+          setSpecialRequests([]);
+          setCurrentUserId(null);
+          return;
+        }
+
+        setCurrentUserId(userId);
+
+        const response = await fetch(`${API_BASE_URL}/api/special-pickup/user/${userId}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          setSpecialRequests(data.requests || []);
+        } else {
+          setSpecialRequests([]);
+        }
+      } catch (err) {
+        console.error('Error fetching special requests:', err);
+        setSpecialRequests([]);
+      } finally {
+        setRequestsLoading(false);
+      }
+    };
+
+    fetchSpecialRequests();
   }, []);
 
   const handleSubmit = async () => {
@@ -253,8 +298,12 @@ const SPickup = () => {
           </TouchableOpacity>
 
           <View style={styles.headerTitleContainer}>
-            <Text style={styles.headerTitle}>Special Pickup Request</Text>
-            <Text style={styles.headerSubtitle}>Schedule a custom waste collection</Text>
+            <Text style={styles.headerTitle}>
+              {showForm ? 'New Special Pickup' : 'Special Pickup'}
+            </Text>
+            <Text style={styles.headerSubtitle}>
+              {showForm ? 'Schedule a custom waste collection' : 'Your special pickup requests'}
+            </Text>
           </View>
 
           <TouchableOpacity style={styles.infoButton}>
@@ -263,11 +312,96 @@ const SPickup = () => {
         </View>
       </SafeAreaView>
 
-      {/* Content */}
-      <ScrollView 
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
+      {!showForm ? (
+        // Preview Mode - Show user's special pickup requests
+        <ScrollView 
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.previewSection}>
+            <Text style={styles.sectionTitle}>Your Special Pickup Requests</Text>
+            
+            {requestsLoading ? (
+              <View style={styles.loadingContainer}>
+                <Text style={styles.loadingText}>Loading your requests...</Text>
+              </View>
+            ) : specialRequests.length > 0 ? (
+              specialRequests.map((request) => (
+                <View key={request.request_id} style={styles.requestCard}>
+                  <View style={styles.requestHeader}>
+                    <View style={styles.requestStatus}>
+                      <View style={[
+                        styles.statusDot, 
+                        { backgroundColor: 
+                          request.status === 'completed' ? '#4CAF50' :
+                          request.status === 'in_progress' ? '#FF9800' :
+                          request.status === 'approved' ? '#2196F3' :
+                          '#9E9E9E'
+                        }
+                      ]} />
+                      <Text style={styles.statusText}>
+                        {request.status === 'completed' ? 'Completed' :
+                         request.status === 'in_progress' ? 'In Progress' :
+                         request.status === 'approved' ? 'Approved' :
+                         request.status === 'pending' ? 'Pending' :
+                         'Unknown'}
+                      </Text>
+                    </View>
+                    <Text style={styles.requestDate}>
+                      {new Date(request.created_at).toLocaleDateString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })}
+                    </Text>
+                  </View>
+
+                  <Text style={styles.requestWasteType}>{request.waste_type}</Text>
+                  <Text style={styles.requestDescription} numberOfLines={2}>
+                    {request.description}
+                  </Text>
+                  
+                  {request.final_price && (
+                    <View style={styles.priceContainer}>
+                      <Ionicons name="pricetag" size={16} color="#4CAF50" />
+                      <Text style={styles.priceText}>₱{request.final_price}</Text>
+                    </View>
+                  )}
+                </View>
+              ))
+            ) : (
+              <View style={styles.emptyContainer}>
+                <Ionicons name="document-outline" size={64} color="#ccc" />
+                <Text style={styles.emptyTitle}>No Special Requests</Text>
+                <Text style={styles.emptySubtitle}>
+                  You haven't made any special pickup requests yet.
+                </Text>
+              </View>
+            )}
+
+            <TouchableOpacity 
+              style={styles.newRequestButton}
+              onPress={() => setShowForm(true)}
+            >
+              <Ionicons name="add" size={24} color="#fff" />
+              <Text style={styles.newRequestText}>New Special Pickup Request</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      ) : (
+        // Form Mode - Original form
+        <ScrollView 
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          <TouchableOpacity 
+            style={styles.backToRequestsButton}
+            onPress={() => setShowForm(false)}
+          >
+            <Ionicons name="arrow-back" size={16} color="#4CAF50" />
+            <Text style={styles.backToRequestsText}>Back to My Requests</Text>
+          </TouchableOpacity>
         {/* Waste Type Section */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
@@ -489,7 +623,8 @@ const SPickup = () => {
         </TouchableOpacity>
 
         <View style={styles.bottomSpacer} />
-      </ScrollView>
+        </ScrollView>
+      )}
     </View>
   );
 };
@@ -728,6 +863,126 @@ const styles = StyleSheet.create({
   },
   bottomSpacer: {
     height: 20,
+  },
+  // New styles for preview mode
+  previewSection: {
+    padding: 16,
+  },
+  loadingContainer: {
+    padding: 20,
+    alignItems: 'center',
+  },
+  loadingText: {
+    fontSize: 16,
+    color: '#666',
+  },
+  requestCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  requestHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  requestStatus: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 6,
+  },
+  statusText: {
+    fontSize: 12,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+  },
+  requestDate: {
+    fontSize: 12,
+    color: '#666',
+  },
+  requestWasteType: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 4,
+  },
+  requestDescription: {
+    fontSize: 14,
+    color: '#666',
+    lineHeight: 20,
+    marginBottom: 8,
+  },
+  priceContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  priceText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#4CAF50',
+    marginLeft: 4,
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    padding: 40,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  emptySubtitle: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  newRequestButton: {
+    backgroundColor: '#4CAF50',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 16,
+    borderRadius: 12,
+    marginTop: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  newRequestText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginLeft: 8,
+  },
+  backToRequestsButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    marginBottom: 16,
+  },
+  backToRequestsText: {
+    color: '#4CAF50',
+    fontSize: 14,
+    fontWeight: '600',
+    marginLeft: 4,
   },
 });
 

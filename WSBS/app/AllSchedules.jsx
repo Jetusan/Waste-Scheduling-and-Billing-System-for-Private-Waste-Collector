@@ -19,6 +19,7 @@ const AllSchedules = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [userBarangay, setUserBarangay] = useState(null);
+  const [showAll, setShowAll] = useState(false);
 
   useEffect(() => {
     fetchAllSchedules();
@@ -140,7 +141,7 @@ const AllSchedules = () => {
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color="#fff" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>All Collection Schedules</Text>
+        <Text style={styles.headerTitle}>{showAll ? 'All Collection Schedules' : 'Collection Schedule'}</Text>
         <TouchableOpacity onPress={fetchAllSchedules} style={styles.refreshButton}>
           <Ionicons name="refresh" size={24} color="#fff" />
         </TouchableOpacity>
@@ -173,11 +174,133 @@ const AllSchedules = () => {
           </View>
         ) : (
           <View style={styles.schedulesContainer}>
-            <Text style={styles.schedulesCount}>
-              {schedules.length} schedule{schedules.length !== 1 ? 's' : ''} found
-            </Text>
-            
-            {schedules.map((schedule, index) => {
+            {!showAll && (
+              <View style={styles.previewSection}>
+                <Text style={styles.sectionTitle}>Today's Pickup</Text>
+                {(() => {
+                  const todayDayName = new Date().toLocaleDateString('en-US', { weekday: 'long' });
+                  const todaySchedule = schedules.find(schedule => 
+                    schedule.schedule_date && schedule.schedule_date.toLowerCase() === todayDayName.toLowerCase()
+                  );
+                  
+                  if (todaySchedule) {
+                    return (
+                      <View style={[styles.scheduleCard, styles.todayScheduleCard]}>
+                        <View style={styles.scheduleHeader}>
+                          <View style={styles.scheduleDay}>
+                            <Ionicons 
+                              name={getScheduleTypeIcon(todaySchedule.waste_type)} 
+                              size={20} 
+                              color={getScheduleTypeColor(todaySchedule.waste_type)} 
+                            />
+                            <Text style={[styles.scheduleDayText, styles.todayText]}>
+                              {todaySchedule.schedule_date} (Today)
+                            </Text>
+                          </View>
+                          {todaySchedule.time_range && (
+                            <View style={styles.timeContainer}>
+                              <Ionicons name="time-outline" size={16} color="#4CD964" />
+                              <Text style={[styles.timeText, styles.todayTimeText]}>
+                                {todaySchedule.time_range}
+                              </Text>
+                            </View>
+                          )}
+                        </View>
+                        <View style={styles.scheduleDetails}>
+                          <View style={styles.detailRow}>
+                            <Ionicons name="trash" size={16} color="#4CD964" />
+                            <Text style={[styles.detailText, { color: '#4CD964', fontWeight: 'bold' }]}>
+                              {todaySchedule.waste_type}
+                            </Text>
+                          </View>
+                          <View style={styles.detailRow}>
+                            <Ionicons name="location-outline" size={16} color="#666" />
+                            <Text style={styles.detailText}>
+                              {todaySchedule.barangays?.map(b => b.barangay_name).join(', ') || 'Your area'}
+                            </Text>
+                          </View>
+                        </View>
+                      </View>
+                    );
+                  } else {
+                    return (
+                      <View style={styles.noScheduleCard}>
+                        <Ionicons name="calendar-outline" size={32} color="#ccc" />
+                        <Text style={styles.noScheduleText}>No pickup scheduled for today</Text>
+                      </View>
+                    );
+                  }
+                })()}
+
+                <Text style={[styles.sectionTitle, { marginTop: 20 }]}>Upcoming Pickups</Text>
+                {(() => {
+                  const todayDayName = new Date().toLocaleDateString('en-US', { weekday: 'long' });
+                  const upcomingSchedules = schedules
+                    .filter(schedule => 
+                      schedule.schedule_date && schedule.schedule_date.toLowerCase() !== todayDayName.toLowerCase()
+                    )
+                    .slice(0, 3);
+                  
+                  if (upcomingSchedules.length > 0) {
+                    return upcomingSchedules.map((schedule, index) => (
+                      <View key={`upcoming-${schedule.schedule_id}-${index}`} style={styles.scheduleCard}>
+                        <View style={styles.scheduleHeader}>
+                          <View style={styles.scheduleDay}>
+                            <Ionicons 
+                              name={getScheduleTypeIcon(schedule.waste_type)} 
+                              size={20} 
+                              color={getScheduleTypeColor(schedule.waste_type)} 
+                            />
+                            <Text style={styles.scheduleDayText}>
+                              {schedule.schedule_date}
+                            </Text>
+                          </View>
+                          {schedule.time_range && (
+                            <View style={styles.timeContainer}>
+                              <Ionicons name="time-outline" size={16} color="#666" />
+                              <Text style={styles.timeText}>
+                                {schedule.time_range}
+                              </Text>
+                            </View>
+                          )}
+                        </View>
+                        <View style={styles.scheduleDetails}>
+                          <View style={styles.detailRow}>
+                            <Ionicons name="trash" size={16} color="#666" />
+                            <Text style={styles.detailText}>
+                              {schedule.waste_type}
+                            </Text>
+                          </View>
+                        </View>
+                      </View>
+                    ));
+                  } else {
+                    return (
+                      <View style={styles.noScheduleCard}>
+                        <Ionicons name="calendar-outline" size={32} color="#ccc" />
+                        <Text style={styles.noScheduleText}>No upcoming pickups scheduled</Text>
+                      </View>
+                    );
+                  }
+                })()}
+
+                <TouchableOpacity 
+                  style={styles.viewAllButton}
+                  onPress={() => setShowAll(true)}
+                >
+                  <Text style={styles.viewAllText}>View All Schedules</Text>
+                  <Ionicons name="chevron-forward" size={20} color="#4CD964" />
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {showAll && (
+              <View>
+                <Text style={styles.schedulesCount}>
+                  {schedules.length} schedule{schedules.length !== 1 ? 's' : ''} found
+                </Text>
+                
+                {schedules.map((schedule, index) => {
               const todaySchedule = isToday(schedule.schedule_date);
               const wasteTypeColor = getScheduleTypeColor(schedule.waste_type);
               
@@ -239,7 +362,9 @@ const AllSchedules = () => {
                   )}
                 </View>
               );
-            })}
+                })}
+              </View>
+            )}
           </View>
         )}
       </ScrollView>
@@ -432,6 +557,56 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 12,
     fontWeight: '600',
+  },
+  previewSection: {
+    marginBottom: 20,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 12,
+    marginTop: 8,
+  },
+  noScheduleCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 20,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+    marginBottom: 12,
+  },
+  noScheduleText: {
+    fontSize: 14,
+    color: '#999',
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  viewAllButton: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+    borderWidth: 2,
+    borderColor: '#4CD964',
+  },
+  viewAllText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#4CD964',
+    marginRight: 8,
   },
 });
 
