@@ -97,7 +97,7 @@ export default function HomePage() {
         <Ionicons
           name="settings-outline"
           size={28}
-          color="black"
+          color="#FFFFFF"
           style={styles.settingsIcon}
           onPress={() => router.push('/SetHomeLocation')}
         />
@@ -185,26 +185,28 @@ export default function HomePage() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: '#FAFAFA',
   },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    backgroundColor: '#4CD964',
     paddingHorizontal: 20,
     paddingTop: 50,
     paddingBottom: 20,
-    backgroundColor: '#fff',
-    elevation: 2,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 20,
+    elevation: 4,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 2,
+    shadowRadius: 4,
   },
   welcomeText: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: 'bold',
-    color: '#333',
+    color: '#FFFFFF',
     flex: 1,
   },
   profileImage: {
@@ -227,15 +229,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-around',
     alignItems: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: '#FFFFFF',
     paddingVertical: 15,
     marginVertical: 20,
-    borderRadius: 12,
-    elevation: 2,
+    borderRadius: 20,
+    elevation: 5,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 2,
+    shadowRadius: 3.84,
   },
   dayTextOuter: {
     fontSize: 14,
@@ -250,10 +252,17 @@ const styles = StyleSheet.create({
   barangayInfoCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#e8f5e8',
-    padding: 12,
-    borderRadius: 8,
+    backgroundColor: '#FFFFFF',
+    padding: 15,
+    borderRadius: 20,
     marginBottom: 20,
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    borderLeftWidth: 4,
+    borderLeftColor: '#4CD964',
   },
   barangayText: {
     marginLeft: 8,
@@ -275,18 +284,16 @@ const styles = StyleSheet.create({
   },
   serviceButton: {
     width: '48%',
-    backgroundColor: '#fff',
+    backgroundColor: '#FFFFFF',
     padding: 20,
-    borderRadius: 16,
+    borderRadius: 20,
     alignItems: 'center',
     marginBottom: 16,
-    elevation: 3,
+    elevation: 5,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
-    borderWidth: 1,
-    borderColor: '#f0f0f0',
+    shadowRadius: 3.84,
   },
   serviceText: {
     marginTop: 12,
