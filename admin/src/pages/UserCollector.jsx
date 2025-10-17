@@ -918,7 +918,7 @@ const UsersCollectors = () => {
                             <button type="button" className="simple-submit-btn" onClick={handleNextCollectorStep}>Next</button>
                           ) : (
                             <button type="submit" className="simple-submit-btn" disabled={isSubmittingCollector}>
-                              {isSubmittingCollector ? 'Adding...' : 'Add Collector'}
+                              {isSubmittingCollector ? 'Adding Collector...' : 'Add Collector'}
                             </button>
                           )}
                         </div>

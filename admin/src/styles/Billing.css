@@ -70,12 +70,13 @@
   display: block;
 }
 
-.summary-number.unpaid {
-  color: var(--wsbs-warning);
+.summary-card .summary-number.unpaid {
+  color: #f59e0b;
 }
 
-.summary-number.overdue {
-  color: var(--wsbs-danger);
+.summary-card .summary-number.overdue {
+  color: #dc2626;
+  font-weight: bold;
 }
 
 .summary-number.paid {

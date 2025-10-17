@@ -318,8 +318,8 @@ const Dashboard = () => {
               <i className="fas fa-peso-sign"></i>
             </div>
             <div className="metric-content">
-              <h3>₱{typeof metrics.monthlyRevenue === 'number' ? metrics.monthlyRevenue.toLocaleString() : '0'}</h3>
-              <p>Monthly Revenue</p>
+              <h3>₱{typeof metrics.totalRevenue === 'number' ? metrics.totalRevenue.toLocaleString() : '0'}</h3>
+              <p>Total Revenue</p>
             </div>
           </div>
 
@@ -334,16 +334,6 @@ const Dashboard = () => {
             </div>
           </div>
 
-          {/* Fleet Status */}
-          <div className="simple-metric-card primary">
-            <div className="metric-icon">
-              <i className="fas fa-truck"></i>
-            </div>
-            <div className="metric-content">
-              <h3>{metrics.totalTrucks}</h3>
-              <p>Trucks</p>
-            </div>
-          </div>
 
           {/* Invoices */}
           <div className="simple-metric-card warning">
@@ -504,87 +494,7 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* Live Collection Status */}
-      <div className="dashboard-section">
-        <div className="section-header">
-          <h3>Active Collections Today</h3>
-          <div className="status-indicators">
-            <span className="status-dot active"></span>
-            <span className="status-text">{activeRoutes.length} routes active</span>
-          </div>
-        </div>
-        <div className="active-routes-grid">
-          {activeRoutes.length > 0 ? (
-            activeRoutes.slice(0, 4).map((route, index) => (
-              <div key={route.schedule_id || index} className="route-card">
-                <div className="route-header">
-                  <h4>Route {route.route_number || index + 1}</h4>
-                  <span className={`route-status ${route.status?.toLowerCase() || 'active'}`}>
-                    {route.status || 'In Progress'}
-                  </span>
-                </div>
-                <div className="route-details">
-                  <p><i className="fas fa-map-marker-alt"></i> {route.barangay_name || 'Multiple Areas'}</p>
-                  <p><i className="fas fa-truck"></i> Truck {route.truck_number || 'TBD'}</p>
-                  <p><i className="fas fa-user"></i> {route.collector_name || 'Assigned Collector'}</p>
-                  <p><i className="fas fa-clock"></i> Started: {route.start_time || '8:00 AM'}</p>
-                </div>
-                <div className="route-progress">
-                  <div className="progress-bar">
-                    <div 
-                      className="progress-fill" 
-                      style={{ width: `${route.completion_percentage || 45}%` }}
-                    ></div>
-                  </div>
-                  <span className="progress-text">{route.completion_percentage || 45}% Complete</span>
-                </div>
-              </div>
-            ))
-          ) : (
-            <div className="empty-state">
-              <i className="fas fa-route"></i>
-              <p>No active routes today</p>
-            </div>
-          )}
-        </div>
-      </div>
 
-      {/* Fleet Status Overview */}
-      {truckStatus.length > 0 && (
-        <div className="dashboard-section">
-          <div className="section-header">
-            <h3>Fleet Status</h3>
-            <button 
-              className="view-all-btn"
-              onClick={() => navigate('/admin/operations/assignments')}
-            >
-              Manage Fleet
-            </button>
-          </div>
-          <div className="fleet-status-grid">
-            {truckStatus.slice(0, 6).map((truck, index) => (
-              <div key={truck.truck_id || index} className="truck-card">
-                <div className="truck-header">
-                  <h4>{truck.truck_number}</h4>
-                  <span className={`truck-status ${truck.status?.toLowerCase() || 'active'}`}>
-                    {truck.status || 'Active'}
-                  </span>
-                </div>
-                <div className="truck-info">
-                  <p><i className="fas fa-gas-pump"></i> Fuel: {truck.fuel_level}%</p>
-                  <p><i className="fas fa-weight"></i> Load: {truck.current_load}%</p>
-                  <p><i className="fas fa-route"></i> {truck.current_route}</p>
-                  {truck.maintenance_due && (
-                    <p className="maintenance-alert">
-                      <i className="fas fa-wrench"></i> Maintenance Due
-                    </p>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* Emergency Requests */}
       {emergencyRequests.length > 0 && (
