@@ -12,16 +12,16 @@ const { emitCollectionUpdate, emitStatsUpdate, emitAdminUpdate, emitResidentNoti
 // SIMPLIFIED VERSION to avoid 500 errors
 router.get('/today', async (req, res) => {
   try {
-    const { collector_id, user_id } = req.query;
+    const { collector_id, user_id, barangay_id } = req.query;
 
     // Compute today's weekday name in Asia/Manila timezone
     const todayName = new Date().toLocaleDateString('en-US', { weekday: 'long', timeZone: 'Asia/Manila' });
     
-    console.log(`🕐 Looking for ${todayName} collections (collector_id: ${collector_id || 'none'})`);
+    console.log(`🕐 Looking for ${todayName} collections (collector_id: ${collector_id || 'none'}, barangay_id: ${barangay_id || 'all'})`);
 
     // Now get real data from database
-    // Step 1: Get all residents with subscriptions (simplified query)
-    const residentsQuery = `
+    // Step 1: Get all residents with subscriptions (filtered by barangay if specified)
+    let residentsQuery = `
       SELECT DISTINCT
         u.user_id,
         COALESCE(un.first_name || ' ' || un.last_name, 'Unknown Resident') AS resident_name,
@@ -35,13 +35,22 @@ router.get('/today', async (req, res) => {
       WHERE u.role_id = 3 
         AND u.approval_status = 'approved'
         AND u.user_id IS NOT NULL
-      ORDER BY u.user_id
-      LIMIT 20
     `;
+    
+    const queryParams = [];
+    
+    // Add barangay filter if specified
+    if (barangay_id) {
+      residentsQuery += ` AND b.barangay_id = $${queryParams.length + 1}`;
+      queryParams.push(parseInt(barangay_id, 10));
+      console.log(`🏘️ Filtering by barangay_id: ${barangay_id}`);
+    }
+    
+    residentsQuery += ` ORDER BY u.user_id LIMIT 20`;
 
     let residentsResult;
     try {
-      residentsResult = await pool.query(residentsQuery);
+      residentsResult = await pool.query(residentsQuery, queryParams);
       console.log(`🏠 Found ${residentsResult.rows.length} total approved residents`);
     } catch (e) {
       console.error(`❌ Error querying residents:`, e.message);

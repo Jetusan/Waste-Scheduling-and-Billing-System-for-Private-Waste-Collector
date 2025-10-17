@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useCallback, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, TextInput, Alert, Modal } from 'react-native';
 import { WebView } from 'react-native-webview';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { API_BASE_URL } from '../config';
 import { getUserId, getToken, getCollectorId } from '../auth';
@@ -17,6 +17,11 @@ const sampleBarangays = [
 
 const CStartCollection = () => {
   const router = useRouter();
+  const params = useLocalSearchParams();
+  
+  // Get selected barangay from navigation params
+  const selectedBarangayId = params.barangay_id;
+  const selectedBarangayName = params.barangay_name;
 
   // Assignment + stops state
   const [loading, setLoading] = useState(true);
@@ -182,8 +187,12 @@ const CStartCollection = () => {
         if (!cid) throw new Error('Missing collector id');
 
         // Try to fetch today's active assignment for this collector.
-        // Backend endpoint is suggested; if not present, this will fail and we show the fallback UI.
-        const url = `${API_BASE_URL}/api/collector/assignments/today?collector_id=${encodeURIComponent(cid)}`;
+        // If barangay is selected, filter by barangay_id
+        let url = `${API_BASE_URL}/api/collector/assignments/today?collector_id=${encodeURIComponent(cid)}`;
+        if (selectedBarangayId) {
+          url += `&barangay_id=${encodeURIComponent(selectedBarangayId)}`;
+          console.log('🏘️ Filtering collections for barangay:', selectedBarangayName, '(ID:', selectedBarangayId, ')');
+        }
         console.log('Making API call to:', url);
         const res = await fetch(url);
         console.log('API response status:', res.status, res.statusText);
@@ -978,6 +987,19 @@ const CStartCollection = () => {
           <Ionicons name="arrow-back" size={20} color="#222" />
           <Text style={styles.backText}>Cancel</Text>
         </TouchableOpacity>
+        
+        {/* Show selected barangay */}
+        <View style={styles.headerCenter}>
+          {selectedBarangayName ? (
+            <>
+              <Text style={styles.headerTitle}>Collection Route</Text>
+              <Text style={styles.headerSubtitle}>{selectedBarangayName}</Text>
+            </>
+          ) : (
+            <Text style={styles.headerTitle}>Start Collection</Text>
+          )}
+        </View>
+        
         <View style={styles.headerActions}>
           <TouchableOpacity 
             onPress={handleRouteIssue}
@@ -1667,6 +1689,21 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
     elevation: 2,
     zIndex: 2,
+  },
+  headerCenter: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  headerSubtitle: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 2,
   },
   headerActions: {
     flexDirection: 'row',

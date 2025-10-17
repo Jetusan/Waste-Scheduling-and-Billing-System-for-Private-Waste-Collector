@@ -197,7 +197,7 @@ const CHome = () => {
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.buttonDarkGreen}
-        onPress={() => router.push('/collector/CStartCollection')}>
+        onPress={() => router.push('/collector/CSelectBarangay')}>
           <Text style={styles.buttonText}>Start Collections</Text>
         </TouchableOpacity>
       </ScrollView>
