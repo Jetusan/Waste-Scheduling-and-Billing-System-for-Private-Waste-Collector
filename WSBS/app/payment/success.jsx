@@ -1,18 +1,41 @@
 import React, { useEffect } from 'react';
-import { View, Text, StyleSheet, SafeAreaView } from 'react-native';
+import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 
 export default function PaymentSuccess() {
   const router = useRouter();
 
+  const handleGoHome = () => {
+    try {
+      router.replace('/resident/HomePage');
+    } catch (error) {
+      console.error('Navigation error:', error);
+      // Fallback navigation
+      router.push('/resident/HomePage');
+    }
+  };
+
   useEffect(() => {
-    // Auto navigate back after 3 seconds
+    let isMounted = true;
+    
+    // Auto navigate back to HomePage after 3 seconds
     const timer = setTimeout(() => {
-      router.replace('/subscription');
+      if (isMounted) {
+        try {
+          router.replace('/resident/HomePage');
+        } catch (error) {
+          console.error('Auto-navigation error:', error);
+          // Fallback navigation
+          router.push('/resident/HomePage');
+        }
+      }
     }, 3000);
 
-    return () => clearTimeout(timer);
+    return () => {
+      isMounted = false;
+      clearTimeout(timer);
+    };
   }, [router]);
 
   return (
@@ -29,6 +52,14 @@ export default function PaymentSuccess() {
         <Text style={styles.subMessage}>
           You will be redirected automatically...
         </Text>
+        
+        <TouchableOpacity 
+          style={styles.homeButton}
+          onPress={handleGoHome}
+        >
+          <Ionicons name="home" size={20} color="#fff" />
+          <Text style={styles.homeButtonText}>Go to Home Now</Text>
+        </TouchableOpacity>
       </View>
     </SafeAreaView>
   );
@@ -65,5 +96,26 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#999',
     textAlign: 'center',
+    marginBottom: 30,
+  },
+  homeButton: {
+    backgroundColor: '#4CAF50',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  homeButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginLeft: 8,
   },
 });

@@ -52,6 +52,54 @@ export default function Layout() {
           headerShown: false
         }}
       />
+      <Stack.Screen 
+        name="payment" 
+        options={{
+          headerShown: false
+        }}
+      />
+      <Stack.Screen 
+        name="AllSchedules" 
+        options={{
+          headerShown: false
+        }}
+      />
+      <Stack.Screen 
+        name="spickup" 
+        options={{
+          headerShown: false
+        }}
+      />
+      <Stack.Screen 
+        name="SubscriptionStatusScreen" 
+        options={{
+          headerShown: false
+        }}
+      />
+      <Stack.Screen 
+        name="PaymentPage" 
+        options={{
+          headerShown: false
+        }}
+      />
+      <Stack.Screen 
+        name="PaymentHistory" 
+        options={{
+          headerShown: false
+        }}
+      />
+      <Stack.Screen 
+        name="SetHomeLocation" 
+        options={{
+          headerShown: false
+        }}
+      />
+      <Stack.Screen 
+        name="TermsAndConditions" 
+        options={{
+          headerShown: false
+        }}
+      />
     </Stack>
       </WebSocketProvider>
     </ErrorBoundary>

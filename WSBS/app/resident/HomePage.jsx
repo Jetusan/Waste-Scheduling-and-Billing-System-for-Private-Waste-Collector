@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useFocusEffect } from 'react';
 import { View, Text, StyleSheet, Pressable, Image, ScrollView, ActivityIndicator, TouchableOpacity, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { getToken, getUserId } from '../auth';
 import { API_BASE_URL } from '../config';
 
@@ -47,35 +47,46 @@ export default function HomePage() {
     fetchProfile();
   }, []);
 
-  useEffect(() => {
-    // Check subscription status - Keep the same logic as previous
-    const fetchSubscriptionStatus = async () => {
-      try {
-        const token = await getToken();
-        const userId = await getUserId();
-        if (!token || !userId) {
-          setSubscriptionStatus('none');
-          return;
-        }
-        const res = await fetch(`${API_BASE_URL}/api/billing/subscription/${userId}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (res.ok) {
-          const data = await res.json();
-          if (data.subscription && data.subscription.status) {
-            setSubscriptionStatus(data.subscription.status);
-          } else {
-            setSubscriptionStatus('none');
-          }
+  // Function to fetch subscription status
+  const fetchSubscriptionStatus = async () => {
+    try {
+      const token = await getToken();
+      const userId = await getUserId();
+      if (!token || !userId) {
+        setSubscriptionStatus('none');
+        return;
+      }
+      const res = await fetch(`${API_BASE_URL}/api/billing/subscription/${userId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.subscription && data.subscription.status) {
+          setSubscriptionStatus(data.subscription.status);
+          console.log('🔄 Subscription status updated:', data.subscription.status);
         } else {
           setSubscriptionStatus('none');
         }
-      } catch (_err) {
+      } else {
         setSubscriptionStatus('none');
       }
-    };
+    } catch (_err) {
+      setSubscriptionStatus('none');
+    }
+  };
+
+  // Initial load
+  useEffect(() => {
     fetchSubscriptionStatus();
   }, []);
+
+  // Refresh subscription status when page is focused (when user returns from subscription)
+  useFocusEffect(
+    React.useCallback(() => {
+      console.log('🔄 HomePage focused - refreshing subscription status');
+      fetchSubscriptionStatus();
+    }, [])
+  );
 
   // Get current day for display
   const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
