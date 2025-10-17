@@ -26,13 +26,20 @@ const createSpecialPickupRequest = async (data) => {
 
 // Get all special pickup requests (optionally filter by status)
 const getAllSpecialPickupRequests = async (status) => {
-  let query = 'SELECT * FROM special_pickup_requests';
+  let query = `
+    SELECT spr.*, 
+           COALESCE(un.first_name || ' ' || un.last_name, u.username, 'Unknown User') as user_name,
+           u.username
+    FROM special_pickup_requests spr
+    LEFT JOIN users u ON spr.user_id = u.user_id
+    LEFT JOIN user_names un ON u.name_id = un.name_id
+  `;
   let values = [];
   if (status) {
-    query += ' WHERE status = $1';
+    query += ' WHERE spr.status = $1';
     values.push(status);
   }
-  query += ' ORDER BY created_at DESC';
+  query += ' ORDER BY spr.created_at DESC';
   const result = await pool.query(query, values);
   return result.rows;
 };

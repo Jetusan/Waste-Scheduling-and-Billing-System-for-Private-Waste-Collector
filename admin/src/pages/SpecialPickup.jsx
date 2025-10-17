@@ -136,7 +136,7 @@ const SpecialPickup = () => {
               {filteredRequests.map(req => (
                 <tr key={req.request_id} style={{ borderBottom: '1px solid #eee' }}>
                   <td style={{ padding: '12px' }}>#{req.request_id}</td>
-                  <td style={{ padding: '12px' }}>User {req.user_id}</td>
+                  <td style={{ padding: '12px' }}>{req.user_name || req.username || `User ${req.user_id}`}</td>
                   <td style={{ padding: '12px' }}>
                     <span style={{ 
                       backgroundColor: '#e3f2fd', 
@@ -288,8 +288,8 @@ const SpecialPickup = () => {
               <div style={{ fontWeight: 600, color: '#555' }}>Request ID:</div>
               <div>#{selected.request_id}</div>
               
-              <div style={{ fontWeight: 600, color: '#555' }}>User ID:</div>
-              <div>User {selected.user_id}</div>
+              <div style={{ fontWeight: 600, color: '#555' }}>Requested By:</div>
+              <div>{selected.user_name || selected.username || `User ${selected.user_id}`}</div>
               
               <div style={{ fontWeight: 600, color: '#555' }}>Waste Type:</div>
               <div><span style={{ backgroundColor: '#e3f2fd', color: '#1976d2', padding: '4px 12px', borderRadius: '12px', fontSize: '14px', fontWeight: 'bold' }}>{selected.waste_type}</span></div>
