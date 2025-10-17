@@ -162,7 +162,10 @@ const Subscription = () => {
   const handlePaymentSuccess = () => {
     setShowPaymentPage(false);
     setShowPlanSelection(true);
-    router.push('/resident/HomePage');
+    
+    // Navigate to payment success page with unique session ID
+    const sessionId = `payment_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    router.push(`/payment/success?session=${sessionId}`);
   };
 
   // Show loading while checking terms acceptance

@@ -1,12 +1,52 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function PaymentSuccess() {
   const router = useRouter();
+  const params = useLocalSearchParams();
+  const [hasNavigated, setHasNavigated] = useState(false);
+  const [isValidSession, setIsValidSession] = useState(true);
+  const navigationAttempted = useRef(false);
+
+  // Check if this success page should be shown
+  useEffect(() => {
+    const checkSession = async () => {
+      try {
+        const sessionId = params.session || Date.now().toString();
+        const lastSuccessSession = await AsyncStorage.getItem('lastPaymentSuccessSession');
+        
+        if (lastSuccessSession === sessionId) {
+          // This success page has already been shown
+          console.log('Payment success already shown for this session, redirecting...');
+          setIsValidSession(false);
+          router.replace('/resident/HomePage');
+          return;
+        }
+        
+        // Mark this session as shown
+        await AsyncStorage.setItem('lastPaymentSuccessSession', sessionId);
+        setIsValidSession(true);
+      } catch (error) {
+        console.error('Session check error:', error);
+        setIsValidSession(true); // Default to showing the page
+      }
+    };
+    
+    checkSession();
+  }, [params.session, router]);
 
   const handleGoHome = () => {
+    if (navigationAttempted.current || hasNavigated) {
+      console.log('Navigation already attempted, ignoring...');
+      return;
+    }
+    
+    navigationAttempted.current = true;
+    setHasNavigated(true);
+    
     try {
       router.replace('/resident/HomePage');
     } catch (error) {
@@ -21,7 +61,10 @@ export default function PaymentSuccess() {
     
     // Auto navigate back to HomePage after 3 seconds
     const timer = setTimeout(() => {
-      if (isMounted) {
+      if (isMounted && !navigationAttempted.current && !hasNavigated) {
+        navigationAttempted.current = true;
+        setHasNavigated(true);
+        
         try {
           router.replace('/resident/HomePage');
         } catch (error) {
@@ -36,7 +79,12 @@ export default function PaymentSuccess() {
       isMounted = false;
       clearTimeout(timer);
     };
-  }, [router]);
+  }, [router, hasNavigated]);
+
+  // Don't render anything if session is invalid (already shown)
+  if (!isValidSession) {
+    return null;
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -50,15 +98,18 @@ export default function PaymentSuccess() {
           Your subscription has been activated successfully.
         </Text>
         <Text style={styles.subMessage}>
-          You will be redirected automatically...
+          {hasNavigated ? 'Redirecting...' : 'You will be redirected automatically...'}
         </Text>
         
         <TouchableOpacity 
-          style={styles.homeButton}
+          style={[styles.homeButton, hasNavigated && styles.homeButtonDisabled]}
           onPress={handleGoHome}
+          disabled={hasNavigated}
         >
           <Ionicons name="home" size={20} color="#fff" />
-          <Text style={styles.homeButtonText}>Go to Home Now</Text>
+          <Text style={styles.homeButtonText}>
+            {hasNavigated ? 'Redirecting...' : 'Go to Home Now'}
+          </Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -117,5 +168,9 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     marginLeft: 8,
+  },
+  homeButtonDisabled: {
+    backgroundColor: '#95a5a6',
+    opacity: 0.7,
   },
 });
