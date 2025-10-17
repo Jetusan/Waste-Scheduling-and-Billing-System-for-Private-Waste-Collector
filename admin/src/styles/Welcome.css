@@ -1215,8 +1215,9 @@ html, body {
 
 /* ═══ ABOUT SECTION ═══ */
 .about-section {
-  padding: var(--wsbs-spacing-20) var(--wsbs-spacing-6);
-  background: linear-gradient(135deg, #f8fffe 0%, #f0f9ff 100%);
+  padding: var(--wsbs-spacing-16) var(--wsbs-spacing-6) var(--wsbs-spacing-20);
+  background: var(--wsbs-white);
+  margin: 0;
 }
 
 .about-content {
@@ -1267,8 +1268,9 @@ html, body {
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: var(--wsbs-spacing-8);
   margin-top: var(--wsbs-spacing-16);
+  margin-bottom: 0;
   padding: var(--wsbs-spacing-12);
-  background: var(--wsbs-white);
+  background: linear-gradient(135deg, var(--wsbs-primary) 0%, #45a049 100%);
   border-radius: var(--wsbs-radius-xl);
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
 }
@@ -1280,7 +1282,7 @@ html, body {
 .about-stat .stat-number {
   font-size: 3rem;
   font-weight: var(--wsbs-font-weight-bold);
-  color: var(--wsbs-primary);
+  color: var(--wsbs-white);
   line-height: 1;
   margin-bottom: var(--wsbs-spacing-2);
 }
@@ -1288,15 +1290,16 @@ html, body {
 .about-stat .stat-label {
   font-size: var(--wsbs-font-size-sm);
   font-weight: var(--wsbs-font-weight-medium);
-  color: var(--wsbs-gray-600);
+  color: rgba(255, 255, 255, 0.9);
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
 
 /* ═══ CONTACT SECTION ═══ */
 .contact-section {
-  padding: var(--wsbs-spacing-20) var(--wsbs-spacing-6);
-  background: var(--wsbs-white);
+  padding: 0 var(--wsbs-spacing-6) var(--wsbs-spacing-20);
+  background: linear-gradient(135deg, #f8fffe 0%, #f0f9ff 100%);
+  margin: 0;
 }
 
 .contact-content {
@@ -1308,16 +1311,18 @@ html, body {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
   gap: var(--wsbs-spacing-8);
-  margin: var(--wsbs-spacing-12) 0;
+  margin: var(--wsbs-spacing-16) 0 var(--wsbs-spacing-12);
+  padding-top: var(--wsbs-spacing-8);
 }
 
 .contact-card {
-  background: linear-gradient(135deg, #f8fffe 0%, #f0f9ff 100%);
+  background: var(--wsbs-white);
   padding: var(--wsbs-spacing-8);
   border-radius: var(--wsbs-radius-xl);
   border: 1px solid var(--wsbs-gray-200);
   transition: all 0.3s ease;
   text-align: center;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
 }
 
 .contact-card:hover {
@@ -1400,7 +1405,8 @@ html, body {
 /* ═══ SIMPLIFIED FOOTER ═══ */
 .footer-simple {
   text-align: center;
-  padding: var(--wsbs-spacing-6) 0;
+  padding: var(--wsbs-spacing-12) 0 var(--wsbs-spacing-6);
+  margin-top: 0;
 }
 
 .footer-simple .footer-brand {
