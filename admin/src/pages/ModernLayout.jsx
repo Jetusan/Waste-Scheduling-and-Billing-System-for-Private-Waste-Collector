@@ -52,7 +52,7 @@ const navConfig = [
     description: 'System Configuration',
     items: [
       { title: 'Notifications', icon: 'fas fa-bell', path: '/admin/settings/notifications' },
-      { title: 'Preferences', icon: 'fas fa-sliders-h', path: '/admin/settings/preferences' }
+      { title: 'About', icon: 'fas fa-info-circle', path: '/admin/settings/about' }
     ]
   }
 ];
@@ -68,7 +68,7 @@ const pageTitles = {
   '/admin/billing-history': 'Payment History',
   '/admin/insights/reports': 'System Reports',
   '/admin/settings/notifications': 'Notifications',
-  '/admin/settings/preferences': 'Preferences',
+  '/admin/settings/about': 'About',
   '/admin/profile': 'Profile Settings'
 };
 

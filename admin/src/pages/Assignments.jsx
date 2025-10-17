@@ -15,6 +15,7 @@ export default function Assignments() {
   const [form, setForm] = useState({
     collector_id: '',
     barangay_id: '',
+    barangay_ids: [],
     effective_start_date: new Date().toISOString().split('T')[0],
     effective_end_date: '',
     shift_label: 'Morning Shift'
@@ -58,30 +59,34 @@ export default function Assignments() {
         setError('Please select a collector.');
         return;
       }
-      if (!form.barangay_id) {
-        setError('Please select a barangay.');
+      if (!form.barangay_ids || form.barangay_ids.length === 0) {
+        setError('Please select at least one barangay.');
         return;
       }
 
-      // Create barangay assignment
-      const assignmentData = {
+      // Create multiple barangay assignments
+      const base = {
         collector_id: parseInt(form.collector_id, 10),
-        barangay_id: parseInt(form.barangay_id, 10),
         effective_start_date: form.effective_start_date || undefined,
         effective_end_date: form.effective_end_date || undefined,
         shift_label: form.shift_label || undefined,
       };
 
-      await axios.post(
-        `${API_BASE_URL}/assignments/barangay`,
-        assignmentData,
-        { headers: { ...authHeaders, 'Content-Type': 'application/json' } }
+      await Promise.all(
+        form.barangay_ids.map(id =>
+          axios.post(
+            `${API_BASE_URL}/assignments/barangay`,
+            { ...base, barangay_id: parseInt(id, 10) },
+            { headers: { ...authHeaders, 'Content-Type': 'application/json' } }
+          )
+        )
       );
       
       await loadAll();
       setForm({ 
         collector_id: '', 
-        barangay_id: '', 
+        barangay_id: '',
+        barangay_ids: [],
         effective_start_date: new Date().toISOString().split('T')[0], 
         effective_end_date: '', 
         shift_label: 'Morning Shift' 
@@ -197,28 +202,90 @@ export default function Assignments() {
                 fontWeight: '500' 
               }}>
                 <i className="fas fa-map-marker-alt" style={{ marginRight: 8, color: '#6b7280' }}></i>
-                Select Barangay
+                Select Barangays
               </label>
-              <select
-                value={form.barangay_id}
-                onChange={(e) => setForm(f => ({ ...f, barangay_id: e.target.value }))}
-                required
-                style={{ 
-                  width: '100%', 
-                  padding: '12px', 
-                  border: '1px solid #d1d5db',
-                  borderRadius: '6px',
-                  fontSize: '14px',
-                  backgroundColor: '#ffffff'
-                }}
-              >
-                <option value="">Choose a barangay...</option>
-                {barangays.map(b => (
-                  <option key={b.barangay_id} value={b.barangay_id}>
-                    {b.barangay_name}
-                  </option>
-                ))}
-              </select>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8, alignItems: 'center', marginBottom: 8 }}>
+                <select
+                  value={form.barangay_id}
+                  onChange={(e) => setForm(f => ({ ...f, barangay_id: e.target.value }))}
+                  style={{ 
+                    width: '100%', 
+                    padding: '12px', 
+                    border: '1px solid #d1d5db',
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    backgroundColor: '#ffffff'
+                  }}
+                >
+                  <option value="">Choose a barangay...</option>
+                  {barangays.map(b => (
+                    <option key={b.barangay_id} value={b.barangay_id}>
+                      {b.barangay_name}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!form.barangay_id) return;
+                    setForm(f => {
+                      const id = String(f.barangay_id);
+                      if (f.barangay_ids.includes(id)) return f; // avoid duplicates
+                      return { ...f, barangay_ids: [...f.barangay_ids, id], barangay_id: '' };
+                    });
+                  }}
+                  style={{ 
+                    padding: '12px 16px', 
+                    background: '#10b981', 
+                    color: '#fff', 
+                    border: 'none', 
+                    borderRadius: 6, 
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    fontWeight: '500'
+                  }}
+                >
+                  <i className="fas fa-plus"></i>
+                </button>
+              </div>
+              {form.barangay_ids.length > 0 && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+                  {form.barangay_ids.map(id => {
+                    const b = barangays.find(x => String(x.barangay_id) === String(id));
+                    const label = b ? b.barangay_name : `Barangay #${id}`;
+                    return (
+                      <div key={id} style={{ 
+                        display: 'inline-flex', 
+                        alignItems: 'center', 
+                        gap: 6, 
+                        background: '#dbeafe', 
+                        color: '#1e40af', 
+                        border: '1px solid #93c5fd', 
+                        borderRadius: 16, 
+                        padding: '6px 12px',
+                        fontSize: '14px'
+                      }}>
+                        <span>{label}</span>
+                        <button
+                          type="button"
+                          onClick={() => setForm(f => ({ ...f, barangay_ids: f.barangay_ids.filter(x => String(x) !== String(id)) }))}
+                          title="Remove"
+                          style={{ 
+                            background: 'transparent', 
+                            color: '#1e40af', 
+                            border: 'none', 
+                            cursor: 'pointer', 
+                            fontWeight: 700,
+                            fontSize: '16px'
+                          }}
+                        >
+                          ×
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
             {/* Date Range */}

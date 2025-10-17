@@ -170,54 +170,72 @@ router.post('/register-optimized', async (req, res) => {
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 12);
 
-    // Create name record first
-    const nameResult = await pool.query(`
-      INSERT INTO user_names (first_name, middle_name, last_name)
-      VALUES ($1, $2, $3)
-      RETURNING name_id
-    `, [firstName.trim(), middleName?.trim() || null, lastName.trim()]);
+    // Use transaction to prevent partial records
+    const client = await pool.connect();
+    let userId, collectorId;
 
-    const nameId = nameResult.rows[0].name_id;
+    try {
+      await client.query('BEGIN');
 
-    // Create address
-    const fullAddress = [houseNumber, street, purok, barangay, city].filter(Boolean).join(', ');
-    
-    const addressResult = await pool.query(`
-      INSERT INTO addresses (
-        street, barangay_id, city_municipality, address_type, full_address
-      ) VALUES ($1, $2, $3, $4, $5)
-      RETURNING address_id
-    `, [street?.trim() || null, barangayId, city, 'residential', fullAddress]);
+      // Create name record first
+      const nameResult = await client.query(`
+        INSERT INTO user_names (first_name, middle_name, last_name)
+        VALUES ($1, $2, $3)
+        RETURNING name_id
+      `, [firstName.trim(), middleName?.trim() || null, lastName.trim()]);
 
-    const addressId = addressResult.rows[0].address_id;
+      const nameId = nameResult.rows[0].name_id;
 
-    // Create user account (collectors are auto-approved)
-    const userResult = await pool.query(`
-      INSERT INTO users (
-        username, password_hash, contact_number, email, role_id, 
-        address_id, name_id, approval_status
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-      RETURNING user_id, username
-    `, [
-      username.trim(), hashedPassword, contactNumber.trim(),
-      email?.trim() || null, roleId, addressId, nameId, 'approved'
-    ]);
+      // Create address
+      const fullAddress = [houseNumber, street, purok, barangay, city].filter(Boolean).join(', ');
+      
+      const addressResult = await client.query(`
+        INSERT INTO addresses (
+          street, barangay_id, city_municipality, address_type, full_address
+        ) VALUES ($1, $2, $3, $4, $5)
+        RETURNING address_id
+      `, [street?.trim() || null, barangayId, city, 'residential', fullAddress]);
 
-    const userId = userResult.rows[0].user_id;
+      const addressId = addressResult.rows[0].address_id;
 
-    // Create collector record
-    const collectorResult = await pool.query(`
-      INSERT INTO collectors (
-        user_id, truck_id, license_number, license_expiry_date, status
-      ) VALUES ($1, $2, $3, $4, $5)
-      RETURNING collector_id
-    `, [
-      userId, 
-      truck_id ? parseInt(truck_id) : null, 
-      license_number.trim(), 
-      license_expiry_date || null, 
-      status || 'active'
-    ]);
+      // Create user account (collectors are auto-approved)
+      const userResult = await client.query(`
+        INSERT INTO users (
+          username, password_hash, contact_number, email, role_id, 
+          address_id, name_id, approval_status
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        RETURNING user_id, username
+      `, [
+        username.trim(), hashedPassword, contactNumber.trim(),
+        email?.trim() || null, roleId, addressId, nameId, 'approved'
+      ]);
+
+      userId = userResult.rows[0].user_id;
+
+      // Create collector record
+      const collectorResult = await client.query(`
+        INSERT INTO collectors (
+          user_id, truck_id, license_number, license_expiry_date, status
+        ) VALUES ($1, $2, $3, $4, $5)
+        RETURNING collector_id
+      `, [
+        userId, 
+        truck_id ? parseInt(truck_id) : null, 
+        license_number.trim(), 
+        license_expiry_date || null, 
+        status || 'active'
+      ]);
+
+      collectorId = collectorResult.rows[0].collector_id;
+
+      await client.query('COMMIT');
+      
+    } catch (transactionError) {
+      await client.query('ROLLBACK');
+      throw transactionError;
+    } finally {
+      client.release();
+    }
 
     console.log(`✅ New collector registered: ${username} (ID: ${userId})`);
 
@@ -226,8 +244,8 @@ router.post('/register-optimized', async (req, res) => {
       message: 'Collector registered successfully',
       collector: {
         id: userId,
-        collector_id: collectorResult.rows[0].collector_id,
-        username: userResult.rows[0].username,
+        collector_id: collectorId,
+        username: username.trim(),
         name: [firstName, middleName, lastName].filter(Boolean).join(' ')
       }
     });

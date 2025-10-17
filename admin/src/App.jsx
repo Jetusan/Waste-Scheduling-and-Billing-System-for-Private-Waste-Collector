@@ -10,7 +10,7 @@ import RouteIssues from './pages/RouteIssues';
 import UsersCollectors from './pages/UserCollector';
 import Reports from './pages/Reports';
 import Notifications from './pages/Notifications';
-import Preferences from './pages/Preferences';
+import About from './pages/About';
 import Billing from './pages/Billing';
 import BillingHistory from './pages/BillingHistory';
 import Profile from './pages/Profile';
@@ -67,7 +67,7 @@ const App = () => {
           <Route path="settings">
             <Route index element={<Navigate to="notifications" replace />} />
             <Route path="notifications" element={<Notifications />} />
-            <Route path="preferences" element={<Preferences />} />
+            <Route path="about" element={<About />} />
           </Route>
           
           {/* Profile */}
