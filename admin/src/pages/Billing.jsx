@@ -227,14 +227,22 @@ const Billing = () => {
     setFilters(prev => ({ ...prev, [name]: value }));
   };
 
-  // Generate monthly invoices
+  // Generate monthly invoices (for recurring billing cycles)
   const handleGenerateInvoices = async () => {
+    const confirmGenerate = window.confirm(
+      'This will generate monthly invoices for all active subscriptions. ' +
+      'Note: New user subscriptions automatically create invoices. ' +
+      'This is for recurring monthly billing. Continue?'
+    );
+    
+    if (!confirmGenerate) return;
+    
     try {
       setLoading(true);
       const response = await axios.post(`${API_BASE_URL}/billing/generate-monthly-invoices`);
       
       if (response.data) {
-        alert(`Successfully generated ${response.data.invoices?.length || 0} new invoices!`);
+        alert(`Successfully generated ${response.data.invoices?.length || 0} recurring monthly invoices!`);
         // Refresh the data to show new invoices
         await fetchData();
       }
@@ -351,9 +359,9 @@ const Billing = () => {
           <button 
             className="btn generate"
             onClick={handleGenerateInvoices}
-            style={{ backgroundColor: '#4CAF50', color: 'white' }}
+            style={{ backgroundColor: '#FF9800', color: 'white' }}
           >
-            <i className="fas fa-plus"></i> Generate Monthly Invoices
+            <i className="fas fa-calendar-plus"></i> Generate Recurring Invoices
           </button>
         </div>
       </div>
@@ -404,6 +412,17 @@ const Billing = () => {
             <option value="91">90+ Days</option>
           </select>
         )}
+      </div>
+
+      {/* Info Banner */}
+      <div className="billing-info-banner">
+        <div className="info-content">
+          <h4><i className="fas fa-info-circle"></i> How Billing Works</h4>
+          <p>
+            <strong>Automatic Invoice Creation:</strong> When users subscribe via mobile app, invoices are automatically generated. 
+            <strong>Your Role:</strong> Monitor payments, manage overdue accounts, and generate recurring monthly invoices for active subscriptions.
+          </p>
+        </div>
       </div>
 
       {/* Summary Stats */}

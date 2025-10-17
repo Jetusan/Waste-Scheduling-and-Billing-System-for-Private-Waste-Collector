@@ -1,5 +1,36 @@
 @import './shared-variables.css';
 
+/* Info Banner */
+.billing-info-banner {
+  background: linear-gradient(135deg, #E3F2FD 0%, #BBDEFB 100%);
+  border: 1px solid #2196F3;
+  border-radius: var(--wsbs-radius-lg);
+  padding: var(--wsbs-spacing-4);
+  margin-bottom: var(--wsbs-spacing-6);
+}
+
+.info-content h4 {
+  color: #1976D2;
+  font-size: var(--wsbs-font-size-base);
+  font-weight: var(--wsbs-font-weight-semibold);
+  margin: 0 0 var(--wsbs-spacing-2) 0;
+  display: flex;
+  align-items: center;
+  gap: var(--wsbs-spacing-2);
+}
+
+.info-content p {
+  color: #1565C0;
+  font-size: var(--wsbs-font-size-sm);
+  margin: 0;
+  line-height: 1.5;
+}
+
+.info-content strong {
+  color: #0D47A1;
+  font-weight: var(--wsbs-font-weight-semibold);
+}
+
 /* Summary Cards */
 .billing-summary {
   display: grid;
