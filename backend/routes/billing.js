@@ -543,6 +543,9 @@ router.get('/subscriptions/payment-methods', authenticateJWT, async (req, res) =
 // Billing history (used by admin BillingHistory.jsx)
 router.get('/history', billingController.getBillingHistory);
 
+// Generate monthly invoices (admin function)
+router.post('/generate-monthly-invoices', billingController.generateMonthlyInvoices);
+
 // Payment Attempt Tracking Routes
 router.post('/payment-attempt', authenticateJWT, billingController.recordPaymentAttempt);
 router.get('/payment-attempts/:subscription_id', authenticateJWT, billingController.getPaymentAttempts);

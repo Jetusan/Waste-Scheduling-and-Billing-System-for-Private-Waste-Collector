@@ -1,5 +1,109 @@
 @import './shared-variables.css';
 
+/* Summary Cards */
+.billing-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--wsbs-spacing-4);
+  margin-bottom: var(--wsbs-spacing-6);
+}
+
+.summary-card {
+  background: var(--wsbs-white);
+  padding: var(--wsbs-spacing-6);
+  border-radius: var(--wsbs-radius-xl);
+  box-shadow: var(--wsbs-shadow-sm);
+  border: 1px solid var(--wsbs-gray-200);
+  text-align: center;
+  transition: all var(--wsbs-transition-fast);
+}
+
+.summary-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--wsbs-shadow-md);
+}
+
+.summary-card h4 {
+  font-size: var(--wsbs-font-size-sm);
+  color: var(--wsbs-gray-600);
+  margin: 0 0 var(--wsbs-spacing-2) 0;
+  font-weight: var(--wsbs-font-weight-medium);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.summary-number {
+  font-size: var(--wsbs-font-size-3xl);
+  font-weight: var(--wsbs-font-weight-bold);
+  color: var(--wsbs-gray-900);
+  display: block;
+}
+
+.summary-number.unpaid {
+  color: var(--wsbs-warning);
+}
+
+.summary-number.overdue {
+  color: var(--wsbs-danger);
+}
+
+.summary-number.paid {
+  color: var(--wsbs-success);
+}
+
+/* Enhanced Status Badges */
+.status-badge {
+  padding: var(--wsbs-spacing-1) var(--wsbs-spacing-3);
+  border-radius: var(--wsbs-radius-full);
+  font-size: var(--wsbs-font-size-xs);
+  font-weight: var(--wsbs-font-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.status-badge.paid {
+  background: var(--wsbs-success-light);
+  color: var(--wsbs-success-dark);
+}
+
+.status-badge.unpaid {
+  background: var(--wsbs-warning-light);
+  color: var(--wsbs-warning-dark);
+}
+
+.status-badge.overdue {
+  background: var(--wsbs-danger-light);
+  color: var(--wsbs-danger-dark);
+}
+
+.status-badge.partially-paid {
+  background: var(--wsbs-info-light);
+  color: var(--wsbs-info-dark);
+}
+
+.status-badge.cancelled {
+  background: var(--wsbs-gray-200);
+  color: var(--wsbs-gray-700);
+}
+
+/* Aging Indicators */
+.aging-overdue {
+  color: var(--wsbs-danger);
+  font-weight: var(--wsbs-font-weight-semibold);
+}
+
+.aging-current {
+  color: var(--wsbs-success);
+  font-weight: var(--wsbs-font-weight-medium);
+}
+
+/* Late Fee Styling */
+.late-fee {
+  color: var(--wsbs-danger);
+  font-weight: var(--wsbs-font-weight-semibold);
+  font-size: var(--wsbs-font-size-xs);
+}
+
 /* Main Container Styles */
 .billing-content {
   padding: 0;

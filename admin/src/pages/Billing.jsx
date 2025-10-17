@@ -227,11 +227,65 @@ const Billing = () => {
     setFilters(prev => ({ ...prev, [name]: value }));
   };
 
+  // Generate monthly invoices
+  const handleGenerateInvoices = async () => {
+    try {
+      setLoading(true);
+      const response = await axios.post(`${API_BASE_URL}/billing/generate-monthly-invoices`);
+      
+      if (response.data) {
+        alert(`Successfully generated ${response.data.invoices?.length || 0} new invoices!`);
+        // Refresh the data to show new invoices
+        await fetchData();
+      }
+    } catch (error) {
+      console.error('Error generating monthly invoices:', error);
+      alert('Failed to generate monthly invoices. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Enhanced status mapping for better filtering
+  const getStatusCategory = (status, dueDate) => {
+    const today = new Date();
+    const due = new Date(dueDate);
+    const isOverdue = today > due;
+    
+    switch (status?.toLowerCase()) {
+      case 'paid':
+        return 'Paid';
+      case 'partially_paid':
+        return 'Partially Paid';
+      case 'unpaid':
+        return isOverdue ? 'Overdue' : 'Unpaid';
+      case 'overdue':
+        return 'Overdue';
+      case 'cancelled':
+        return 'Cancelled';
+      default:
+        return isOverdue ? 'Overdue' : 'Unpaid';
+    }
+  };
+
   // Filter invoices based on current filters
   const filteredInvoices = invoices.filter(invoice => {
+    // Plan filter
     if (filters.plan !== 'All Plans' && invoice.plan !== filters.plan) return false;
-    if (filters.status !== 'All Status' && invoice.status !== filters.status) return false;
-    if (filters.date && invoice.dueDate !== filters.date) return false;
+    
+    // Status filter with enhanced logic
+    if (filters.status !== 'All Status') {
+      const invoiceStatus = getStatusCategory(invoice.status, invoice.dueDate);
+      if (invoiceStatus !== filters.status) return false;
+    }
+    
+    // Date filter
+    if (filters.date) {
+      const invoiceDate = new Date(invoice.dueDate).toISOString().split('T')[0];
+      if (invoiceDate !== filters.date) return false;
+    }
+    
+    // Aging filter
     if (filters.aging !== 'all') {
       const agingDays = calculateAging(invoice.dueDate);
       const agingFilter = parseInt(filters.aging);
@@ -240,6 +294,7 @@ const Billing = () => {
       if (agingFilter === 90 && (agingDays <= 60 || agingDays > 90)) return false;
       if (agingFilter === 91 && agingDays <= 90) return false;
     }
+    
     return true;
   });
 
@@ -293,6 +348,13 @@ const Billing = () => {
           >
             <i className="fas fa-file-export"></i> Export Data
           </button>
+          <button 
+            className="btn generate"
+            onClick={handleGenerateInvoices}
+            style={{ backgroundColor: '#4CAF50', color: 'white' }}
+          >
+            <i className="fas fa-plus"></i> Generate Monthly Invoices
+          </button>
         </div>
       </div>
 
@@ -319,6 +381,7 @@ const Billing = () => {
           <option>Partially Paid</option>
           <option>Unpaid</option>
           <option>Overdue</option>
+          <option>Cancelled</option>
         </select>
         
         <input 
@@ -343,6 +406,32 @@ const Billing = () => {
         )}
       </div>
 
+      {/* Summary Stats */}
+      <div className="billing-summary">
+        <div className="summary-card">
+          <h4>Total Invoices</h4>
+          <span className="summary-number">{invoices.length}</span>
+        </div>
+        <div className="summary-card">
+          <h4>Unpaid</h4>
+          <span className="summary-number unpaid">
+            {invoices.filter(inv => getStatusCategory(inv.status, inv.dueDate) === 'Unpaid').length}
+          </span>
+        </div>
+        <div className="summary-card">
+          <h4>Overdue</h4>
+          <span className="summary-number overdue">
+            {invoices.filter(inv => getStatusCategory(inv.status, inv.dueDate) === 'Overdue').length}
+          </span>
+        </div>
+        <div className="summary-card">
+          <h4>Paid</h4>
+          <span className="summary-number paid">
+            {invoices.filter(inv => getStatusCategory(inv.status, inv.dueDate) === 'Paid').length}
+          </span>
+        </div>
+      </div>
+
       {/* Invoice Table */}
       <table className="billing-table">
         <thead>
@@ -358,29 +447,71 @@ const Billing = () => {
           </tr>
         </thead>
         <tbody>
-          {filteredInvoices.map(invoice => (
-            <tr key={invoice.id}>
-              <td>{invoice.id}</td>
-              <td>{invoice.subscriber}</td>
-              <td>{invoice.plan}</td>
-              <td>
-                {invoice.amount}
-                {invoice.lateFee && (
-                  <span className="late-fee"> (+{invoice.lateFee})</span>
-                )}
+          {filteredInvoices.length === 0 ? (
+            <tr>
+              <td colSpan={activeView === 'aging' ? '8' : '7'} style={{ textAlign: 'center', padding: '40px' }}>
+                <div style={{ color: '#666' }}>
+                  <h4>No Invoices Found</h4>
+                  <p>No invoices match your current filters. Try adjusting your search criteria.</p>
+                  {invoices.length === 0 && (
+                    <div style={{ marginTop: '20px' }}>
+                      <p><strong>Note:</strong> No invoices have been generated yet.</p>
+                      <button 
+                        onClick={() => window.location.reload()} 
+                        style={{ 
+                          padding: '10px 20px', 
+                          backgroundColor: '#4CAF50', 
+                          color: 'white', 
+                          border: 'none', 
+                          borderRadius: '5px',
+                          cursor: 'pointer',
+                          marginTop: '10px'
+                        }}
+                      >
+                        Refresh Data
+                      </button>
+                    </div>
+                  )}
+                </div>
               </td>
-              <td>{invoice.dueDate}</td>
-              <td>
-                <span className={`status-badge ${invoice.status.toLowerCase().replace(' ', '-')}`}>
-                  {invoice.status}
-                </span>
-              </td>
-              {activeView === 'aging' && (
-                <td>
-                  {calculateAging(invoice.dueDate)}
-                </td>
-              )}
-              <td className="actions">
+            </tr>
+          ) : (
+            filteredInvoices.map(invoice => {
+              const displayStatus = getStatusCategory(invoice.status, invoice.dueDate);
+              const agingDays = calculateAging(invoice.dueDate);
+              
+              return (
+                <tr key={invoice.id}>
+                  <td>{invoice.id}</td>
+                  <td>{invoice.subscriber || 'Unknown User'}</td>
+                  <td>{invoice.plan || 'Unknown Plan'}</td>
+                  <td>
+                    ₱{typeof invoice.amount === 'number' ? invoice.amount.toLocaleString() : invoice.amount}
+                    {invoice.lateFee && invoice.lateFee > 0 && (
+                      <span className="late-fee"> (+₱{typeof invoice.lateFee === 'number' ? invoice.lateFee.toLocaleString() : invoice.lateFee})</span>
+                    )}
+                  </td>
+                  <td>
+                    {new Date(invoice.dueDate).toLocaleDateString()}
+                    {agingDays > 0 && (
+                      <small style={{ display: 'block', color: '#e74c3c' }}>
+                        {agingDays} days overdue
+                      </small>
+                    )}
+                  </td>
+                  <td>
+                    <span className={`status-badge ${displayStatus.toLowerCase().replace(' ', '-')}`}>
+                      {displayStatus}
+                    </span>
+                  </td>
+                  {activeView === 'aging' && (
+                    <td>
+                      <span className={agingDays > 0 ? 'aging-overdue' : 'aging-current'}>
+                        {agingDays > 0 ? `${agingDays} days` : 'Current'}
+                      </span>
+                    </td>
+                  )}
+                  <td className="actions">
                 <div className="action-buttons-group">
                   <button 
                     className="action-btn"
@@ -420,9 +551,11 @@ const Billing = () => {
                     </button>
                   )}
                 </div>
-              </td>
-            </tr>
-          ))}
+                  </td>
+                </tr>
+              );
+            })
+          )}
         </tbody>
       </table>
 
