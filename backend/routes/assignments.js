@@ -36,6 +36,90 @@ router.post('/', authenticateJWT, authorizeRoles('admin'), async (req, res) => {
   }
 });
 
+// Collector-specific: get own assignments
+// Query: active_only=true|false, type=schedule|barangay|all
+router.get('/my-assignments', authenticateJWT, async (req, res) => {
+  try {
+    const { active_only, type = 'barangay' } = req.query || {};
+    
+    // Get collector_id from authenticated user
+    console.log('🔍 JWT User data:', req.user);
+    const userId = req.user?.userId;
+    if (!userId) {
+      return res.status(400).json({ success: false, message: 'User ID not found' });
+    }
+    
+    console.log(`🔍 Looking up collector for user_id: ${userId}`);
+
+    // Map user_id to collector_id
+    let collectorId;
+    try {
+      const collectorQuery = await pool.queryWithRetry(
+        'SELECT collector_id FROM collectors WHERE user_id = $1',
+        [userId]
+      );
+      
+      if (collectorQuery.rows.length === 0) {
+        return res.status(404).json({ 
+          success: false, 
+          message: 'Collector profile not found. Please contact administrator.' 
+        });
+      }
+      
+      collectorId = collectorQuery.rows[0].collector_id;
+      console.log(`🔍 Collector ${userId} mapped to collector_id: ${collectorId}`);
+    } catch (err) {
+      console.error('Error mapping user to collector:', err);
+      return res.status(500).json({ 
+        success: false, 
+        message: 'Failed to get collector information' 
+      });
+    }
+
+    let assignments = [];
+
+    // Get barangay-based assignments (main system)
+    if (type === 'barangay' || type === 'all') {
+      try {
+        const params = [collectorId];
+        const wheres = [`cba.collector_id = $1`];
+
+        if (String(active_only).toLowerCase() === 'true') {
+          wheres.push(`(cba.effective_start_date IS NULL OR cba.effective_start_date <= CURRENT_DATE)`);
+          wheres.push(`(cba.effective_end_date IS NULL OR cba.effective_end_date >= CURRENT_DATE)`);
+        }
+
+        const barangayQuery = `
+          SELECT cba.assignment_id, cba.collector_id, cba.barangay_id,
+                 cba.effective_start_date, cba.effective_end_date, cba.shift_label,
+                 cba.created_by, cba.created_at, cba.updated_by, cba.updated_at,
+                 b.barangay_name,
+                 'barangay' as assignment_type
+          FROM collector_barangay_assignments cba
+          LEFT JOIN barangays b ON b.barangay_id = cba.barangay_id
+          WHERE ${wheres.join(' AND ')}
+          ORDER BY cba.created_at DESC
+        `;
+
+        const barangayResult = await pool.queryWithRetry(barangayQuery, params);
+        assignments = assignments.concat(barangayResult.rows);
+        console.log(`📋 Found ${barangayResult.rows.length} barangay assignments for collector ${collectorId}`);
+      } catch (err) {
+        console.log('Barangay assignments table may not exist yet:', err.message);
+      }
+    }
+
+    return res.json({ success: true, assignments });
+  } catch (err) {
+    console.error('Error fetching collector assignments:', err);
+    return res.status(500).json({ 
+      success: false, 
+      message: 'Failed to fetch assignments', 
+      details: err.message 
+    });
+  }
+});
+
 // Admin-only: list assignments (with optional filters)
 // Query: collector_id?, schedule_id?, active_only=true|false, type=schedule|barangay|all
 router.get('/', authenticateJWT, authorizeRoles('admin'), async (req, res) => {

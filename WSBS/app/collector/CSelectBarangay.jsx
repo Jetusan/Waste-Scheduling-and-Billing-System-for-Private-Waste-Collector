@@ -38,9 +38,9 @@ const CSelectBarangay = () => {
 
       console.log('🔍 Fetching assignments for collector:', collectorId);
 
-      // Fetch collector's barangay assignments from the new system
+      // Fetch collector's own barangay assignments using collector-specific endpoint
       const response = await fetch(
-        `${API_BASE_URL}/api/assignments?type=barangay&collector_id=${collectorId}&active_only=true`,
+        `${API_BASE_URL}/api/assignments/my-assignments?type=barangay&active_only=true`,
         {
           headers: {
             'Authorization': `Bearer ${token}`,
