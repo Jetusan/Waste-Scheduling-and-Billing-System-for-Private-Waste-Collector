@@ -131,31 +131,41 @@ export default function HomePage() {
           </View>
         )}
 
-        {/* Enhanced Services Section - Only 3 Main Buttons */}
-        <Text style={styles.servicesTitle}>Services & Information</Text>
+        {/* Services Section - Only 3 Main Buttons */}
+        <Text style={styles.servicesTitle}>Choose your services</Text>
         <View style={styles.servicesContainer}>
-          {/* Collection Schedule - Shows upcoming by default, all schedules on "View All" */}
+          {/* Collection Schedule - Use previous route */}
           <Pressable 
             style={styles.serviceButton}
-            onPress={() => router.push('/resident/EnhancedSchedule')}
+            onPress={() => router.push('/AllSchedules')}
           >
             <Ionicons name="calendar-outline" size={32} color="#4CD964" />
             <Text style={styles.serviceText}>Collection Schedule</Text>
           </Pressable>
 
-          {/* Special Pickup Manager - Contains both new requests and my requests */}
+          {/* Special Pickup - Use previous route */}
           <Pressable 
             style={styles.serviceButton}
-            onPress={() => router.push('/resident/SpecialPickupManager')}
+            onPress={() => router.push('/spickup')}
           >
             <Ionicons name="add-circle-outline" size={32} color="#4CD964" />
             <Text style={styles.serviceText}>Special Pickup</Text>
           </Pressable>
 
-          {/* Subscription Manager - Contains subscription info and billing */}
+          {/* My Subscription - Keep same logic as previous */}
           <Pressable 
             style={styles.serviceButton}
-            onPress={() => router.push('/resident/SubscriptionManager')}
+            onPress={() => {
+              // Navigate based on subscription status - same as previous
+              console.log('🔥 Button pressed! Current subscriptionStatus:', subscriptionStatus);
+              if (subscriptionStatus === 'active') {
+                console.log('🔥 Navigating to SubscriptionStatusScreen');
+                router.push('/SubscriptionStatusScreen');
+              } else {
+                console.log('🔥 Navigating to Subscription signup');
+                router.push('/Subscription');
+              }
+            }}
           >
             <Ionicons 
               name={subscriptionStatus === 'active' ? "checkmark-circle-outline" : "pricetag-outline"} 
@@ -252,10 +262,10 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   servicesTitle: {
-    fontSize: 22,
+    fontSize: 18,
     fontWeight: 'bold',
     color: '#333',
-    marginBottom: 20,
+    marginBottom: 16,
     marginTop: 10,
   },
   servicesContainer: {
