@@ -20,7 +20,7 @@ router.post('/', authenticateJWT, authorizeRoles('admin'), async (req, res) => {
     `;
 
     const createdBy = req.user?.userId || null;
-    const result = await pool.query(q, [
+    const result = await pool.queryWithRetry(q, [
       parseInt(collector_id, 10),
       parseInt(schedule_id, 10),
       effective_start_date || null,
@@ -69,7 +69,7 @@ router.get('/', authenticateJWT, authorizeRoles('admin'), async (req, res) => {
           ORDER BY ca.created_at DESC
         `;
 
-        const scheduleResult = await pool.query(scheduleQuery, params);
+        const scheduleResult = await pool.queryWithRetry(scheduleQuery, params);
         assignments = assignments.concat(scheduleResult.rows);
       } catch (err) {
         console.log('Schedule assignments table may not exist:', err.message);
@@ -100,7 +100,7 @@ router.get('/', authenticateJWT, authorizeRoles('admin'), async (req, res) => {
           ORDER BY cba.created_at DESC
         `;
 
-        const barangayResult = await pool.query(barangayQuery, params);
+        const barangayResult = await pool.queryWithRetry(barangayQuery, params);
         assignments = assignments.concat(barangayResult.rows);
       } catch (err) {
         console.log('Barangay assignments table may not exist yet:', err.message);
@@ -127,7 +127,7 @@ router.post('/barangay', authenticateJWT, authorizeRoles('admin'), async (req, r
     }
 
     // Check if collector is already assigned to this barangay
-    const existingAssignment = await pool.query(
+    const existingAssignment = await pool.queryWithRetry(
       `SELECT assignment_id FROM collector_barangay_assignments 
        WHERE collector_id = $1 AND barangay_id = $2 
        AND (effective_end_date IS NULL OR effective_end_date >= CURRENT_DATE)`,
@@ -187,8 +187,8 @@ router.delete('/:assignment_id', authenticateJWT, authorizeRoles('admin'), async
     const { assignment_id } = req.params;
     
     // Try to delete from both tables (schedule-based and barangay-based)
-    const scheduleResult = await pool.query('DELETE FROM collector_assignments WHERE assignment_id = $1', [parseInt(assignment_id, 10)]);
-    const barangayResult = await pool.query('DELETE FROM collector_barangay_assignments WHERE assignment_id = $1', [parseInt(assignment_id, 10)]);
+    const scheduleResult = await pool.queryWithRetry('DELETE FROM collector_assignments WHERE assignment_id = $1', [parseInt(assignment_id, 10)]);
+    const barangayResult = await pool.queryWithRetry('DELETE FROM collector_barangay_assignments WHERE assignment_id = $1', [parseInt(assignment_id, 10)]);
     
     if (scheduleResult.rowCount === 0 && barangayResult.rowCount === 0) {
       return res.status(404).json({ success: false, message: 'Assignment not found' });

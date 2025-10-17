@@ -27,28 +27,6 @@ const pool = new Pool({
   statement_timeout: 30000 // 30 second statement timeout
 });
 
-// Test connection
-pool.query('SELECT NOW()')
-  .then(() => console.log('✅ [Admin] Database connected successfully!'))
-  .catch(err => console.error('❌ [Admin] Database connection error:', err));
-
-// Enhanced error handling for Neon database with retry logic
-pool.on('error', (err) => {
-  console.error('❌ [Admin] Unexpected error on idle client:', err.message);
-  
-  // Log connection details for debugging
-  if (err.message.includes('Connection terminated') || err.message.includes('ECONNRESET')) {
-    console.log('🔌 Database client disconnected. Active connections:', pool.totalCount);
-    console.log('💡 This is normal for Neon databases - connections auto-close when idle');
-    console.log('🔄 Connection will be automatically retried on next query');
-  }
-  
-  // Handle specific Neon connection errors
-  if (err.code === 'ECONNRESET' || err.code === '57P01' || err.code === '08006') {
-    console.log('🔄 Detected Neon connection reset - this is expected behavior');
-  }
-});
-
 // Add connection retry wrapper function
 const queryWithRetry = async (text, params, maxRetries = 3) => {
   let lastError;
@@ -87,6 +65,39 @@ const queryWithRetry = async (text, params, maxRetries = 3) => {
 
 // Export both pool and retry function
 pool.queryWithRetry = queryWithRetry;
+
+// Test connection with retry
+const testConnection = async () => {
+  try {
+    const result = await pool.queryWithRetry('SELECT NOW() as current_time, version() as db_version');
+    console.log('✅ [Admin] Database connected successfully!');
+    console.log('📊 Database info:', {
+      time: result.rows[0].current_time,
+      version: result.rows[0].db_version.split(' ')[0]
+    });
+  } catch (err) {
+    console.error('❌ [Admin] Database connection error:', err.message);
+  }
+};
+
+testConnection();
+
+// Enhanced error handling for Neon database with retry logic
+pool.on('error', (err) => {
+  console.error('❌ [Admin] Unexpected error on idle client:', err.message);
+  
+  // Log connection details for debugging
+  if (err.message.includes('Connection terminated') || err.message.includes('ECONNRESET')) {
+    console.log('🔌 Database client disconnected. Active connections:', pool.totalCount);
+    console.log('💡 This is normal for Neon databases - connections auto-close when idle');
+    console.log('🔄 Connection will be automatically retried on next query');
+  }
+  
+  // Handle specific Neon connection errors
+  if (err.code === 'ECONNRESET' || err.code === '57P01' || err.code === '08006') {
+    console.log('🔄 Detected Neon connection reset - this is expected behavior');
+  }
+});
 
 pool.on('connect', (client) => {
   console.log('🔗 [Admin] New database client connected. Active connections:', pool.totalCount);
