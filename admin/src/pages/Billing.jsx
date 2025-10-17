@@ -257,8 +257,14 @@ const Billing = () => {
   // Enhanced status mapping for better filtering
   const getStatusCategory = (status, dueDate) => {
     const today = new Date();
+    today.setHours(0, 0, 0, 0); // Reset to start of day for accurate comparison
+    
     const due = new Date(dueDate);
+    due.setHours(0, 0, 0, 0); // Reset to start of day for accurate comparison
+    
     const isOverdue = today > due;
+    
+    console.log('Status check:', { status, dueDate, today: today.toDateString(), due: due.toDateString(), isOverdue });
     
     switch (status?.toLowerCase()) {
       case 'paid':
@@ -421,6 +427,7 @@ const Billing = () => {
           <p>
             <strong>Automatic Invoice Creation:</strong> When users subscribe via mobile app, invoices are automatically generated. 
             <strong>Your Role:</strong> Monitor payments, manage overdue accounts, and generate recurring monthly invoices for active subscriptions.
+            <strong>Aging Report:</strong> Shows how long invoices have been unpaid (1-30 days, 31-60 days, etc.) to help prioritize collection efforts.
           </p>
         </div>
       </div>

@@ -23,8 +23,7 @@ const navConfig = [
       { title: 'Collection Schedule', icon: 'fas fa-calendar-alt', path: '/admin/operations/schedule' },
       { title: 'Users & Residents', icon: 'fas fa-users', path: '/admin/operations/subscribers' },
       { title: 'Assignments', icon: 'fas fa-user-check', path: '/admin/operations/assignments' },
-      { title: 'Route Issues', icon: 'fas fa-exclamation-triangle', path: '/admin/operations/route-issues' },
-      { title: 'Special Pickup', icon: 'fas fa-truck-pickup', path: '/admin/operations/special-pickup' }
+      { title: 'Route Issues', icon: 'fas fa-exclamation-triangle', path: '/admin/operations/route-issues' }
     ]
   },
   {
@@ -65,7 +64,6 @@ const pageTitles = {
   '/admin/operations/subscribers': 'Users & Residents',
   '/admin/operations/assignments': 'Collector Assignments',
   '/admin/operations/route-issues': 'Route Issues',
-  '/admin/operations/special-pickup': 'Special Pickup',
   '/admin/billing': 'Invoice Management',
   '/admin/billing-history': 'Payment History',
   '/admin/insights/reports': 'System Reports',

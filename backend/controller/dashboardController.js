@@ -40,48 +40,28 @@ const getDashboardStats = async (req, res) => {
     `;
     const subscribersResult = await pool.query(subscribersQuery);
 
-    // 3. Collection Statistics (do not rely on non-existent status on collection_schedules)
-    const todayName = new Date().toLocaleDateString('en-US', { weekday: 'long' });
+    // 3. Collection Statistics - Use real collection_stop_events data
     const collectionQuery = `
       WITH
-      cs_total AS (
-        SELECT COUNT(*) AS total_schedules FROM collection_schedules
-      ),
-      cs_today AS (
-        SELECT COUNT(*) AS today_schedules
-        FROM collection_schedules cs
-        WHERE LOWER(TRIM(cs.schedule_date)) = LOWER($1)
-          OR (
-            cs.schedule_date ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
-            AND to_date(cs.schedule_date, 'YYYY-MM-DD') = CURRENT_DATE
-          )
-      ),
-      collected_30 AS (
-        SELECT COUNT(*) AS completed_schedules
-        FROM assignment_stop_status
-        WHERE latest_action = 'collected'
-          AND updated_at >= CURRENT_DATE - INTERVAL '30 days'
-      ),
-      collected_today AS (
-        SELECT COUNT(*) AS today_completed
-        FROM assignment_stop_status
-        WHERE latest_action = 'collected'
-          AND updated_at::date = CURRENT_DATE
-      ),
-      missed_30 AS (
-        SELECT COUNT(*) AS missed_pickups
-        FROM assignment_stop_status
-        WHERE latest_action = 'missed'
-          AND updated_at >= CURRENT_DATE - INTERVAL '30 days'
+      real_collections AS (
+        SELECT 
+          COUNT(*) as total_collections,
+          COUNT(CASE WHEN action = 'collected' THEN 1 END) as completed_collections,
+          COUNT(CASE WHEN action = 'missed' THEN 1 END) as missed_collections,
+          COUNT(CASE WHEN DATE(created_at) = CURRENT_DATE THEN 1 END) as today_total,
+          COUNT(CASE WHEN action = 'collected' AND DATE(created_at) = CURRENT_DATE THEN 1 END) as today_completed
+        FROM collection_stop_events
+        WHERE created_at >= CURRENT_DATE - INTERVAL '30 days'
       )
       SELECT 
-        (SELECT total_schedules FROM cs_total) AS total_schedules,
-        (SELECT completed_schedules FROM collected_30) AS completed_schedules,
-        (SELECT today_schedules FROM cs_today) AS today_schedules,
-        (SELECT today_completed FROM collected_today) AS today_completed,
-        (SELECT missed_pickups FROM missed_30) AS missed_pickups
+        total_collections as total_schedules,
+        completed_collections as completed_schedules,
+        today_total as today_schedules,
+        today_completed,
+        missed_collections as missed_pickups
+      FROM real_collections
     `;
-    const collectionResult = await pool.query(collectionQuery, [todayName]);
+    const collectionResult = await pool.query(collectionQuery);
 
     // 4. Payment Statistics (robust casing and timestamps)
     const paymentQuery = `
@@ -97,8 +77,8 @@ const getDashboardStats = async (req, res) => {
         FROM invoices i
       )
       SELECT 
-        COUNT(CASE WHEN (due_dt < CURRENT_DATE AND (status IS NULL OR status NOT ILIKE 'paid')) OR status ILIKE 'overdue' THEN 1 END) as overdue_count,
-        COALESCE(SUM(CASE WHEN (due_dt < CURRENT_DATE AND (status IS NULL OR status NOT ILIKE 'paid')) OR status ILIKE 'overdue' THEN amount ELSE 0 END), 0) as overdue_amount,
+        COUNT(CASE WHEN (due_dt < CURRENT_DATE AND status NOT ILIKE 'paid') OR status ILIKE 'overdue' THEN 1 END) as overdue_count,
+        COALESCE(SUM(CASE WHEN (due_dt < CURRENT_DATE AND status NOT ILIKE 'paid') OR status ILIKE 'overdue' THEN amount ELSE 0 END), 0) as overdue_amount,
         ${hasCreated ? `COUNT(CASE WHEN status ILIKE 'failed' AND created_at >= $1 THEN 1 END)` : `0`} as failed_payments_7d
       FROM inv
     `;
