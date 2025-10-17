@@ -90,7 +90,7 @@ const CSelectBarangay = () => {
       const collectorId = await getCollectorId();
       
       const checkResponse = await fetch(
-        `${API_BASE_URL}/api/collector/assignments?barangay_id=${barangay.barangay_id}`,
+        `${API_BASE_URL}/api/collector/assignments/today?collector_id=${collectorId}&barangay_id=${barangay.barangay_id}`,
         {
           headers: {
             'Authorization': `Bearer ${token}`,

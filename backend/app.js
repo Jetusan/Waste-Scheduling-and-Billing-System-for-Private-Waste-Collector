@@ -18,6 +18,7 @@ const collectorIssuesRoutes = require('./routes/collectorIssues');
 const { router: nextScheduleRoutes } = require('./routes/nextScheduleCalculator');
 const debugAssignmentsRouter = require('./routes/debugAssignments');
 const assignmentsRouter = require('./routes/assignments');
+const enhancedCollectionFlowRouter = require('./routes/enhancedCollectionFlow');
 // const adminAuthRouter = require('./routes/adminAuth'); // Temporarily commented out
 
 // Add this near your other route imports
@@ -88,6 +89,7 @@ app.use('/api/auth', authRouter);
 app.use('/api/billing', billingRouter);
 app.use('/api/receipt', require('./routes/receipt'));
 app.use('/api/collection-schedules', collectionSchedulesRouter);
+app.use('/api/enhanced-schedules', enhancedCollectionFlowRouter);
 app.use('/api/dashboard', dashboardRouter);
 app.use('/api/special-pickup', specialPickupRouter);
 app.use('/api/admin', require('./routes/adminAuth')); // Add admin auth routes

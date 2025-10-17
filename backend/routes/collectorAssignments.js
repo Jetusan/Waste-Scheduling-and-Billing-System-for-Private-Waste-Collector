@@ -19,121 +19,159 @@ router.get('/today', async (req, res) => {
     
     console.log(`🕐 Looking for ${todayName} collections (collector_id: ${collector_id || 'none'}, barangay_id: ${barangay_id || 'all'})`);
 
-    // Now get real data from database
-    // Step 1: Get all residents with subscriptions (filtered by barangay if specified)
+    // Step 1: Check if there are collection schedules for today
+    let scheduleQuery = `
+      SELECT DISTINCT
+        cs.schedule_id,
+        cs.schedule_date,
+        cs.waste_type,
+        cs.time_range,
+        b.barangay_id,
+        b.barangay_name
+      FROM collection_schedules cs
+      JOIN schedule_barangays sb ON cs.schedule_id = sb.schedule_id
+      JOIN barangays b ON sb.barangay_id = b.barangay_id
+      WHERE LOWER(cs.schedule_date) = LOWER($1)
+    `;
+    
+    const scheduleParams = [todayName];
+    
+    // Add barangay filter if specified
+    if (barangay_id) {
+      scheduleQuery += ` AND b.barangay_id = $${scheduleParams.length + 1}`;
+      scheduleParams.push(parseInt(barangay_id, 10));
+      console.log(`🏘️ Filtering schedules by barangay_id: ${barangay_id}`);
+    }
+    
+    scheduleQuery += ` ORDER BY cs.schedule_id, b.barangay_name`;
+
+    let schedulesResult;
+    try {
+      schedulesResult = await pool.queryWithRetry(scheduleQuery, scheduleParams);
+      console.log(`📅 Found ${schedulesResult.rows.length} collection schedules for ${todayName}`);
+      
+      if (schedulesResult.rows.length === 0) {
+        console.log(`❌ No collection schedules found for ${todayName}${barangay_id ? ` in barangay ${barangay_id}` : ''}`);
+        return res.json({ 
+          assignment: null,
+          stops: [],
+          message: `No collection schedules for ${todayName}${barangay_id ? ' in selected barangay' : ''}`
+        });
+      }
+    } catch (e) {
+      console.error(`❌ Error querying schedules:`, e.message);
+      return res.status(500).json({ error: 'Failed to fetch collection schedules' });
+    }
+
+    // Step 2: Get residents with active subscriptions in scheduled barangays
+    const scheduledBarangayIds = [...new Set(schedulesResult.rows.map(s => s.barangay_id))];
+    
     let residentsQuery = `
       SELECT DISTINCT
         u.user_id,
         COALESCE(un.first_name || ' ' || un.last_name, 'Unknown Resident') AS resident_name,
         COALESCE(a.full_address, COALESCE(a.street, '') || ', ' || COALESCE(b.barangay_name, '')) AS address,
-        COALESCE(b.barangay_id, 0) as barangay_id,
-        COALESCE(b.barangay_name, 'Unknown Barangay') as barangay_name
+        b.barangay_id,
+        b.barangay_name,
+        cs.status as subscription_status,
+        cs.subscription_id
       FROM users u
       LEFT JOIN user_names un ON u.name_id = un.name_id
       LEFT JOIN addresses a ON u.address_id = a.address_id
       LEFT JOIN barangays b ON a.barangay_id = b.barangay_id
+      JOIN customer_subscriptions cs ON u.user_id = cs.user_id
       WHERE u.role_id = 3 
         AND u.approval_status = 'approved'
         AND u.user_id IS NOT NULL
+        AND cs.status IN ('active', 'pending_payment')
+        AND b.barangay_id = ANY($1)
+        AND cs.created_at = (
+          SELECT MAX(cs2.created_at) 
+          FROM customer_subscriptions cs2 
+          WHERE cs2.user_id = u.user_id
+        )
     `;
     
-    const queryParams = [];
+    const queryParams = [scheduledBarangayIds];
     
-    // Add barangay filter if specified
+    // Add specific barangay filter if specified
     if (barangay_id) {
       residentsQuery += ` AND b.barangay_id = $${queryParams.length + 1}`;
       queryParams.push(parseInt(barangay_id, 10));
-      console.log(`🏘️ Filtering by barangay_id: ${barangay_id}`);
     }
     
-    residentsQuery += ` ORDER BY u.user_id LIMIT 20`;
+    residentsQuery += ` ORDER BY b.barangay_name, u.user_id LIMIT 50`;
 
     let residentsResult;
     try {
-      residentsResult = await pool.query(residentsQuery, queryParams);
-      console.log(`🏠 Found ${residentsResult.rows.length} total approved residents`);
+      residentsResult = await pool.queryWithRetry(residentsQuery, queryParams);
+      console.log(`🏠 Found ${residentsResult.rows.length} subscribed residents in scheduled barangays`);
     } catch (e) {
       console.error(`❌ Error querying residents:`, e.message);
-      // Fallback to test data if database fails
-      return res.json({ 
-        assignment: {
-          schedule_id: `${todayName.toLowerCase()}-regular-0`,
-          waste_type: 'Regular',
-          time_range: '8:00 AM - 12:00 PM',
-          date_label: todayName,
-          schedule_date: todayName,
-        }, 
-        stops: [] 
-      });
+      return res.status(500).json({ error: 'Failed to fetch residents' });
     }
 
     if (residentsResult.rows.length === 0) {
-      console.log(`❌ No approved residents found in database`);
-      return res.json({ assignment: null, stops: [] });
+      console.log(`❌ No subscribed residents found for ${todayName}${barangay_id ? ` in barangay ${barangay_id}` : ''}`);
+      return res.json({ 
+        assignment: null, 
+        stops: [],
+        message: `No residents with active subscriptions found for collection today${barangay_id ? ' in selected barangay' : ''}`
+      });
     }
 
-    // Step 2: Get subscription status for these residents
-    const userIds = residentsResult.rows.map(r => r.user_id);
-    console.log(`👥 Checking subscriptions for user IDs:`, userIds);
-
-    let subscriptionResult = { rows: [] };
-    try {
-      const subscriptionQuery = `
-        SELECT 
-          cs.user_id,
-          cs.status as subscription_status,
-          cs.created_at as subscription_created_at
-        FROM customer_subscriptions cs
-        WHERE cs.user_id = ANY($1::int[])
-          AND cs.status IN ('active', 'pending_payment')
-        ORDER BY cs.created_at DESC
-      `;
-      subscriptionResult = await pool.query(subscriptionQuery, [userIds]);
-      console.log(`💳 Found ${subscriptionResult.rows.length} active/pending subscriptions`);
-    } catch (e) {
-      console.error(`❌ Error querying subscriptions:`, e.message);
-      // Continue without subscription filtering
-    }
-
-    // Step 3: Build stops from residents with subscriptions
+    // Step 3: Build stops from residents with active subscriptions
     const stops = [];
     let stopCounter = 1;
-
+    
+    // Get the primary schedule for assignment info (first one found)
+    const primarySchedule = schedulesResult.rows[0];
+    
+    console.log(`📋 Building stops for ${residentsResult.rows.length} residents`);
+    
     for (const resident of residentsResult.rows) {
-      const subscription = subscriptionResult.rows.find(s => s.user_id === resident.user_id);
+      // Find the schedule for this resident's barangay
+      const residentSchedule = schedulesResult.rows.find(s => s.barangay_id === resident.barangay_id) || primarySchedule;
       
-      // Include residents with subscriptions OR if no subscription data available (fallback)
-      if (subscription || subscriptionResult.rows.length === 0) {
-        const stopId = `${todayName.toLowerCase()}-regular-${resident.user_id}`;
-        stops.push({
-          stop_id: stopId,
-          sequence_no: stopCounter++,
-          user_id: resident.user_id,
-          resident_name: resident.resident_name,
-          address: resident.address,
-          barangay_id: resident.barangay_id,
-          barangay_name: resident.barangay_name,
-          planned_waste_type: 'Regular',
-          schedule_id: `${todayName.toLowerCase()}-regular-0`,
-          time_range: '8:00 AM - 12:00 PM',
-          latest_action: null,
-          latest_updated_at: null,
-          subscription_status: subscription?.subscription_status || 'active' // Default to active if no subscription data
-        });
-      }
+      const stopId = `${todayName.toLowerCase()}-${residentSchedule.waste_type.toLowerCase()}-${resident.user_id}`;
+      
+      stops.push({
+        stop_id: stopId,
+        sequence_no: stopCounter++,
+        user_id: resident.user_id,
+        resident_name: resident.resident_name,
+        address: resident.address,
+        barangay_id: resident.barangay_id,
+        barangay_name: resident.barangay_name,
+        planned_waste_type: residentSchedule.waste_type,
+        schedule_id: residentSchedule.schedule_id,
+        time_range: residentSchedule.time_range,
+        latest_action: null,
+        latest_updated_at: null,
+        subscription_status: resident.subscription_status,
+        subscription_id: resident.subscription_id
+      });
     }
 
+    // Build assignment object from primary schedule
     const assignment = {
-      schedule_id: `${todayName.toLowerCase()}-regular-0`,
-      waste_type: 'Regular',
-      time_range: '8:00 AM - 12:00 PM',
+      schedule_id: primarySchedule.schedule_id,
+      waste_type: primarySchedule.waste_type,
+      time_range: primarySchedule.time_range,
       date_label: todayName,
       schedule_date: todayName,
+      barangay_count: scheduledBarangayIds.length
     };
 
-    console.log(`📋 Returning real assignment for ${todayName}`);
-    console.log(`🚚 Returning ${stops.length} real stops from database`);
-    console.log(`👥 Residents:`, stops.map(s => ({ user_id: s.user_id, name: s.resident_name, barangay: s.barangay_name })));
+    console.log(`📋 Returning schedule-integrated assignment for ${todayName}`);
+    console.log(`🚚 Returning ${stops.length} stops from ${scheduledBarangayIds.length} scheduled barangays`);
+    console.log(`👥 Residents:`, stops.map(s => ({ 
+      user_id: s.user_id, 
+      name: s.resident_name, 
+      barangay: s.barangay_name,
+      waste_type: s.planned_waste_type,
+      subscription: s.subscription_status
+    })));
 
     return res.json({ assignment, stops });
   } catch (err) {
