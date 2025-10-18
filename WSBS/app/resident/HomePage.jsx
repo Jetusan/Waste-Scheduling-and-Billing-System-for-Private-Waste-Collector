@@ -11,6 +11,7 @@ export default function HomePage() {
   const [userName, setUserName] = useState('');
   const [userBarangay, setUserBarangay] = useState('');
   const [subscriptionStatus, setSubscriptionStatus] = useState(null); // null=unknown, 'active', 'pending', 'none'
+  const [subscriptionLoading, setSubscriptionLoading] = useState(false);
 
   useEffect(() => {
     // Fetch user profile for welcome message and barangay
@@ -50,28 +51,51 @@ export default function HomePage() {
   // Function to fetch subscription status
   const fetchSubscriptionStatus = async () => {
     try {
+      setSubscriptionLoading(true);
       const token = await getToken();
       const userId = await getUserId();
       if (!token || !userId) {
+        console.log('🔄 No token or userId, setting status to none');
         setSubscriptionStatus('none');
+        setSubscriptionLoading(false);
         return;
       }
+      
+      console.log('🔄 Fetching subscription status for userId:', userId);
       const res = await fetch(`${API_BASE_URL}/api/billing/subscription/${userId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
+      
+      console.log('🔄 Subscription API response status:', res.status);
+      
       if (res.ok) {
         const data = await res.json();
+        console.log('🔄 Subscription API response data:', JSON.stringify(data, null, 2));
+        
+        // Handle different response formats
+        let status = 'none';
+        
         if (data.subscription && data.subscription.status) {
-          setSubscriptionStatus(data.subscription.status);
-          console.log('🔄 Subscription status updated:', data.subscription.status);
-        } else {
-          setSubscriptionStatus('none');
+          status = data.subscription.status;
+        } else if (data.status) {
+          status = data.status;
+        } else if (data.has_subscription === true) {
+          status = 'active'; // Assume active if has_subscription is true
+        } else if (data.has_subscription === false) {
+          status = 'none';
         }
+        
+        console.log('🔄 Final subscription status:', status);
+        setSubscriptionStatus(status);
       } else {
+        console.log('🔄 Subscription API failed, setting status to none');
         setSubscriptionStatus('none');
       }
-    } catch (_err) {
+    } catch (error) {
+      console.error('🔄 Subscription status fetch error:', error);
       setSubscriptionStatus('none');
+    } finally {
+      setSubscriptionLoading(false);
     }
   };
 
@@ -84,7 +108,11 @@ export default function HomePage() {
   useFocusEffect(
     React.useCallback(() => {
       console.log('🔄 HomePage focused - refreshing subscription status');
-      fetchSubscriptionStatus();
+      
+      // Add a small delay to ensure backend has processed the payment
+      setTimeout(() => {
+        fetchSubscriptionStatus();
+      }, 1000);
     }, [])
   );
 
@@ -105,13 +133,27 @@ export default function HomePage() {
           style={styles.profileImage}
           source={{ uri: 'https://via.placeholder.com/50' }} // Replace with actual image URL
         />
-        <Ionicons
-          name="settings-outline"
-          size={28}
-          color="#FFFFFF"
-          style={styles.settingsIcon}
-          onPress={() => router.push('/SetHomeLocation')}
-        />
+        <View style={styles.headerIcons}>
+          <Ionicons
+            name={subscriptionLoading ? "hourglass-outline" : "refresh-outline"}
+            size={28}
+            color="#FFFFFF"
+            style={[styles.refreshIcon, subscriptionLoading && styles.refreshIconLoading]}
+            onPress={() => {
+              if (!subscriptionLoading) {
+                console.log('🔄 Manual refresh triggered');
+                fetchSubscriptionStatus();
+              }
+            }}
+          />
+          <Ionicons
+            name="settings-outline"
+            size={28}
+            color="#FFFFFF"
+            style={styles.settingsIcon}
+            onPress={() => router.push('/SetHomeLocation')}
+          />
+        </View>
       </View>
 
       <ScrollView 
@@ -184,8 +226,13 @@ export default function HomePage() {
               color="#4CD964" 
             />
             <Text style={styles.serviceText}>
-              {subscriptionStatus === 'active' ? 'My Subscription' : 'Subscriptions'}
+              {subscriptionLoading ? 'Loading...' : (subscriptionStatus === 'active' ? 'My Subscription' : 'Subscriptions')}
             </Text>
+            {subscriptionLoading && (
+              <View style={styles.loadingDot}>
+                <Text style={styles.loadingDotText}>●</Text>
+              </View>
+            )}
           </Pressable>
         </View>
       </ScrollView>
@@ -313,5 +360,26 @@ const styles = StyleSheet.create({
     color: '#333',
     textAlign: 'center',
     lineHeight: 18,
+  },
+  headerIcons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  refreshIcon: {
+    marginRight: 15,
+    padding: 5,
+  },
+  refreshIconLoading: {
+    opacity: 0.6,
+  },
+  loadingDot: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+  },
+  loadingDotText: {
+    color: '#4CD964',
+    fontSize: 12,
+    fontWeight: 'bold',
   },
 });

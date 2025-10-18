@@ -15,20 +15,28 @@ export default function PaymentSuccess() {
   useEffect(() => {
     const checkSession = async () => {
       try {
-        const sessionId = params.session || Date.now().toString();
-        const lastSuccessSession = await AsyncStorage.getItem('lastPaymentSuccessSession');
+        // Use timestamp-based session tracking
+        const currentTime = Date.now();
+        const sessionId = params.session || currentTime.toString();
+        const lastSuccessTime = await AsyncStorage.getItem('lastPaymentSuccessTime');
         
-        if (lastSuccessSession === sessionId) {
-          // This success page has already been shown
-          console.log('Payment success already shown for this session, redirecting...');
+        console.log('🎉 Payment success page loaded with session:', sessionId);
+        console.log('🎉 Last success time:', lastSuccessTime);
+        
+        // If last success was within 10 seconds, consider it duplicate
+        if (lastSuccessTime && (currentTime - parseInt(lastSuccessTime)) < 10000) {
+          console.log('🎉 Payment success already shown recently, redirecting...');
           setIsValidSession(false);
           router.replace('/resident/HomePage');
           return;
         }
         
-        // Mark this session as shown
+        // Mark this session as shown with current timestamp
+        await AsyncStorage.setItem('lastPaymentSuccessTime', currentTime.toString());
         await AsyncStorage.setItem('lastPaymentSuccessSession', sessionId);
         setIsValidSession(true);
+        
+        console.log('🎉 Payment success page is valid, showing...');
       } catch (error) {
         console.error('Session check error:', error);
         setIsValidSession(true); // Default to showing the page
