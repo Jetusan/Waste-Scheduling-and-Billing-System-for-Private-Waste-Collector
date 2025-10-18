@@ -89,11 +89,30 @@ const SPickup = () => {
           }
         } else {
           console.error('Profile API request failed:', response.status);
-          Alert.alert('Authentication Error', 'Unable to verify user authentication. Please log in again.');
+          // Don't show alert for server errors, just log and continue
+          // The user can still use the special pickup feature
+          if (response.status >= 500) {
+            console.warn('Server error, continuing without profile data');
+          } else {
+            Alert.alert('Authentication Error', 'Unable to verify user authentication. Please log in again.');
+          }
         }
       } catch (error) {
         console.error('Error fetching user info:', error);
-        Alert.alert('Network Error', 'Unable to connect to server. Please check your internet connection.');
+        // Don't show alert for network errors, just log and continue
+        // The user can still use the special pickup feature
+        console.warn('Network error, continuing without profile data');
+        
+        // Try to get user ID from storage as fallback
+        try {
+          const fallbackUserId = await getUserId();
+          if (fallbackUserId) {
+            console.log('Using fallback user ID from storage:', fallbackUserId);
+            setCurrentUserId(fallbackUserId);
+          }
+        } catch (fallbackError) {
+          console.error('Failed to get fallback user ID:', fallbackError);
+        }
       }
     };
 
@@ -126,10 +145,16 @@ const SPickup = () => {
         const data = await response.json();
         setSpecialRequests(data.requests || []);
       } else {
+        console.warn(`Special requests API failed with status: ${response.status}`);
         setSpecialRequests([]);
+        // Don't show error for server issues, just log
+        if (response.status >= 500) {
+          console.warn('Server error when fetching special requests');
+        }
       }
     } catch (err) {
       console.error('Error fetching special requests:', err);
+      console.warn('Network error when fetching special requests, showing empty list');
       setSpecialRequests([]);
     } finally {
       setRequestsLoading(false);
