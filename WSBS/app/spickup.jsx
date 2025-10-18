@@ -100,43 +100,44 @@ const SPickup = () => {
     fetchUserInfo();
   }, []);
 
-  // Fetch user's special pickup requests
-  useEffect(() => {
-    const fetchSpecialRequests = async () => {
-      try {
-        setRequestsLoading(true);
-        const token = await getToken();
-        const userId = await getUserId();
-        
-        if (!token || !userId) {
-          setSpecialRequests([]);
-          setCurrentUserId(null);
-          return;
-        }
-
-        setCurrentUserId(userId);
-
-        const response = await fetch(`${API_BASE_URL}/api/special-pickup/user/${userId}`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          setSpecialRequests(data.requests || []);
-        } else {
-          setSpecialRequests([]);
-        }
-      } catch (err) {
-        console.error('Error fetching special requests:', err);
+  // Function to fetch user's special pickup requests
+  const fetchSpecialRequests = async () => {
+    try {
+      setRequestsLoading(true);
+      const token = await getToken();
+      const userId = await getUserId();
+      
+      if (!token || !userId) {
         setSpecialRequests([]);
-      } finally {
-        setRequestsLoading(false);
+        setCurrentUserId(null);
+        return;
       }
-    };
 
+      setCurrentUserId(userId);
+
+      const response = await fetch(`${API_BASE_URL}/api/special-pickup/user/${userId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setSpecialRequests(data.requests || []);
+      } else {
+        setSpecialRequests([]);
+      }
+    } catch (err) {
+      console.error('Error fetching special requests:', err);
+      setSpecialRequests([]);
+    } finally {
+      setRequestsLoading(false);
+    }
+  };
+
+  // Fetch requests on component mount
+  useEffect(() => {
     fetchSpecialRequests();
   }, []);
 
@@ -236,7 +237,7 @@ const SPickup = () => {
             {
               text: 'OK',
               onPress: () => {
-                // Clear the form
+                // Clear form
                 setWasteType('');
                 setDescription('');
                 setDate('');
@@ -245,8 +246,10 @@ const SPickup = () => {
                 setNotes('');
                 setMessage('');
                 setImage(null);
-                // Navigate back to home page where they can see their requests
-                router.push('/resident/HomePage');
+                
+                // Go back to requests list and refresh
+                setShowForm(false);
+                fetchSpecialRequests();
               }
             }
           ]

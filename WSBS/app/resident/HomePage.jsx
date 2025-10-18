@@ -130,13 +130,11 @@ export default function HomePage() {
     <View style={styles.container}>
       {/* Header Section */}
       <View style={styles.header}>
-        <Text style={styles.welcomeText}>
-          {userName ? `Welcome, ${userName}` : 'Welcome'}
-        </Text>
-        {/* Debug info - remove in production */}
-        <Text style={styles.debugText}>
-          Status: {subscriptionStatus || 'loading...'}
-        </Text>
+        <View style={styles.headerContent}>
+          <Text style={styles.welcomeText}>
+            {userName ? `Welcome, ${userName}` : 'Welcome'}
+          </Text>
+        </View>
         <Image
           style={styles.profileImage}
           source={{ uri: 'https://via.placeholder.com/50' }} // Replace with actual image URL
@@ -256,8 +254,8 @@ const styles = StyleSheet.create({
   header: {
     backgroundColor: '#4CD964',
     paddingHorizontal: 20,
-    paddingTop: 50,
-    paddingBottom: 20,
+    paddingTop: 40,
+    paddingBottom: 15,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
@@ -269,11 +267,13 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
   },
+  headerContent: {
+    flex: 1,
+  },
   welcomeText: {
-    fontSize: 22,
+    fontSize: 18,
     fontWeight: 'bold',
     color: '#FFFFFF',
-    flex: 1,
   },
   profileImage: {
     width: 40,
@@ -293,27 +293,28 @@ const styles = StyleSheet.create({
   },
   daysRowOuter: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
+    justifyContent: 'space-between',
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
-    paddingVertical: 15,
-    marginVertical: 20,
-    borderRadius: 20,
-    elevation: 5,
+    paddingVertical: 10,
+    paddingHorizontal: 15,
+    marginVertical: 15,
+    borderRadius: 15,
+    elevation: 3,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
-    shadowRadius: 3.84,
+    shadowRadius: 2,
   },
   dayTextOuter: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '600',
     color: '#666',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    borderRadius: 6,
     textAlign: 'center',
-    minWidth: 40,
+    minWidth: 35,
   },
   barangayInfoCard: {
     flexDirection: 'row',
@@ -389,11 +390,5 @@ const styles = StyleSheet.create({
     color: '#4CD964',
     fontSize: 12,
     fontWeight: 'bold',
-  },
-  debugText: {
-    color: '#fff',
-    fontSize: 12,
-    opacity: 0.8,
-    marginTop: 4,
   },
 });
