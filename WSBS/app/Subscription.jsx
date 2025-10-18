@@ -163,9 +163,22 @@ const Subscription = () => {
     setShowPaymentPage(false);
     setShowPlanSelection(true);
     
-    // Navigate to payment success page with unique session ID
-    const sessionId = `payment_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    router.push(`/payment/success?session=${sessionId}`);
+    // Show success alert and navigate to HomePage
+    setTimeout(() => {
+      Alert.alert(
+        '🎉 Subscription Activated!',
+        'Your subscription has been successfully activated! You can now access all waste collection services.',
+        [
+          {
+            text: 'Continue',
+            onPress: () => {
+              router.replace('/resident/HomePage');
+            }
+          }
+        ],
+        { cancelable: false }
+      );
+    }, 500);
   };
 
   // Show loading while checking terms acceptance

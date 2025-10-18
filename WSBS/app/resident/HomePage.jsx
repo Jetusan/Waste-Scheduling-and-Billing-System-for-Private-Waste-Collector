@@ -62,7 +62,7 @@ export default function HomePage() {
       }
       
       console.log('🔄 Fetching subscription status for userId:', userId);
-      const res = await fetch(`${API_BASE_URL}/api/billing/subscription/${userId}`, {
+      const res = await fetch(`${API_BASE_URL}/api/billing/subscription-status/${userId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       
@@ -109,10 +109,14 @@ export default function HomePage() {
     React.useCallback(() => {
       console.log('🔄 HomePage focused - refreshing subscription status');
       
-      // Add a small delay to ensure backend has processed the payment
+      // Immediate refresh
+      fetchSubscriptionStatus();
+      
+      // Also refresh after a delay to catch any delayed backend updates
       setTimeout(() => {
+        console.log('🔄 Delayed refresh after focus');
         fetchSubscriptionStatus();
-      }, 1000);
+      }, 2000);
     }, [])
   );
 
@@ -128,6 +132,10 @@ export default function HomePage() {
       <View style={styles.header}>
         <Text style={styles.welcomeText}>
           {userName ? `Welcome, ${userName}` : 'Welcome'}
+        </Text>
+        {/* Debug info - remove in production */}
+        <Text style={styles.debugText}>
+          Status: {subscriptionStatus || 'loading...'}
         </Text>
         <Image
           style={styles.profileImage}
@@ -381,5 +389,11 @@ const styles = StyleSheet.create({
     color: '#4CD964',
     fontSize: 12,
     fontWeight: 'bold',
+  },
+  debugText: {
+    color: '#fff',
+    fontSize: 12,
+    opacity: 0.8,
+    marginTop: 4,
   },
 });

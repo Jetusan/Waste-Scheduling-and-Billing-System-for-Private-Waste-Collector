@@ -5,6 +5,7 @@ import * as Linking from 'expo-linking';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_BASE_URL } from './config';
 import { getToken } from './auth';
+import { useRouter } from 'expo-router';
 
 const PaymentPage = ({
   selectedPlanData,
@@ -12,17 +13,26 @@ const PaymentPage = ({
   onBack,
   onSuccess
 }) => {
+  const router = useRouter();
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [subscriptionData, setSubscriptionData] = useState(null);
+  const [hasProcessedSuccess, setHasProcessedSuccess] = useState(false);
 
   // Enhanced deep linking with subscription activation
   const handleDeepLink = React.useCallback(async (event) => {
     console.log('🔗 Deep link received:', event.url);
     
     if (event.url.includes('wsbs://payment/success') || event.url.includes('payment/success')) {
+      // Prevent processing the same success multiple times
+      if (hasProcessedSuccess) {
+        console.log('🔄 Payment success already processed, ignoring...');
+        return;
+      }
+      
       try {
         console.log('✅ Payment success detected');
+        setHasProcessedSuccess(true);
         
         // Get stored subscription and payment data
         const pendingPaymentId = await AsyncStorage.getItem('pendingPaymentId');
@@ -62,7 +72,8 @@ const PaymentPage = ({
                   text: 'Continue', 
                   onPress: () => {
                     setIsProcessing(false);
-                    onSuccess();
+                    // Navigate directly to HomePage instead of calling onSuccess
+                    router.replace('/resident/HomePage');
                   }
                 }]
               );
@@ -81,7 +92,8 @@ const PaymentPage = ({
                 text: 'Continue', 
                 onPress: () => {
                   setIsProcessing(false);
-                  onSuccess();
+                  // Navigate directly to HomePage instead of calling onSuccess
+                  router.replace('/resident/HomePage');
                 }
               }]
             );
@@ -97,7 +109,8 @@ const PaymentPage = ({
               text: 'Continue', 
               onPress: () => {
                 setIsProcessing(false);
-                onSuccess();
+                // Navigate directly to HomePage instead of calling onSuccess
+                router.replace('/resident/HomePage');
               }
             }]
           );
@@ -108,11 +121,15 @@ const PaymentPage = ({
       Alert.alert('❌ Payment Failed', 'Your payment could not be processed. Please try again.');
       setIsProcessing(false);
     }
-  }, [onSuccess]);
+  }, [hasProcessedSuccess, router]);
 
   useEffect(() => {
     const subscription = Linking.addEventListener('url', handleDeepLink);
-    return () => subscription?.remove();
+    return () => {
+      subscription?.remove();
+      // Reset success state when component unmounts
+      setHasProcessedSuccess(false);
+    };
   }, [handleDeepLink]);
 
   const handlePaymentMethodSelect = (method) => {
@@ -225,7 +242,10 @@ const PaymentPage = ({
             Alert.alert(
               'Payment Successful!', 
               'Your subscription has been activated successfully!', 
-              [{ text: 'OK', onPress: onSuccess }]
+              [{ 
+                text: 'OK', 
+                onPress: () => router.replace('/resident/HomePage')
+              }]
             );
           } else {
             Alert.alert('Error', 'Payment confirmed but subscription activation failed. Please contact support.');
