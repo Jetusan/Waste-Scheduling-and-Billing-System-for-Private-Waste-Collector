@@ -190,21 +190,29 @@ export default function HomePage() {
           </View>
         )}
 
-        {/* Services Section - Only 3 Main Buttons */}
+        {/* Services Section */}
         <Text style={styles.servicesTitle}>Choose your services</Text>
-        <View style={styles.servicesContainer}>
-          {/* Collection Schedule - Use previous route */}
-          <Pressable 
-            style={styles.serviceButton}
-            onPress={() => router.push('/AllSchedules')}
-          >
-            <Ionicons name="calendar-outline" size={32} color="#4CD964" />
-            <Text style={styles.serviceText}>Collection Schedule</Text>
-          </Pressable>
+        <View style={[
+          styles.servicesContainer,
+          { justifyContent: subscriptionStatus === 'active' ? 'space-between' : 'space-around' }
+        ]}>
+          {/* Collection Schedule - Only show if user has active subscription */}
+          {subscriptionStatus === 'active' && (
+            <Pressable 
+              style={styles.serviceButton}
+              onPress={() => router.push('/AllSchedules')}
+            >
+              <Ionicons name="calendar-outline" size={32} color="#4CD964" />
+              <Text style={styles.serviceText}>Collection Schedule</Text>
+            </Pressable>
+          )}
 
           {/* Special Pickup - Use previous route */}
           <Pressable 
-            style={styles.serviceButton}
+            style={[
+              styles.serviceButton,
+              { width: subscriptionStatus === 'active' ? '48%' : '45%' }
+            ]}
             onPress={() => router.push('/spickup')}
           >
             <Ionicons name="add-circle-outline" size={32} color="#4CD964" />
@@ -213,7 +221,10 @@ export default function HomePage() {
 
           {/* My Subscription - Keep same logic as previous */}
           <Pressable 
-            style={styles.serviceButton}
+            style={[
+              styles.serviceButton,
+              { width: subscriptionStatus === 'active' ? '48%' : '45%' }
+            ]}
             onPress={() => {
               // Navigate based on subscription status - same as previous
               console.log('🔥 Button pressed! Current subscriptionStatus:', subscriptionStatus);
