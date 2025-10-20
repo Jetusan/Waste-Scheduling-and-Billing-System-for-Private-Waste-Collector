@@ -16,7 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useRouter } from 'expo-router';
-import { getToken, getUserId } from './auth';
+import { getToken, getUserId, logout } from './auth';
 import { API_BASE_URL } from './config';
 
 const SPickup = () => {
@@ -39,6 +39,23 @@ const SPickup = () => {
   const [showForm, setShowForm] = useState(false);
   const [specialRequests, setSpecialRequests] = useState([]);
   const [requestsLoading, setRequestsLoading] = useState(true);
+
+  // Handle authentication errors
+  const handleAuthError = async () => {
+    Alert.alert(
+      'Authentication Error',
+      'Your session has expired. Please log in again.',
+      [
+        {
+          text: 'Log In Again',
+          onPress: async () => {
+            await logout();
+            router.replace('/resident/Login');
+          }
+        }
+      ]
+    );
+  };
 
   // Get current user info on component mount
   useEffect(() => {
@@ -94,8 +111,9 @@ const SPickup = () => {
           if (response.status >= 500) {
             console.warn('Server error, continuing without profile data');
           } else if (response.status === 401) {
-            console.warn('Authentication error, but continuing with fallback user ID');
-            // Don't show alert for 401, just continue with fallback
+            console.warn('Authentication error - clearing auth and redirecting to login');
+            await handleAuthError();
+            return;
           } else {
             Alert.alert('Authentication Error', 'Unable to verify user authentication. Please log in again.');
           }
@@ -153,6 +171,10 @@ const SPickup = () => {
         // Don't show error for server issues, just log
         if (response.status >= 500) {
           console.warn('Server error when fetching special requests');
+        } else if (response.status === 401) {
+          console.warn('Authentication error when fetching special requests');
+          await handleAuthError();
+          return;
         }
       }
     } catch (err) {

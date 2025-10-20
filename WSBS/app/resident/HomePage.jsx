@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, Image, ScrollView, ActivityIndicator, TouchableOpacity, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
-import { getToken, getUserId } from '../auth';
+import { getToken, getUserId, logout } from '../auth';
 import { API_BASE_URL } from '../config';
 
 export default function HomePage() {
@@ -49,50 +49,68 @@ export default function HomePage() {
   }, []);
 
   // Function to fetch subscription status
+  const handleAuthError = async () => {
+    Alert.alert(
+      'Authentication Error',
+      'Your session has expired. Please log in again.',
+      [
+        {
+          text: 'Log In Again',
+          onPress: async () => {
+            await logout();
+            router.replace('/resident/Login');
+          }
+        }
+      ]
+    );
+  };
+
   const fetchSubscriptionStatus = async () => {
     try {
       setSubscriptionLoading(true);
-      const token = await getToken();
       const userId = await getUserId();
-      if (!token || !userId) {
-        console.log('🔄 No token or userId, setting status to none');
+      
+      if (!userId) {
+        console.log('❌ No userId found, cannot fetch subscription');
         setSubscriptionStatus('none');
-        setSubscriptionLoading(false);
+        return;
+      }
+
+      console.log('🔄 Fetching subscription status for userId:', userId);
+      
+      const token = await getToken();
+      const response = await fetch(`${API_BASE_URL}/api/billing/subscription-status/${userId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      console.log('🔄 Subscription API response status:', response.status);
+      
+      if (response.status === 401) {
+        console.log('🔑 Authentication error - clearing auth and redirecting to login');
+        await handleAuthError();
         return;
       }
       
-      console.log('🔄 Fetching subscription status for userId:', userId);
-      const res = await fetch(`${API_BASE_URL}/api/billing/subscription-status/${userId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      
-      console.log('🔄 Subscription API response status:', res.status);
-      
-      if (res.ok) {
-        const data = await res.json();
-        console.log('🔄 Subscription API response data:', JSON.stringify(data, null, 2));
+      if (response.ok) {
+        const data = await response.json();
+        console.log('🔄 Subscription API response data:', data);
         
-        // Handle different response formats
-        let status = 'none';
-        
-        if (data.subscription && data.subscription.status) {
-          status = data.subscription.status;
-        } else if (data.status) {
-          status = data.status;
-        } else if (data.has_subscription === true) {
-          status = 'active'; // Assume active if has_subscription is true
-        } else if (data.has_subscription === false) {
-          status = 'none';
+        if (data.has_subscription && data.subscription?.status === 'active') {
+          setSubscriptionStatus('active');
+          console.log('🔄 Final subscription status: active');
+        } else {
+          setSubscriptionStatus('none');
+          console.log('🔄 Final subscription status: none');
         }
-        
-        console.log('🔄 Final subscription status:', status);
-        setSubscriptionStatus(status);
       } else {
-        console.log('🔄 Subscription API failed, setting status to none');
+        console.log('❌ Subscription API failed with status:', response.status);
         setSubscriptionStatus('none');
       }
     } catch (error) {
-      console.error('🔄 Subscription status fetch error:', error);
+      console.error('❌ Error fetching subscription status:', error);
       setSubscriptionStatus('none');
     } finally {
       setSubscriptionLoading(false);
