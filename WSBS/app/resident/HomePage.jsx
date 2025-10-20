@@ -12,42 +12,95 @@ export default function HomePage() {
   const [userName, setUserName] = useState('');
   const [userBarangay, setUserBarangay] = useState('');
   const [subscriptionStatus, setSubscriptionStatus] = useState(null); // null=unknown, 'active', 'pending', 'none'
-  const [subscriptionLoading, setSubscriptionLoading] = useState(false);
+  const [subscriptionLoading, setSubscriptionLoading] = useState(true); // Start with loading true
   const [lastFetchTime, setLastFetchTime] = useState(0);
 
+  // Combined data fetching for better performance
   useEffect(() => {
-    // Fetch user profile for welcome message and barangay
-    const fetchProfile = async () => {
+    const fetchAllData = async () => {
       try {
-        const token = await getToken();
-        if (!token) return;
-        const response = await fetch(`${API_BASE_URL}/api/auth/profile`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-          },
-        });
-        const data = await response.json();
-        console.log('🔥 User profile response:', JSON.stringify(data, null, 2));
-        if (response.ok && data.success && data.user) {
-          // Prefer full name, fallback to username
-          const { first_name, last_name, username, barangay_name } = data.user;
-          setUserName(
-            first_name && last_name
-              ? `${first_name} ${last_name}`
-              : first_name
-              ? first_name
-              : username || ''
-          );
-          console.log('🔥 Setting userBarangay to:', barangay_name);
-          setUserBarangay(barangay_name || '');
-        } else {
-          console.log('🔥 Profile response not successful:', data);
+        // Get auth data once to avoid multiple storage reads
+        const [token, userId] = await Promise.all([
+          getToken(),
+          getUserId()
+        ]);
+        
+        if (!token || !userId) {
+          console.log('❌ Missing auth data - token:', !!token, 'userId:', !!userId);
+          return;
         }
-      } catch (_err) {
-        // Ignore error, just show default welcome
+
+        // Fetch profile and subscription in parallel for faster loading
+        const [profileResponse, subscriptionResponse] = await Promise.all([
+          fetch(`${API_BASE_URL}/api/auth/profile`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          }).catch(err => {
+            console.log('🔥 Profile fetch failed:', err.message);
+            return null;
+          }),
+          
+          fetch(`${API_BASE_URL}/api/billing/subscription-status/${userId}`, {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            }
+          }).catch(err => {
+            console.log('🔄 Subscription fetch failed:', err.message);
+            return null;
+          })
+        ]);
+
+        // Process profile data
+        if (profileResponse?.ok) {
+          try {
+            const profileData = await profileResponse.json();
+            console.log('🔥 User profile loaded successfully');
+            if (profileData.success && profileData.user) {
+              const { first_name, last_name, username, barangay_name } = profileData.user;
+              setUserName(
+                first_name && last_name
+                  ? `${first_name} ${last_name}`
+                  : first_name || username || ''
+              );
+              setUserBarangay(barangay_name || '');
+            }
+          } catch (err) {
+            console.log('🔥 Profile data parsing failed');
+          }
+        }
+
+        // Process subscription data
+        if (subscriptionResponse?.ok) {
+          try {
+            const subscriptionData = await subscriptionResponse.json();
+            console.log('🔄 Subscription loaded successfully');
+            if (subscriptionData.has_subscription && subscriptionData.subscription?.status === 'active') {
+              setSubscriptionStatus('active');
+            } else {
+              setSubscriptionStatus('none');
+            }
+          } catch (err) {
+            console.log('🔄 Subscription data parsing failed');
+            setSubscriptionStatus('none');
+          }
+        } else if (subscriptionResponse?.status === 401) {
+          console.log('🔑 Authentication error - clearing auth');
+          await handleAuthError();
+          return;
+        } else {
+          setSubscriptionStatus('none');
+        }
+
+      } catch (error) {
+        console.error('❌ Error in combined data fetch:', error);
+        setSubscriptionStatus('none');
+      } finally {
+        setSubscriptionLoading(false);
       }
     };
-    fetchProfile();
+
+    setSubscriptionLoading(true);
+    fetchAllData();
   }, []);
 
   // Function to fetch subscription status
@@ -69,6 +122,7 @@ export default function HomePage() {
     );
   };
 
+  // Quick subscription-only refresh for manual refresh button
   const fetchSubscriptionStatus = async () => {
     // Debounce: Don't fetch if we just fetched within the last 2 seconds
     const now = Date.now();
@@ -80,70 +134,61 @@ export default function HomePage() {
     try {
       setSubscriptionLoading(true);
       setLastFetchTime(now);
-      const userId = await getUserId();
       
-      if (!userId) {
-        console.log('❌ No userId found, cannot fetch subscription');
+      const [token, userId] = await Promise.all([getToken(), getUserId()]);
+      
+      if (!token || !userId) {
+        console.log('❌ Missing auth data for subscription fetch');
         setSubscriptionStatus('none');
         return;
       }
 
-      console.log('🔄 Fetching subscription status for userId:', userId);
+      console.log('🔄 Quick subscription refresh for userId:', userId);
       
-      const token = await getToken();
       const response = await fetch(`${API_BASE_URL}/api/billing/subscription-status/${userId}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         }
       });
-
-      console.log('🔄 Subscription API response status:', response.status);
       
       if (response.status === 401) {
-        console.log('🔑 Authentication error - clearing auth and redirecting to login');
         await handleAuthError();
         return;
       }
       
       if (response.ok) {
         const data = await response.json();
-        console.log('🔄 Subscription API response data:', data);
-        
-        if (data.has_subscription && data.subscription?.status === 'active') {
-          setSubscriptionStatus('active');
-          console.log('🔄 Final subscription status: active');
-        } else {
-          setSubscriptionStatus('none');
-          console.log('🔄 Final subscription status: none');
-        }
+        setSubscriptionStatus(
+          data.has_subscription && data.subscription?.status === 'active' ? 'active' : 'none'
+        );
+        console.log('🔄 Subscription refreshed successfully');
       } else {
-        console.log('❌ Subscription API failed with status:', response.status);
         setSubscriptionStatus('none');
       }
     } catch (error) {
-      console.error('❌ Error fetching subscription status:', error);
+      console.error('❌ Error refreshing subscription:', error);
       setSubscriptionStatus('none');
     } finally {
       setSubscriptionLoading(false);
     }
   };
 
-  // Initial load
-  useEffect(() => {
-    fetchSubscriptionStatus();
-  }, []);
 
   // Refresh subscription status when page is focused (when user returns from subscription)
   useFocusEffect(
     React.useCallback(() => {
-      console.log('🔄 HomePage focused - refreshing subscription status');
+      console.log('🔄 HomePage focused - will refresh subscription if not loading');
       
-      // Only refresh if not currently loading to prevent multiple simultaneous calls
-      if (!subscriptionLoading) {
-        fetchSubscriptionStatus();
-      }
-    }, [subscriptionLoading])
+      // Use a small delay to ensure the component is fully mounted
+      const timeoutId = setTimeout(() => {
+        if (!subscriptionLoading) {
+          fetchSubscriptionStatus();
+        }
+      }, 100);
+      
+      return () => clearTimeout(timeoutId);
+    }, [])
   );
 
   // Get current day for display
@@ -228,7 +273,7 @@ export default function HomePage() {
               style={styles.serviceButton}
               onPress={() => router.push('/AllSchedules')}
             >
-              <Ionicons name="calendar-outline" size={32} color="#4CD964" />
+              <Ionicons name="calendar-outline" size={28} color="#4CD964" />
               <Text style={styles.serviceText}>Collection Schedule</Text>
             </Pressable>
           )}
@@ -241,7 +286,7 @@ export default function HomePage() {
             ]}
             onPress={() => router.push('/spickup')}
           >
-            <Ionicons name="add-circle-outline" size={32} color="#4CD964" />
+            <Ionicons name="add-circle-outline" size={28} color="#4CD964" />
             <Text style={styles.serviceText}>Special Pickup</Text>
           </Pressable>
 
@@ -265,7 +310,7 @@ export default function HomePage() {
           >
             <Ionicons 
               name={subscriptionStatus === 'active' ? "checkmark-circle-outline" : "pricetag-outline"} 
-              size={32} 
+              size={28} 
               color="#4CD964" 
             />
             <Text style={styles.serviceText}>
@@ -389,10 +434,10 @@ const styles = StyleSheet.create({
   serviceButton: {
     width: '48%',
     backgroundColor: '#FFFFFF',
-    padding: 20,
-    borderRadius: 20,
+    padding: 16,
+    borderRadius: 16,
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 12,
     elevation: 5,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -400,12 +445,12 @@ const styles = StyleSheet.create({
     shadowRadius: 3.84,
   },
   serviceText: {
-    marginTop: 12,
-    fontSize: 14,
+    marginTop: 8,
+    fontSize: 13,
     fontWeight: '600',
     color: '#333',
     textAlign: 'center',
-    lineHeight: 18,
+    lineHeight: 16,
   },
   headerIcons: {
     flexDirection: 'row',
