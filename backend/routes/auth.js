@@ -531,7 +531,7 @@ router.post('/login-enhanced', async (req, res) => {
     }
 
     // Generate JWT token
-    const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+    const JWT_SECRET = process.env.JWT_SECRET || 'your_jwt_secret';
     const token = jwt.sign(
       { 
         userId: user.user_id, 

@@ -93,6 +93,9 @@ const SPickup = () => {
           // The user can still use the special pickup feature
           if (response.status >= 500) {
             console.warn('Server error, continuing without profile data');
+          } else if (response.status === 401) {
+            console.warn('Authentication error, but continuing with fallback user ID');
+            // Don't show alert for 401, just continue with fallback
           } else {
             Alert.alert('Authentication Error', 'Unable to verify user authentication. Please log in again.');
           }

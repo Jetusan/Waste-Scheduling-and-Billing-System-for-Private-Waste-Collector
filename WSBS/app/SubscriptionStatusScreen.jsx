@@ -12,7 +12,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import Constants from 'expo-constants';
-import { getToken } from './auth';
+import { getToken, getUserId } from './auth';
 import { API_BASE_URL } from './config';
 import { Platform } from 'react-native';
 
@@ -203,25 +203,13 @@ const SubscriptionStatusScreen = () => {
         return;
       }
 
-      // Get user profile first to get user_id
-      const profileRes = await fetch(`${API_BASE_URL}/api/auth/profile`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      
-      if (!profileRes.ok) {
-        Alert.alert('Error', 'Failed to get user profile');
-        return;
-      }
-      
-      const profileData = await profileRes.json();
-      console.log('🔥 Profile API Response:', JSON.stringify(profileData, null, 2));
-      
-      // Check different possible response structures
-      const userId = profileData.user?.user_id || profileData.user?.id || profileData.id;
-      console.log('🔥 Extracted user_id:', userId);
+      // Get user ID from storage (more reliable than profile API)
+      const userId = await getUserId();
+      console.log('🔥 Got user_id from storage:', userId);
       
       if (!userId) {
-        Alert.alert('Error', 'Invalid user data - no user ID found');
+        Alert.alert('Error', 'No user ID found. Please login again.');
+        router.push('/resident/Login');
         return;
       }
 
