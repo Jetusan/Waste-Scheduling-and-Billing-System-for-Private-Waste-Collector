@@ -42,18 +42,20 @@ const SPickup = () => {
 
   // Handle authentication errors
   const handleAuthError = async () => {
+    console.log('🔑 Clearing authentication and redirecting to login...');
+    await logout();
     Alert.alert(
-      'Authentication Error',
-      'Your session has expired. Please log in again.',
+      'Session Expired',
+      'Please log in again to continue.',
       [
         {
-          text: 'Log In Again',
-          onPress: async () => {
-            await logout();
+          text: 'OK',
+          onPress: () => {
             router.replace('/resident/Login');
           }
         }
-      ]
+      ],
+      { cancelable: false }
     );
   };
 

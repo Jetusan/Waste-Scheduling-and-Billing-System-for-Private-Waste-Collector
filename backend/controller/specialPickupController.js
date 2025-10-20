@@ -1,4 +1,5 @@
 const specialPickupModel = require('../models/specialPickupModel');
+const { notifySpecialPickupRequested } = require('../services/specialPickupNotificationService');
 
 // Create a new special pickup request
 const createRequest = async (req, res) => {
@@ -33,6 +34,22 @@ const createRequest = async (req, res) => {
     }
     
     const newRequest = await specialPickupModel.createSpecialPickupRequest(data);
+    
+    // Send notification to user and admins
+    try {
+      await notifySpecialPickupRequested(newRequest.user_id, {
+        request_id: newRequest.request_id,
+        waste_type: newRequest.waste_type,
+        location: newRequest.address,
+        pickup_date: newRequest.pickup_date,
+        pickup_time: newRequest.pickup_time
+      });
+      console.log('✅ Special pickup notifications sent successfully');
+    } catch (notificationError) {
+      console.error('⚠️ Failed to send special pickup notifications:', notificationError);
+      // Don't fail the request creation if notification fails
+    }
+    
     res.status(201).json(newRequest);
   } catch (err) {
     console.error('Error creating special pickup request:', err);

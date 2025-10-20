@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Pressable, Image, ScrollView, ActivityIndicator
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { getToken, getUserId, logout } from '../auth';
+import { clearAuthAndRestart } from '../utils/authFixer';
 import { API_BASE_URL } from '../config';
 
 export default function HomePage() {
@@ -50,18 +51,20 @@ export default function HomePage() {
 
   // Function to fetch subscription status
   const handleAuthError = async () => {
+    console.log('🔑 Clearing authentication and redirecting to login...');
+    await logout();
     Alert.alert(
-      'Authentication Error',
-      'Your session has expired. Please log in again.',
+      'Session Expired',
+      'Please log in again to continue.',
       [
         {
-          text: 'Log In Again',
-          onPress: async () => {
-            await logout();
+          text: 'OK',
+          onPress: () => {
             router.replace('/resident/Login');
           }
         }
-      ]
+      ],
+      { cancelable: false }
     );
   };
 
@@ -170,6 +173,25 @@ export default function HomePage() {
               }
             }}
           />
+          <TouchableOpacity
+            onPress={() => {
+              Alert.alert(
+                '🔧 Fix Authentication Issues',
+                'Having trouble with login errors? This will clear your authentication data and require you to log in again.',
+                [
+                  { text: 'Cancel', style: 'cancel' },
+                  { 
+                    text: 'Clear Auth', 
+                    style: 'destructive',
+                    onPress: () => clearAuthAndRestart(router)
+                  }
+                ]
+              );
+            }}
+            style={styles.debugButton}
+          >
+            <Ionicons name="refresh-outline" size={20} color="#FFFFFF" />
+          </TouchableOpacity>
           <Ionicons
             name="settings-outline"
             size={28}
@@ -310,14 +332,20 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     marginRight: 10,
   },
-  settingsIcon: {
+  debugButton: {
+    marginLeft: 10,
     padding: 5,
+    borderRadius: 15,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  settingsIcon: {
+    marginLeft: 15,
   },
   scrollContainer: {
     flex: 1,
   },
   scrollContent: {
-    paddingHorizontal: 20,
+    // ... (rest of the styles remain the same)
     paddingBottom: 100,
   },
   daysRowOuter: {
