@@ -13,6 +13,7 @@ export default function HomePage() {
   const [userBarangay, setUserBarangay] = useState('');
   const [subscriptionStatus, setSubscriptionStatus] = useState(null); // null=unknown, 'active', 'pending', 'none'
   const [subscriptionLoading, setSubscriptionLoading] = useState(false);
+  const [lastFetchTime, setLastFetchTime] = useState(0);
 
   useEffect(() => {
     // Fetch user profile for welcome message and barangay
@@ -69,8 +70,16 @@ export default function HomePage() {
   };
 
   const fetchSubscriptionStatus = async () => {
+    // Debounce: Don't fetch if we just fetched within the last 2 seconds
+    const now = Date.now();
+    if (now - lastFetchTime < 2000) {
+      console.log('🔄 Skipping subscription fetch - too soon after last fetch');
+      return;
+    }
+    
     try {
       setSubscriptionLoading(true);
+      setLastFetchTime(now);
       const userId = await getUserId();
       
       if (!userId) {
@@ -130,15 +139,11 @@ export default function HomePage() {
     React.useCallback(() => {
       console.log('🔄 HomePage focused - refreshing subscription status');
       
-      // Immediate refresh
-      fetchSubscriptionStatus();
-      
-      // Also refresh after a delay to catch any delayed backend updates
-      setTimeout(() => {
-        console.log('🔄 Delayed refresh after focus');
+      // Only refresh if not currently loading to prevent multiple simultaneous calls
+      if (!subscriptionLoading) {
         fetchSubscriptionStatus();
-      }, 2000);
-    }, [])
+      }
+    }, [subscriptionLoading])
   );
 
   // Get current day for display
@@ -173,25 +178,6 @@ export default function HomePage() {
               }
             }}
           />
-          <TouchableOpacity
-            onPress={() => {
-              Alert.alert(
-                '🔧 Fix Authentication Issues',
-                'Having trouble with login errors? This will clear your authentication data and require you to log in again.',
-                [
-                  { text: 'Cancel', style: 'cancel' },
-                  { 
-                    text: 'Clear Auth', 
-                    style: 'destructive',
-                    onPress: () => clearAuthAndRestart(router)
-                  }
-                ]
-              );
-            }}
-            style={styles.debugButton}
-          >
-            <Ionicons name="refresh-outline" size={20} color="#FFFFFF" />
-          </TouchableOpacity>
           <Ionicons
             name="settings-outline"
             size={28}
@@ -331,12 +317,6 @@ const styles = StyleSheet.create({
     height: 40,
     borderRadius: 20,
     marginRight: 10,
-  },
-  debugButton: {
-    marginLeft: 10,
-    padding: 5,
-    borderRadius: 15,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
   },
   settingsIcon: {
     marginLeft: 15,

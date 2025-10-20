@@ -157,6 +157,9 @@ const SPickup = () => {
 
       setCurrentUserId(userId);
 
+      console.log('🔄 Fetching special requests for user:', userId);
+      console.log('🔄 API URL:', `${API_BASE_URL}/api/special-pickup/user/${userId}`);
+      
       const response = await fetch(`${API_BASE_URL}/api/special-pickup/user/${userId}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -164,9 +167,13 @@ const SPickup = () => {
         },
       });
 
+      console.log('🔄 Special requests response status:', response.status);
+
       if (response.ok) {
         const data = await response.json();
-        setSpecialRequests(data.requests || []);
+        console.log('🔄 Special requests data:', data);
+        // Backend returns array directly, not wrapped in { requests: [] }
+        setSpecialRequests(Array.isArray(data) ? data : []);
       } else {
         console.warn(`Special requests API failed with status: ${response.status}`);
         setSpecialRequests([]);
@@ -361,9 +368,17 @@ const SPickup = () => {
             </Text>
           </View>
 
-          <TouchableOpacity style={styles.infoButton}>
-            <Ionicons name="information-circle-outline" size={24} color="#fff" />
-          </TouchableOpacity>
+          {!showForm && (
+            <TouchableOpacity 
+              style={styles.refreshButton}
+              onPress={() => {
+                console.log('🔄 Refreshing special pickup requests...');
+                fetchSpecialRequests();
+              }}
+            >
+              <Ionicons name="refresh-outline" size={24} color="#fff" />
+            </TouchableOpacity>
+          )}
         </View>
       </SafeAreaView>
 
@@ -726,7 +741,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     marginTop: 2,
   },
-  infoButton: {
+  refreshButton: {
     padding: 8,
     marginLeft: 12,
   },

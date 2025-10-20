@@ -10,8 +10,16 @@ export default function ResidentLayout() {
   const appState = useRef(AppState.currentState);
   const [appStateVisible, setAppStateVisible] = useState(appState.current);
   const intervalRef = useRef(null);
+  const lastFetchRef = useRef(0);
 
   const fetchUnread = async () => {
+    // Debounce: Don't fetch if we just fetched within the last 5 seconds
+    const now = Date.now();
+    if (now - lastFetchRef.current < 5000) {
+      console.log('🔔 Skipping notification fetch - too soon after last fetch');
+      return;
+    }
+    
     try {
       const token = await getToken();
       if (!token) {
@@ -19,6 +27,7 @@ export default function ResidentLayout() {
         return;
       }
       
+      lastFetchRef.current = now;
       console.log('🔔 Fetching notification count...');
       const res = await fetch(`${API_BASE_URL}/api/notifications/me/unread-count`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -40,8 +49,9 @@ export default function ResidentLayout() {
   useEffect(() => {
     const handleAppStateChange = (nextAppState) => {
       if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
-        console.log('🔔 App has come to the foreground - refreshing notifications');
-        fetchUnread(); // Refresh immediately when app becomes active
+        console.log('🔔 App has come to the foreground - will refresh notifications');
+        // Use debounced fetch - it will skip if we just fetched recently
+        fetchUnread();
       }
       appState.current = nextAppState;
       setAppStateVisible(appState.current);
@@ -60,12 +70,12 @@ export default function ResidentLayout() {
       fetchUnread();
     }
 
-    // Set up more frequent polling (3 seconds instead of 10)
+    // Set up reasonable polling interval (30 seconds)
     intervalRef.current = setInterval(() => {
       if (mounted && appStateVisible === 'active') {
         fetchUnread();
       }
-    }, 3000); // Reduced from 10000ms to 3000ms for more real-time feel
+    }, 30000); // 30 seconds - much more reasonable for notifications
 
     return () => {
       mounted = false;
