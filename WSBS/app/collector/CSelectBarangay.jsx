@@ -13,16 +13,44 @@ import { useRouter } from 'expo-router';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { API_BASE_URL } from '../config';
 import { getToken, getCollectorId } from '../auth';
+import { collectionStatusManager } from './CollectionStatusManager';
 
 const CSelectBarangay = () => {
   const router = useRouter();
   const [assignedBarangays, setAssignedBarangays] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [collectionStatus, setCollectionStatus] = useState({});
 
   useEffect(() => {
-    fetchCollectorAssignments();
+    loadData();
   }, []);
+
+  // Refresh data when screen comes into focus (returning from collection)
+  useEffect(() => {
+    const unsubscribe = router.addListener?.('focus', () => {
+      console.log('🔄 Screen focused, refreshing collection status...');
+      loadCollectionStatus();
+    });
+
+    return unsubscribe;
+  }, [router]);
+
+  const loadData = async () => {
+    await Promise.all([
+      fetchCollectorAssignments(),
+      loadCollectionStatus()
+    ]);
+  };
+
+  const loadCollectionStatus = async () => {
+    try {
+      const status = await collectionStatusManager.getAllStatus();
+      setCollectionStatus(status);
+    } catch (error) {
+      console.error('Error loading collection status:', error);
+    }
+  };
 
   const fetchCollectorAssignments = async () => {
     try {
@@ -85,6 +113,32 @@ const CSelectBarangay = () => {
 
   const handleBarangaySelect = async (barangay) => {
     try {
+      // Check collection status first
+      const status = collectionStatus[barangay.barangay_id] || { status: 'available' };
+      
+      // If already completed today, show completion message
+      if (status.status === 'completed') {
+        const completedTime = collectionStatusManager.formatCompletionTime(status.completedAt);
+        Alert.alert(
+          '✅ Already Completed',
+          `Collection for ${barangay.barangay_name} was completed at ${completedTime}.\n\nAll ${status.totalStops} residents have been collected from today.\n\nCollections will reset at midnight for tomorrow.`,
+          [
+            { text: 'OK' },
+            {
+              text: 'View Details',
+              onPress: () => {
+                Alert.alert(
+                  'Collection Details',
+                  `Barangay: ${barangay.barangay_name}\nCompleted: ${completedTime}\nResidents: ${status.completedStops}/${status.totalStops}\nStatus: All Done ✅`,
+                  [{ text: 'OK' }]
+                );
+              }
+            }
+          ]
+        );
+        return;
+      }
+
       // Check if there are residents to collect in this barangay
       const token = await getToken();
       const collectorId = await getCollectorId();
@@ -109,14 +163,25 @@ const CSelectBarangay = () => {
       console.log('🔍 Assignment:', checkData.assignment);
       
       if (checkData.stops && checkData.stops.length > 0) {
-        // Navigate to collection page with selected barangay
+        // Mark as in progress and navigate to collection page
         console.log('✅ Starting collection for barangay:', barangay.barangay_name);
+        
+        await collectionStatusManager.markAsInProgress(
+          barangay.barangay_id, 
+          checkData.stops.length, 
+          0
+        );
+        
+        // Refresh status
+        await loadCollectionStatus();
+        
         router.push({
           pathname: '/collector/CStartCollection',
           params: {
             barangay_id: barangay.barangay_id,
             barangay_name: barangay.barangay_name,
-            collector_id: collectorId
+            collector_id: collectorId,
+            total_stops: checkData.stops.length.toString()
           }
         });
       } else {
@@ -132,30 +197,55 @@ const CSelectBarangay = () => {
     }
   };
 
-  const renderBarangayCard = (barangay) => (
-    <TouchableOpacity
-      key={`${barangay.barangay_id}-${barangay.assignment_id}`}
-      style={styles.barangayCard}
-      onPress={() => handleBarangaySelect(barangay)}
-      activeOpacity={0.7}
-    >
-      <View style={styles.cardContent}>
-        <View style={styles.iconContainer}>
-          <MaterialIcons name="location-city" size={28} color="#4CAF50" />
+  const renderBarangayCard = (barangay) => {
+    const status = collectionStatus[barangay.barangay_id] || { status: 'available' };
+    const statusDisplay = collectionStatusManager.getStatusDisplay(status);
+    
+    return (
+      <TouchableOpacity
+        key={`${barangay.barangay_id}-${barangay.assignment_id}`}
+        style={[
+          styles.barangayCard,
+          { borderLeftColor: statusDisplay.color, borderLeftWidth: 4 }
+        ]}
+        onPress={() => handleBarangaySelect(barangay)}
+        activeOpacity={0.7}
+      >
+        <View style={styles.cardContent}>
+          <View style={styles.iconContainer}>
+            <Ionicons 
+              name={statusDisplay.icon} 
+              size={28} 
+              color={statusDisplay.color} 
+            />
+          </View>
+          
+          <View style={styles.barangayInfo}>
+            <Text style={styles.barangayName}>{barangay.barangay_name}</Text>
+            <Text style={styles.shiftLabel}>{barangay.shift_label}</Text>
+            <View style={styles.statusContainer}>
+              <Text style={[styles.statusLabel, { color: statusDisplay.color }]}>
+                {statusDisplay.label}
+              </Text>
+              {statusDisplay.subtitle && (
+                <Text style={styles.statusSubtitle}>
+                  {statusDisplay.subtitle}
+                </Text>
+              )}
+            </View>
+          </View>
+          
+          <View style={styles.arrowContainer}>
+            {status.status === 'completed' ? (
+              <Ionicons name="checkmark-circle" size={24} color="#4CAF50" />
+            ) : (
+              <Ionicons name="chevron-forward" size={24} color="#666" />
+            )}
+          </View>
         </View>
-        
-        <View style={styles.barangayInfo}>
-          <Text style={styles.barangayName}>{barangay.barangay_name}</Text>
-          <Text style={styles.shiftLabel}>{barangay.shift_label}</Text>
-          <Text style={styles.tapHint}>Tap to start collection</Text>
-        </View>
-        
-        <View style={styles.arrowContainer}>
-          <Ionicons name="chevron-forward" size={24} color="#666" />
-        </View>
-      </View>
-    </TouchableOpacity>
-  );
+      </TouchableOpacity>
+    );
+  };
 
   if (loading) {
     return (
@@ -292,6 +382,23 @@ const styles = StyleSheet.create({
     color: '#2e7d32',
     fontSize: 14,
     lineHeight: 20,
+  },
+  tapHint: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 2,
+  },
+  statusContainer: {
+    marginTop: 4,
+  },
+  statusLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  statusSubtitle: {
+    fontSize: 11,
+    color: '#666',
   },
   loadingContainer: {
     flex: 1,
