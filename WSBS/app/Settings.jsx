@@ -140,12 +140,12 @@ const Settings = () => {
             try {
               // Use the proper logout function
               await logout();
-              router.replace('/welcome');
+              router.replace('/role');
             } catch (error) {
               console.error('Error during logout:', error);
               // Fallback manual cleanup
               await AsyncStorage.multiRemove(['token', 'user_id', 'user_role']);
-              router.replace('/welcome');
+              router.replace('/role');
             }
           }
         }

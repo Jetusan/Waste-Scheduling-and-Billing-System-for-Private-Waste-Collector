@@ -51,7 +51,16 @@ const getAllSpecialPickupRequests = async (status) => {
 
 // Get special pickup requests by collector
 const getSpecialPickupRequestsByCollector = async (collector_id) => {
-  const query = 'SELECT * FROM special_pickup_requests WHERE collector_id = $1 ORDER BY created_at DESC';
+  const query = `
+    SELECT spr.*, 
+           COALESCE(un.first_name || ' ' || un.last_name, u.username, 'Unknown User') as user_name,
+           u.username
+    FROM special_pickup_requests spr
+    LEFT JOIN users u ON spr.user_id = u.user_id
+    LEFT JOIN user_names un ON u.name_id = un.name_id
+    WHERE spr.collector_id = $1 
+    ORDER BY spr.created_at DESC
+  `;
   const result = await pool.query(query, [collector_id]);
   return result.rows;
 };

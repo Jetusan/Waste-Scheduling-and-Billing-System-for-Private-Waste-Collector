@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, StatusBar, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, StatusBar, ScrollView, Alert } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { logout } from './auth';
@@ -7,17 +7,30 @@ import { logout } from './auth';
 const CSettings = () => {
   const router = useRouter();
 
-  const handleLogout = async () => {
-    try {
-      // Clear all authentication data from SecureStore
-      await logout();
-      // Navigate to role selection page
-      router.replace('/role');
-    } catch (error) {
-      console.error('Logout error:', error);
-      // Force navigation even if logout fails
-      router.replace('/role');
-    }
+  const handleLogout = () => {
+    Alert.alert(
+      'Logout',
+      'Are you sure you want to logout?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Logout',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              // Clear all authentication data from SecureStore
+              await logout();
+              // Navigate to role selection page
+              router.replace('/role');
+            } catch (error) {
+              console.error('Logout error:', error);
+              // Force navigation even if logout fails
+              router.replace('/role');
+            }
+          }
+        }
+      ]
+    );
   };
 
   return (

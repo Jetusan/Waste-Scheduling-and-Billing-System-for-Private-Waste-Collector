@@ -213,22 +213,59 @@ const SpecialPickup = () => {
     );
   };
 
+  const markAsMissed = async (requestId) => {
+    Alert.alert(
+      'Mark as Missed',
+      'Are you sure you want to mark this pickup as missed?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Mark Missed', 
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              // Remove from list immediately (optimistic update)
+              setRequests((prev) => prev.filter((r) => r.request_id !== requestId));
+              
+              const res = await fetch(`${API_BASE_URL}/api/special-pickup/${requestId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: 'missed', collector_id: collectorId })
+              });
+              const data = await res.json();
+              if (!res.ok) throw new Error(data.error || 'Failed to update request');
+              
+              Alert.alert('Success', 'Pickup marked as missed.');
+            } catch (e) {
+              Alert.alert('Update Failed', e.message || 'Could not mark as missed');
+              // rollback by reloading
+              await loadRequests();
+            }
+          }
+        }
+      ]
+    );
+  };
+
   const startNavigation = (request) => {
     const { address, pickup_latitude, pickup_longitude } = request;
     
-    // If GPS coordinates are available, use them for more accurate navigation
+    // If GPS coordinates are available, show on integrated map first
     if (pickup_latitude && pickup_longitude) {
-      const lat = parseFloat(pickup_latitude);
-      const lng = parseFloat(pickup_longitude);
+      // First show on the integrated map
+      showPickupOnMap(request);
       
+      // Then ask if they want external navigation
       Alert.alert(
-        'Navigate to Location',
-        `Navigate to GPS location: ${lat.toFixed(6)}, ${lng.toFixed(6)}\n\nAddress: ${address}`,
+        'Navigation Options',
+        `Location shown on map above.\n\nGPS: ${parseFloat(pickup_latitude).toFixed(6)}, ${parseFloat(pickup_longitude).toFixed(6)}\nAddress: ${address}`,
         [
-          { text: 'Cancel', style: 'cancel' },
+          { text: 'Stay on Map', style: 'cancel' },
           { 
-            text: 'Open Maps', 
+            text: 'Open External Maps', 
             onPress: () => {
+              const lat = parseFloat(pickup_latitude);
+              const lng = parseFloat(pickup_longitude);
               const url = Platform.OS === 'ios' 
                 ? `maps://app?daddr=${lat},${lng}`
                 : `google.navigation:q=${lat},${lng}`;
@@ -336,7 +373,7 @@ const SpecialPickup = () => {
             requests.map((req) => (
               <View key={req.request_id} style={styles.detailsCard}>
                 <View style={styles.userSection}>
-                  <Text style={styles.userName}>User ID: {req.user_id}</Text>
+                  <Text style={styles.userName}>{req.user_name || req.username || `User ID: ${req.user_id}`}</Text>
                   <Text style={styles.userId}>Status: {req.status}</Text>
                 </View>
 
@@ -438,6 +475,13 @@ const SpecialPickup = () => {
                   >
                     <MaterialIcons name="check-circle" size={20} color="#4CAF50" />
                     <Text style={[styles.buttonText, { color: '#4CAF50' }]}>Collected</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={styles.missedButton} 
+                    onPress={() => markAsMissed(req.request_id)}
+                  >
+                    <MaterialIcons name="cancel" size={20} color="#F44336" />
+                    <Text style={[styles.buttonText, { color: '#F44336' }]}>Missed</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -600,33 +644,54 @@ const styles = StyleSheet.create({
   actionButtons: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
     marginTop: 16,
-    gap: 12,
+    gap: 8,
   },
   navigateButton: {
     backgroundColor: '#4CAF50',
-    padding: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
     borderRadius: 8,
     flex: 1,
-    marginRight: 8,
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
+    minHeight: 44,
   },
   collectedButton: {
     backgroundColor: 'white',
-    padding: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
     borderRadius: 8,
     flex: 1,
     borderWidth: 1,
     borderColor: '#4CAF50',
+    flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
+    minHeight: 44,
+  },
+  missedButton: {
+    backgroundColor: 'white',
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    flex: 1,
+    borderWidth: 1,
+    borderColor: '#F44336',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    minHeight: 44,
   },
   buttonText: {
     color: 'white',
     fontWeight: 'bold',
-    marginLeft: 8,
+    marginLeft: 6,
+    fontSize: 12,
+    textAlign: 'center',
+    flex: 1,
   },
   // Map styles
   mapContainer: {

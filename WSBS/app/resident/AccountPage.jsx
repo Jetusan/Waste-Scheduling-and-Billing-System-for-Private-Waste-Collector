@@ -91,17 +91,30 @@ const AccountPage = () => {
     }
   };
 
-  const handleLogout = async () => {
-    try {
-      // Clear the token from secure storage
-      const { logout } = require('../auth');
-      await logout();
-      router.replace('/role');
-    } catch (error) {
-      console.error('Logout error:', error);
-      // Force navigation even if logout fails
-      router.replace('/role');
-    }
+  const handleLogout = () => {
+    Alert.alert(
+      'Logout',
+      'Are you sure you want to logout?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Logout',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              // Clear the token from secure storage
+              const { logout } = require('../auth');
+              await logout();
+              router.replace('/role');
+            } catch (error) {
+              console.error('Logout error:', error);
+              // Force navigation even if logout fails
+              router.replace('/role');
+            }
+          }
+        }
+      ]
+    );
   };
 
   if (loading) {
