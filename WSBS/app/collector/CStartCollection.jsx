@@ -7,6 +7,7 @@ import { API_BASE_URL } from '../config';
 import { getUserId, getToken, getCollectorId } from '../auth';
 import * as Location from 'expo-location';
 import EnhancedMissedCollectionModal from './components/EnhancedMissedCollectionModal';
+import { collectionStatusManager } from './CollectionStatusManager';
 
 // Fallback sample list shown only if we don't yet have real stops
 const sampleBarangays = [
@@ -48,6 +49,26 @@ const CStartCollection = () => {
   // Route issue reporting
   const [reportingIssue, setReportingIssue] = useState(false);
   const [issueReported, setIssueReported] = useState(null);
+  
+  // Progress tracking
+  const updateCollectionProgress = async () => {
+    if (!selectedBarangayId) return;
+    
+    try {
+      const totalStops = stops.length;
+      const completedStops = stops.filter(stop => stop.latest_action === 'collected').length;
+      
+      console.log(`📊 Updating progress: ${completedStops}/${totalStops} for barangay ${selectedBarangayId}`);
+      
+      await collectionStatusManager.updateProgress(
+        selectedBarangayId, 
+        completedStops, 
+        totalStops
+      );
+    } catch (error) {
+      console.error('Error updating progress:', error);
+    }
+  };
   const [issueChooserOpen, setIssueChooserOpen] = useState(false);
   const [actionChooserOpen, setActionChooserOpen] = useState(false);
   const [selectedIssue, setSelectedIssue] = useState(null); // { type, severity }
@@ -179,57 +200,53 @@ const CStartCollection = () => {
 
   useEffect(() => {
     (async () => {
-      setLoading(true);
-      setError(null);
       try {
-        const cid = await resolveCollectorId();
-        console.log('Resolved collector_id:', cid);
-        if (!cid) throw new Error('Missing collector id');
-
-        // Try to fetch today's active assignment for this collector.
-        // If barangay is selected, filter by barangay_id
-        let url = `${API_BASE_URL}/api/collector/assignments/today?collector_id=${encodeURIComponent(cid)}`;
-        if (selectedBarangayId) {
-          url += `&barangay_id=${encodeURIComponent(selectedBarangayId)}`;
-          console.log('🏘️ Filtering collections for barangay:', selectedBarangayName, '(ID:', selectedBarangayId, ')');
+        setLoading(true);
+        setError(null);
+        
+        const token = await getToken();
+        const collectorId = await getCollectorId();
+        
+        if (!token || !collectorId) {
+          setError('Authentication required');
+          return;
         }
-        console.log('Making API call to:', url);
-        const res = await fetch(url);
-        console.log('API response status:', res.status, res.statusText);
-        if (!res.ok) {
-          // 404/500 -> treat as no assignment
-          setAssignment(null);
-          setStops([]);
-        } else {
-          const data = await res.json();
-          console.log('Assignment API response:', data);
-          
-          // Handle API response: { assignment: {...}, stops: [...] }
-          if (data && data.assignment) {
-            console.log('Found assignment:', data.assignment);
-            console.log('Found stops:', data.stops);
-            setAssignment(data.assignment);
-            setStops(Array.isArray(data.stops) ? data.stops : []);
-          } else if (data && data.assignment_id) {
-            // Fallback for different response format
-            console.log('Found assignment (alt format):', data);
-            setAssignment(data);
-            setStops(Array.isArray(data.stops) ? data.stops : []);
-          } else if (Array.isArray(data) && data.length > 0) {
-            // If API returns an array of assignments, pick the first active
-            console.log('Using first assignment from array:', data[0]);
-            setAssignment(data[0]);
-            setStops([]);
-          } else {
-            console.log('No assignment data found');
-            setAssignment(null);
-            setStops([]);
+        
+        setCollectorId(collectorId);
+        
+        // Fetch assignments for today
+        const url = `${API_BASE_URL}/api/collector/assignments/today?collector_id=${collectorId}&barangay_id=${selectedBarangayId}`;
+        console.log('🔗 Fetching assignments from:', url);
+        
+        const response = await fetch(url, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
           }
+        });
+        
+        const data = await response.json();
+        console.log('📋 Assignment response:', JSON.stringify(data, null, 2));
+        
+        if (data.assignment) {
+          setAssignment(data.assignment);
+          setStops(data.stops || []);
+          console.log(`✅ Loaded ${data.stops?.length || 0} stops for collection`);
+          
+          // Initialize progress tracking if not already started
+          if (selectedBarangayId && data.stops?.length > 0) {
+            const currentStatus = await collectionStatusManager.getBarangayStatus(selectedBarangayId);
+            if (currentStatus.status === 'available') {
+              await collectionStatusManager.markAsInProgress(selectedBarangayId, data.stops.length, 0);
+            }
+          }
+        } else {
+          console.log('ℹ️ No assignment found for today');
+          setStops([]);
         }
       } catch (e) {
-        setAssignment(null);
-        setStops([]);
-        setError(e?.message || 'Failed to load assignment');
+        console.error('❌ Error loading assignments:', e);
+        setError('Failed to load assignments');
       } finally {
         setLoading(false);
       }
@@ -431,6 +448,9 @@ const CStartCollection = () => {
             : s
         ));
         
+        // Update progress in status manager
+        setTimeout(() => updateCollectionProgress(), 100);
+        
         // Refresh payment info to show updated status
         setTimeout(() => {
           setPaymentInfo(prev => ({ ...prev }));
@@ -564,6 +584,9 @@ const CStartCollection = () => {
             ? { ...s, latest_action: 'collected', latest_updated_at: new Date().toISOString() }
             : s
         )));
+        
+        // Update progress in status manager
+        setTimeout(() => updateCollectionProgress(), 100);
       } else {
         Alert.alert('Error', data?.message || 'Failed to mark as collected.');
       }
@@ -981,11 +1004,11 @@ const CStartCollection = () => {
 
   return (
     <View style={styles.container}>
-      {/* Header with Cancel (back) on the left and Report Issue on the right */}
+      {/* Header with Back button on the left and Report Issue on the right */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={20} color="#222" />
-          <Text style={styles.backText}>Cancel</Text>
+          <Text style={styles.backText}>Back</Text>
         </TouchableOpacity>
         
         {/* Show selected barangay */}

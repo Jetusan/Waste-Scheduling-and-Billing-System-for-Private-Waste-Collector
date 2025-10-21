@@ -223,7 +223,7 @@ export default function HomePage() {
               }
             }}
           />
-          <TouchableOpacity onPress={() => router.push('/resident/Settings')}>
+          <TouchableOpacity onPress={() => router.push('/Settings')}>
             <Ionicons
               name="settings-outline"
               size={28}

@@ -12,7 +12,8 @@ import {
 import { useRouter } from 'expo-router';
 import { Ionicons, MaterialIcons, Feather } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { getToken, getUserId } from '../auth';
+import { getToken, getUserId, logout } from './auth';
+import { API_BASE_URL } from './config';
 
 const Settings = () => {
   const router = useRouter();
@@ -22,8 +23,10 @@ const Settings = () => {
   const [userInfo, setUserInfo] = useState({
     name: 'Loading...',
     email: 'Loading...',
-    address: 'Loading...'
+    address: 'Loading...',
+    barangay: 'Loading...'
   });
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     loadSettings();
@@ -46,20 +49,58 @@ const Settings = () => {
 
   const loadUserInfo = async () => {
     try {
+      setLoading(true);
       const token = await getToken();
       const userId = await getUserId();
       
-      if (!token || !userId) return;
+      if (!token || !userId) {
+        setUserInfo({
+          name: 'Guest User',
+          email: 'Not logged in',
+          address: 'No address set',
+          barangay: 'Unknown'
+        });
+        setLoading(false);
+        return;
+      }
 
-      // You can fetch user profile info here
-      // For now, using placeholder data
-      setUserInfo({
-        name: 'John Doe',
-        email: 'john.doe@example.com',
-        address: 'City Heights, General Santos City'
+      // Fetch real user profile from API
+      const response = await fetch(`${API_BASE_URL}/api/auth/profile`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
       });
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log('👤 User profile loaded:', data);
+        
+        setUserInfo({
+          name: data.user?.full_name || `${data.user?.first_name || ''} ${data.user?.last_name || ''}`.trim() || 'Unknown User',
+          email: data.user?.email || 'No email',
+          address: data.user?.full_address || data.user?.address || 'No address set',
+          barangay: data.user?.barangay_name || 'Unknown barangay'
+        });
+      } else {
+        console.error('Failed to fetch user profile:', response.status);
+        setUserInfo({
+          name: 'Error loading profile',
+          email: 'Error loading email',
+          address: 'Error loading address',
+          barangay: 'Error loading barangay'
+        });
+      }
     } catch (error) {
       console.error('Error loading user info:', error);
+      setUserInfo({
+        name: 'Error loading profile',
+        email: 'Network error',
+        address: 'Unable to load address',
+        barangay: 'Unable to load barangay'
+      });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -97,15 +138,66 @@ const Settings = () => {
           style: 'destructive',
           onPress: async () => {
             try {
-              await AsyncStorage.multiRemove(['token', 'user_id', 'user_role']);
-              router.replace('/auth/login');
+              // Use the proper logout function
+              await logout();
+              router.replace('/welcome');
             } catch (error) {
               console.error('Error during logout:', error);
+              // Fallback manual cleanup
+              await AsyncStorage.multiRemove(['token', 'user_id', 'user_role']);
+              router.replace('/welcome');
             }
           }
         }
       ]
     );
+  };
+
+  const handleEditProfile = () => {
+    // Navigate to profile editing screen
+    router.push('/resident/Profile');
+  };
+
+  const handlePaymentMethods = () => {
+    // Navigate to payment methods screen
+    router.push('/PaymentPage');
+  };
+
+  const handleHelp = () => {
+    Alert.alert(
+      'Help & FAQ',
+      'Common Questions:\n\n• How to schedule a pickup?\n• Payment methods\n• Collection times\n• Contact support\n\nFor more help, contact our support team.',
+      [{ text: 'OK' }]
+    );
+  };
+
+  const handleContactSupport = () => {
+    Alert.alert(
+      'Contact Support',
+      'Need help? Contact us:\n\n📧 Email: support@wasteapp.com\n📞 Phone: (083) 123-4567\n🕒 Hours: 8AM - 5PM Mon-Fri\n\nOr visit our office at General Santos City.',
+      [
+        { text: 'OK' },
+        { 
+          text: 'Call Now', 
+          onPress: () => Alert.alert('Calling', 'This would open your phone dialer')
+        }
+      ]
+    );
+  };
+
+  const handleRateApp = () => {
+    Alert.alert(
+      'Rate Our App',
+      'Help us improve by rating the app!\n\n⭐⭐⭐⭐⭐\n\nYour feedback helps us provide better service.',
+      [
+        { text: 'Later' },
+        { text: 'Rate Now', onPress: () => Alert.alert('Thank You!', 'Thank you for your feedback!') }
+      ]
+    );
+  };
+
+  const handleTermsPrivacy = () => {
+    router.push('/TermsAndConditions');
   };
 
   const SettingItem = ({ icon, title, subtitle, onPress, rightComponent, iconColor = '#4CAF50' }) => (
@@ -140,15 +232,26 @@ const Settings = () => {
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Profile Section */}
+        {/* User Info Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Profile</Text>
+          <Text style={styles.sectionTitle}>Account</Text>
+          
+          <View style={styles.userInfoCard}>
+            <View style={styles.avatarContainer}>
+              <Ionicons name="person-circle" size={60} color="#4CAF50" />
+            </View>
+            <View style={styles.userDetails}>
+              <Text style={styles.userName}>{loading ? 'Loading...' : userInfo.name}</Text>
+              <Text style={styles.userEmail}>{loading ? 'Loading...' : userInfo.email}</Text>
+              <Text style={styles.userAddress}>{loading ? 'Loading...' : `${userInfo.barangay}, ${userInfo.address}`}</Text>
+            </View>
+          </View>
           
           <SettingItem
             icon={<Ionicons name="person" size={24} color="#4CAF50" />}
             title="Edit Profile"
             subtitle="Update your personal information"
-            onPress={() => router.push('/resident/Profile')}
+            onPress={handleEditProfile}
           />
           
           <SettingItem
@@ -163,7 +266,7 @@ const Settings = () => {
             icon={<MaterialIcons name="payment" size={24} color="#FF9800" />}
             title="Payment Methods"
             subtitle="Manage your payment options"
-            onPress={() => router.push('/resident/PaymentMethods')}
+            onPress={handlePaymentMethods}
             iconColor="#FF9800"
           />
         </View>
@@ -226,7 +329,7 @@ const Settings = () => {
             icon={<Ionicons name="help-circle" size={24} color="#607D8B" />}
             title="Help & FAQ"
             subtitle="Get help and find answers"
-            onPress={() => router.push('/resident/Help')}
+            onPress={handleHelp}
             iconColor="#607D8B"
           />
           
@@ -234,7 +337,7 @@ const Settings = () => {
             icon={<Ionicons name="chatbubble" size={24} color="#795548" />}
             title="Contact Support"
             subtitle="Get in touch with our team"
-            onPress={() => router.push('/resident/ContactSupport')}
+            onPress={handleContactSupport}
             iconColor="#795548"
           />
           
@@ -242,7 +345,7 @@ const Settings = () => {
             icon={<Ionicons name="star" size={24} color="#FFC107" />}
             title="Rate App"
             subtitle="Help us improve the app"
-            onPress={() => Alert.alert('Rate App', 'Thank you for your feedback!')}
+            onPress={handleRateApp}
             iconColor="#FFC107"
           />
         </View>
@@ -263,7 +366,7 @@ const Settings = () => {
             icon={<Ionicons name="document-text" size={24} color="#9E9E9E" />}
             title="Terms & Privacy"
             subtitle="Read our terms and privacy policy"
-            onPress={() => router.push('/resident/TermsPrivacy')}
+            onPress={handleTermsPrivacy}
             iconColor="#9E9E9E"
           />
         </View>
@@ -333,6 +436,35 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: '#f0f0f0',
+  },
+  userInfoCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  avatarContainer: {
+    marginRight: 16,
+  },
+  userDetails: {
+    flex: 1,
+  },
+  userName: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 4,
+  },
+  userEmail: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 2,
+  },
+  userAddress: {
+    fontSize: 12,
+    color: '#999',
   },
   settingItem: {
     flexDirection: 'row',
