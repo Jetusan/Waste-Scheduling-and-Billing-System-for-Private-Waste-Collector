@@ -89,19 +89,26 @@ const CSelectBarangay = () => {
       const token = await getToken();
       const collectorId = await getCollectorId();
       
-      const checkResponse = await fetch(
-        `${API_BASE_URL}/api/collector/assignments/today?collector_id=${collectorId}&barangay_id=${barangay.barangay_id}`,
-        {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
+      const apiUrl = `${API_BASE_URL}/api/collector/assignments/today?collector_id=${collectorId}&barangay_id=${barangay.barangay_id}`;
+      console.log('🔗 API URL:', apiUrl);
+      console.log('🔑 Collector ID:', collectorId);
+      console.log('🏘️ Barangay ID:', barangay.barangay_id);
+      
+      const checkResponse = await fetch(apiUrl, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
         }
-      );
+      });
 
       const checkData = await checkResponse.json();
+      console.log('🔍 Collection check response:', JSON.stringify(checkData, null, 2));
+      console.log('🔍 Response status:', checkResponse.status);
+      console.log('🔍 Stops array:', checkData.stops);
+      console.log('🔍 Stops length:', checkData.stops ? checkData.stops.length : 'undefined');
+      console.log('🔍 Assignment:', checkData.assignment);
       
-      if (checkData.success && checkData.stops && checkData.stops.length > 0) {
+      if (checkData.stops && checkData.stops.length > 0) {
         // Navigate to collection page with selected barangay
         console.log('✅ Starting collection for barangay:', barangay.barangay_name);
         router.push({

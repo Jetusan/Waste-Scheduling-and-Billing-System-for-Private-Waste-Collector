@@ -10,11 +10,11 @@ const PRODUCTION_API = 'https://waste-scheduling-and-billing-system-for.onrender
 // For development, use local if explicitly set
 const expoPublicApi = process.env.EXPO_PUBLIC_API_BASE;
 
-// DEPLOYMENT CONFIGURATION: Always use production URL
-// This ensures your deployed app always connects to production backend
+// PRODUCTION CONFIGURATION: Use production backend on Render
+// This connects to your deployed backend
 export const API_BASE_URL = expoPublicApi
   ? expoPublicApi
-  : PRODUCTION_API;  // Always use production for deployment
+  : PRODUCTION_API;  // Use production backend
 
 // Default export to fix route warning
 export default { API_BASE_URL, LOCAL_IP };
