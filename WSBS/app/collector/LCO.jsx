@@ -175,7 +175,7 @@ const LCO = () => {
             <TouchableOpacity style={styles.buttonLightGreen}>
               <Text style={styles.buttonText}>Yesterday&apos;s Overview</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.buttonGreen} onPress={() => router.push('/collector/CStartCollection')}>
+            <TouchableOpacity style={styles.buttonGreen} onPress={() => router.push('/collector/CSelectBarangay')}>
               <Text style={styles.buttonText}>Start Collections</Text>
             </TouchableOpacity>
           </View>
@@ -199,8 +199,10 @@ const styles = StyleSheet.create({
     height: 200,
     width: '100%',
     justifyContent: 'flex-start',
+    alignItems: 'flex-start',
     paddingTop: 40,
     paddingHorizontal: 16,
+    resizeMode: 'cover',
   },
   backButton: {
     padding: 8,

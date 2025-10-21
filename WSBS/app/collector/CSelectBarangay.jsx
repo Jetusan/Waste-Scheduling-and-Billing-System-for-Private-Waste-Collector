@@ -185,10 +185,35 @@ const CSelectBarangay = () => {
           }
         });
       } else {
+        // Mark as no schedule and show detailed message
+        await collectionStatusManager.markAsNoSchedule(barangay.barangay_id);
+        await loadCollectionStatus();
+        
+        const today = new Date().toLocaleDateString('en-US', { weekday: 'long', timeZone: 'Asia/Manila' });
+        let message = `No collections available for ${barangay.barangay_name} today (${today}).`;
+        
+        if (checkData.message) {
+          message = checkData.message;
+        } else if (!checkData.assignment) {
+          message = `No collection schedule found for ${barangay.barangay_name} on ${today}.\n\nPossible reasons:\n• No collection schedule set up for ${today}\n• No residents with active subscriptions\n• All residents already collected\n\nContact admin to set up collection schedules.`;
+        }
+        
         Alert.alert(
           'No Collections Available',
-          `There are no residents to collect in ${barangay.barangay_name} today.`,
-          [{ text: 'OK' }]
+          message,
+          [
+            { text: 'OK' },
+            { 
+              text: 'Debug Info', 
+              onPress: () => {
+                Alert.alert(
+                  'Debug Information',
+                  `Barangay: ${barangay.barangay_name}\nDay: ${today}\nBarangay ID: ${barangay.barangay_id}\nCollector ID: ${collectorId}\n\nAPI Response:\n${JSON.stringify(checkData, null, 2)}`,
+                  [{ text: 'OK' }]
+                );
+              }
+            }
+          ]
         );
       }
     } catch (err) {

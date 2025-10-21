@@ -223,13 +223,14 @@ export default function HomePage() {
               }
             }}
           />
-          <Ionicons
-            name="settings-outline"
-            size={28}
-            color="#FFFFFF"
-            style={styles.settingsIcon}
-            onPress={() => router.push('/SetHomeLocation')}
-          />
+          <TouchableOpacity onPress={() => router.push('/resident/Settings')}>
+            <Ionicons
+              name="settings-outline"
+              size={28}
+              color="#FFFFFF"
+              style={styles.settingsIcon}
+            />
+          </TouchableOpacity>
         </View>
       </View>
 
