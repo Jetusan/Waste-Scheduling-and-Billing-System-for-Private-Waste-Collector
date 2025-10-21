@@ -11,15 +11,20 @@ const createSpecialPickupRequest = async (data) => {
     address,
     notes,
     image_url,
-    message
+    message,
+    pickup_latitude,
+    pickup_longitude
   } = data;
   const query = `
     INSERT INTO special_pickup_requests
-      (user_id, waste_type, description, pickup_date, pickup_time, address, notes, image_url, message)
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      (user_id, waste_type, description, pickup_date, pickup_time, address, notes, image_url, message, pickup_latitude, pickup_longitude)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
     RETURNING *
   `;
-  const values = [user_id, waste_type, description, pickup_date, pickup_time, address, notes, image_url, message];
+  const values = [
+    user_id, waste_type, description, pickup_date, pickup_time, 
+    address, notes, image_url, message, pickup_latitude, pickup_longitude
+  ];
   const result = await pool.query(query, values);
   return result.rows[0];
 };

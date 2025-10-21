@@ -11,10 +11,12 @@ import {
   StatusBar,
   Image,
   Platform,
+  Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import * as Location from 'expo-location';
 import { useRouter } from 'expo-router';
 import { getToken, getUserId, logout } from './auth';
 import { API_BASE_URL } from './config';
@@ -34,6 +36,11 @@ const SPickup = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [currentUserId, setCurrentUserId] = useState(null);
   const [userProfile, setUserProfile] = useState(null);
+  
+  // Location states
+  const [pickupLocation, setPickupLocation] = useState(null); // { latitude, longitude, address }
+  const [isGettingLocation, setIsGettingLocation] = useState(false);
+  const [locationPermissionGranted, setLocationPermissionGranted] = useState(false);
   
   // New states for preview mode
   const [showForm, setShowForm] = useState(false);
@@ -198,7 +205,99 @@ const SPickup = () => {
   // Fetch requests on component mount
   useEffect(() => {
     fetchSpecialRequests();
+    checkLocationPermission();
   }, []);
+
+  // Check location permission on component mount
+  const checkLocationPermission = async () => {
+    try {
+      const { status } = await Location.getForegroundPermissionsAsync();
+      setLocationPermissionGranted(status === 'granted');
+    } catch (error) {
+      console.error('Error checking location permission:', error);
+    }
+  };
+
+  // Get current location for pickup
+  const getCurrentLocation = async () => {
+    try {
+      setIsGettingLocation(true);
+      
+      // Request permission if not granted
+      if (!locationPermissionGranted) {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== 'granted') {
+          Alert.alert(
+            'Permission Required',
+            'Location permission is needed to set pickup location. You can still enter the address manually.',
+            [
+              { text: 'OK', style: 'default' },
+              {
+                text: 'Open Settings',
+                onPress: () => {
+                  if (Platform.OS === 'ios') {
+                    Linking.openURL('app-settings:');
+                  } else {
+                    Linking.openSettings();
+                  }
+                }
+              }
+            ]
+          );
+          return;
+        }
+        setLocationPermissionGranted(true);
+      }
+
+      // Get current position
+      const location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.High,
+        timeout: 10000,
+      });
+
+      // Reverse geocode to get address
+      const reverseGeocode = await Location.reverseGeocodeAsync({
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+      });
+
+      let formattedAddress = 'Current Location';
+      if (reverseGeocode && reverseGeocode.length > 0) {
+        const addr = reverseGeocode[0];
+        formattedAddress = `${addr.street || ''} ${addr.name || ''}, ${addr.city || ''}, ${addr.region || ''}`
+          .replace(/,\s*,/g, ',')
+          .replace(/^,\s*|,\s*$/g, '')
+          .trim();
+      }
+
+      const locationData = {
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+        address: formattedAddress
+      };
+
+      setPickupLocation(locationData);
+      setAddress(formattedAddress);
+      
+      Alert.alert('Success', 'Location set successfully!');
+      
+    } catch (error) {
+      console.error('Error getting location:', error);
+      Alert.alert(
+        'Location Error',
+        'Unable to get current location. Please enter the address manually or try again.',
+        [{ text: 'OK', style: 'default' }]
+      );
+    } finally {
+      setIsGettingLocation(false);
+    }
+  };
+
+  // Clear selected location
+  const clearLocation = () => {
+    setPickupLocation(null);
+    setAddress('');
+  };
 
   const handleSubmit = async () => {
     // Basic validation
@@ -260,6 +359,12 @@ const SPickup = () => {
       formData.append('address', address);
       formData.append('notes', notes);
       formData.append('message', message);
+      
+      // Add GPS coordinates if available
+      if (pickupLocation) {
+        formData.append('pickup_latitude', pickupLocation.latitude.toString());
+        formData.append('pickup_longitude', pickupLocation.longitude.toString());
+      }
 
       // Add image if selected
       if (image) {
@@ -595,15 +700,55 @@ const SPickup = () => {
           />
         )}
 
-        {/* Address Section */}
+        {/* Address Section with Location Picker */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Ionicons name="location-outline" size={20} color="#4CAF50" />
-            <Text style={styles.sectionTitle}>Pickup Address</Text>
+            <Text style={styles.sectionTitle}>Pickup Location</Text>
           </View>
+          
+          {/* Location Status Display */}
+          {pickupLocation && (
+            <View style={styles.locationStatusContainer}>
+              <View style={styles.locationStatusHeader}>
+                <Ionicons name="checkmark-circle" size={20} color="#4CAF50" />
+                <Text style={styles.locationStatusText}>GPS Location Set</Text>
+                <TouchableOpacity onPress={clearLocation} style={styles.clearLocationButton}>
+                  <Ionicons name="close-circle" size={20} color="#ff4444" />
+                </TouchableOpacity>
+              </View>
+              <Text style={styles.coordinatesText}>
+                📍 {pickupLocation.latitude.toFixed(6)}, {pickupLocation.longitude.toFixed(6)}
+              </Text>
+            </View>
+          )}
+          
+          {/* Location Action Buttons */}
+          <View style={styles.locationButtonsContainer}>
+            <TouchableOpacity
+              style={[styles.locationButton, isGettingLocation && styles.locationButtonDisabled]}
+              onPress={getCurrentLocation}
+              disabled={isGettingLocation}
+              activeOpacity={0.7}
+            >
+              {isGettingLocation ? (
+                <>
+                  <Ionicons name="hourglass-outline" size={20} color="#fff" />
+                  <Text style={styles.locationButtonText}>Getting Location...</Text>
+                </>
+              ) : (
+                <>
+                  <Ionicons name="locate" size={20} color="#fff" />
+                  <Text style={styles.locationButtonText}>Use Current Location</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+          
+          {/* Address Input */}
           <View style={styles.inputContainer}>
             <TextInput
-              placeholder="Enter your complete address"
+              placeholder={pickupLocation ? "Address (auto-filled from GPS)" : "Or enter address manually"}
               placeholderTextColor="#999"
               value={address}
               onChangeText={setAddress}
@@ -611,6 +756,10 @@ const SPickup = () => {
               multiline
             />
           </View>
+          
+          <Text style={styles.locationHelpText}>
+            💡 Use GPS for accurate location or enter address manually
+          </Text>
         </View>
 
         {/* Special Instructions Section */}
@@ -1053,6 +1202,70 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     marginLeft: 4,
+  },
+  // Location picker styles
+  locationStatusContainer: {
+    backgroundColor: '#e8f5e8',
+    borderRadius: 8,
+    padding: 12,
+    marginTop: 8,
+    borderLeftWidth: 4,
+    borderLeftColor: '#4CAF50',
+  },
+  locationStatusHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  locationStatusText: {
+    color: '#2e7d32',
+    fontSize: 14,
+    fontWeight: '600',
+    marginLeft: 8,
+    flex: 1,
+  },
+  clearLocationButton: {
+    padding: 4,
+  },
+  coordinatesText: {
+    color: '#2e7d32',
+    fontSize: 12,
+    marginTop: 4,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+  },
+  locationButtonsContainer: {
+    marginTop: 12,
+  },
+  locationButton: {
+    backgroundColor: '#4CAF50',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 14,
+    borderRadius: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  locationButtonDisabled: {
+    backgroundColor: '#95a5a6',
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  locationButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+    marginLeft: 8,
+  },
+  locationHelpText: {
+    color: '#666',
+    fontSize: 12,
+    marginTop: 8,
+    textAlign: 'center',
+    fontStyle: 'italic',
   },
 });
 
