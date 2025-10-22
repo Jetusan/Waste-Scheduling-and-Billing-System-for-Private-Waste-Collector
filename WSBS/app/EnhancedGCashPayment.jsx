@@ -16,7 +16,6 @@ import { Ionicons } from '@expo/vector-icons';
 
 const EnhancedGCashPayment = ({ route, navigation }) => {
   const {
-    qr_code,
     payment_reference,
     amount,
     merchant_info,
@@ -130,7 +129,7 @@ const EnhancedGCashPayment = ({ route, navigation }) => {
         [
           { text: 'Install GCash', onPress: () => Linking.openURL(Platform.OS === 'ios' ? 'https://apps.apple.com/ph/app/gcash/id520948088' : 'https://play.google.com/store/apps/details?id=com.globe.gcash.android') },
           { text: 'Manual Payment', onPress: handleManualPayment },
-          { text: 'Use QR Code', style: 'cancel' }
+          { text: 'Cancel', style: 'cancel' }
         ]
       );
     }
@@ -309,16 +308,6 @@ const EnhancedGCashPayment = ({ route, navigation }) => {
           </TouchableOpacity>
         </View>
 
-        {/* QR Code Section */}
-        <View style={styles.qrSection}>
-          <Text style={styles.sectionTitle}>Or scan QR code</Text>
-          <View style={styles.qrContainer}>
-            <Image source={{ uri: qr_code }} style={styles.qrCode} />
-            <Text style={styles.qrInstructions}>
-              Scan with any QR scanner or camera app
-            </Text>
-          </View>
-        </View>
 
         {/* Manual Payment Option */}
         <TouchableOpacity style={styles.manualButton} onPress={handleManualPayment}>
@@ -484,38 +473,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     color: '#00A651',
-  },
-  qrSection: {
-    paddingHorizontal: 20,
-    marginBottom: 20,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
-    textAlign: 'center',
-    marginBottom: 15,
-  },
-  qrContainer: {
-    backgroundColor: '#fff',
-    borderRadius: 15,
-    padding: 20,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  qrCode: {
-    width: 200,
-    height: 200,
-    marginBottom: 15,
-  },
-  qrInstructions: {
-    fontSize: 14,
-    color: '#666',
-    textAlign: 'center',
   },
   manualButton: {
     flexDirection: 'row',

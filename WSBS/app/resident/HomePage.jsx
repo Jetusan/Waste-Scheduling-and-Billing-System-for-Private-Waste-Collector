@@ -74,14 +74,33 @@ export default function HomePage() {
         if (subscriptionResponse?.ok) {
           try {
             const subscriptionData = await subscriptionResponse.json();
-            console.log('🔄 Subscription loaded successfully');
-            if (subscriptionData.has_subscription && subscriptionData.subscription?.status === 'active') {
-              setSubscriptionStatus('active');
+            console.log('🔄 Subscription loaded successfully:', subscriptionData);
+            
+            // Handle both response formats: hasSubscription (new) and has_subscription (old)
+            const hasSubscription = subscriptionData.hasSubscription ?? subscriptionData.has_subscription;
+            const subscriptionStatus = subscriptionData.subscription?.status;
+            const uiState = subscriptionData.uiState;
+            
+            console.log('🔄 Subscription details:', { hasSubscription, subscriptionStatus, uiState });
+            
+            if (hasSubscription) {
+              // Check subscription state based on uiState or subscription status
+              if (uiState === 'active' || subscriptionStatus === 'active') {
+                setSubscriptionStatus('active');
+                console.log('🔄 Setting subscription status to ACTIVE');
+              } else if (uiState === 'pending_gcash' || uiState === 'pending_cash' || subscriptionStatus === 'pending_payment') {
+                setSubscriptionStatus('pending');
+                console.log('🔄 Setting subscription status to PENDING');
+              } else {
+                setSubscriptionStatus('pending'); // Default to pending if has subscription but unknown state
+                console.log('🔄 Setting subscription status to PENDING (default)');
+              }
             } else {
               setSubscriptionStatus('none');
+              console.log('🔄 Setting subscription status to NONE');
             }
           } catch (err) {
-            console.log('🔄 Subscription data parsing failed');
+            console.log('🔄 Subscription data parsing failed:', err);
             setSubscriptionStatus('none');
           }
         } else if (subscriptionResponse?.status === 401) {
@@ -160,10 +179,28 @@ export default function HomePage() {
       
       if (response.ok) {
         const data = await response.json();
-        setSubscriptionStatus(
-          data.has_subscription && data.subscription?.status === 'active' ? 'active' : 'none'
-        );
-        console.log('🔄 Subscription refreshed successfully');
+        console.log('🔄 Quick refresh data:', data);
+        
+        // Handle both response formats
+        const hasSubscription = data.hasSubscription ?? data.has_subscription;
+        const subscriptionStatus = data.subscription?.status;
+        const uiState = data.uiState;
+        
+        if (hasSubscription) {
+          if (uiState === 'active' || subscriptionStatus === 'active') {
+            setSubscriptionStatus('active');
+            console.log('🔄 Quick refresh: Setting to ACTIVE');
+          } else if (uiState === 'pending_gcash' || uiState === 'pending_cash' || subscriptionStatus === 'pending_payment') {
+            setSubscriptionStatus('pending');
+            console.log('🔄 Quick refresh: Setting to PENDING');
+          } else {
+            setSubscriptionStatus('pending'); // Default to pending if has subscription
+            console.log('🔄 Quick refresh: Setting to PENDING (default)');
+          }
+        } else {
+          setSubscriptionStatus('none');
+          console.log('🔄 Quick refresh: Setting to NONE');
+        }
       } else {
         setSubscriptionStatus('none');
       }
@@ -270,10 +307,10 @@ export default function HomePage() {
         <Text style={styles.servicesTitle}>Choose your services</Text>
         <View style={[
           styles.servicesContainer,
-          { justifyContent: subscriptionStatus === 'active' ? 'space-between' : 'space-around' }
+          { justifyContent: (subscriptionStatus === 'active' || subscriptionStatus === 'pending') ? 'space-between' : 'space-around' }
         ]}>
-          {/* Collection Schedule - Only show if user has active subscription */}
-          {subscriptionStatus === 'active' && (
+          {/* Collection Schedule - Only show if user has active or pending subscription */}
+          {(subscriptionStatus === 'active' || subscriptionStatus === 'pending') && (
             <Pressable 
               style={styles.serviceButton}
               onPress={() => router.push('/AllSchedules')}
@@ -299,12 +336,12 @@ export default function HomePage() {
           <Pressable 
             style={[
               styles.serviceButton,
-              { width: subscriptionStatus === 'active' ? '48%' : '45%' }
+              { width: (subscriptionStatus === 'active' || subscriptionStatus === 'pending') ? '48%' : '45%' }
             ]}
             onPress={() => {
-              // Navigate based on subscription status - same as previous
+              // Navigate based on subscription status
               console.log('🔥 Button pressed! Current subscriptionStatus:', subscriptionStatus);
-              if (subscriptionStatus === 'active') {
+              if (subscriptionStatus === 'active' || subscriptionStatus === 'pending') {
                 console.log('🔥 Navigating to SubscriptionStatusScreen');
                 router.push('/SubscriptionStatusScreen');
               } else {
@@ -314,12 +351,13 @@ export default function HomePage() {
             }}
           >
             <Ionicons 
-              name={subscriptionStatus === 'active' ? "checkmark-circle-outline" : "pricetag-outline"} 
+              name={subscriptionStatus === 'active' ? "checkmark-circle-outline" : subscriptionStatus === 'pending' ? "time-outline" : "pricetag-outline"} 
               size={28} 
               color="#4CD964" 
             />
             <Text style={styles.serviceText}>
-              {subscriptionLoading ? 'Loading...' : (subscriptionStatus === 'active' ? 'My Subscription' : 'Subscriptions')}
+              {subscriptionLoading ? 'Loading...' : 
+                (subscriptionStatus === 'active' || subscriptionStatus === 'pending') ? 'My Subscription' : 'Subscription'}
             </Text>
             {subscriptionLoading && (
               <View style={styles.loadingDot}>
