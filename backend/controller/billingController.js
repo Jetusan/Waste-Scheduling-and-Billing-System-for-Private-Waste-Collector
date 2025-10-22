@@ -8,6 +8,7 @@ const {
   notifyLateFeeAdded,
   notifyMonthlyInvoicesGenerated
 } = require('../services/subscriptionNotificationService');
+const QRCode = require('qrcode');
 
 // Subscription Plans Controllers
 const getAllSubscriptionPlans = async (req, res) => {
@@ -1203,6 +1204,321 @@ const getPaymentAttemptAnalytics = async (req, res) => {
   }
 };
 
+// GCash QR Configuration (Environment-aware)
+const GCASH_CONFIG = {
+  merchant_name: process.env.GCASH_MERCHANT_NAME || "WSBS Waste Collection",
+  gcash_number: process.env.GCASH_NUMBER || "09123456789", // ⚠️ SET IN RENDER ENVIRONMENT
+  account_name: process.env.GCASH_ACCOUNT_NAME || "Your Name" // ⚠️ SET IN RENDER ENVIRONMENT
+};
+
+// Create GCash QR Payment (Like your screenshot)
+const createGCashQRPayment = async (req, res) => {
+  try {
+    const { amount, subscription_id, user_id, description } = req.body;
+    
+    if (!amount || !subscription_id) {
+      return res.status(400).json({
+        error: 'Missing required fields: amount and subscription_id'
+      });
+    }
+
+    // Create unique payment reference
+    const paymentReference = `WSBS-${subscription_id}-${Date.now()}`;
+    
+    // Create GCash payment data (similar to your screenshot format)
+    const gcashPaymentData = {
+      merchant_name: GCASH_CONFIG.merchant_name,
+      gcash_number: GCASH_CONFIG.gcash_number,
+      account_name: GCASH_CONFIG.account_name,
+      amount: parseFloat(amount),
+      reference: paymentReference,
+      description: description || `WSBS Subscription Payment`
+    };
+
+    // Generate QR code (this will create the QR like in your screenshot)
+    const qrString = `GCash Payment\nMerchant: ${GCASH_CONFIG.merchant_name}\nAmount: ₱${amount}\nReference: ${paymentReference}\nScan to pay with GCash`;
+    
+    const qrCodeImage = await QRCode.toDataURL(qrString, {
+      width: 300,
+      margin: 2,
+      color: {
+        dark: '#000000',
+        light: '#ffffff'
+      }
+    });
+
+    // Create table and store payment record
+    const createTableQuery = `
+      CREATE TABLE IF NOT EXISTS gcash_qr_payments (
+        id SERIAL PRIMARY KEY,
+        payment_reference VARCHAR(100) UNIQUE NOT NULL,
+        subscription_id INTEGER,
+        user_id INTEGER,
+        amount DECIMAL(10,2) NOT NULL,
+        status VARCHAR(20) DEFAULT 'pending',
+        qr_data TEXT,
+        merchant_gcash_number VARCHAR(20),
+        gcash_reference VARCHAR(100),
+        receipt_image TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        verified_at TIMESTAMP,
+        expires_at TIMESTAMP DEFAULT (CURRENT_TIMESTAMP + INTERVAL '30 minutes')
+      )
+    `;
+    
+    await pool.query(createTableQuery);
+
+    // Insert payment record
+    const insertQuery = `
+      INSERT INTO gcash_qr_payments (
+        payment_reference, subscription_id, user_id, amount, 
+        qr_data, merchant_gcash_number
+      ) VALUES ($1, $2, $3, $4, $5, $6)
+      RETURNING *
+    `;
+    
+    const result = await pool.query(insertQuery, [
+      paymentReference,
+      subscription_id,
+      user_id,
+      amount,
+      qrString,
+      GCASH_CONFIG.gcash_number
+    ]);
+
+    res.json({
+      success: true,
+      payment_reference: paymentReference,
+      qr_code_image: qrCodeImage,
+      amount: parseFloat(amount),
+      merchant_info: {
+        name: GCASH_CONFIG.merchant_name,
+        gcash_number: GCASH_CONFIG.gcash_number,
+        account_name: GCASH_CONFIG.account_name
+      },
+      instructions: [
+        "1. Open your GCash app",
+        "2. Tap 'Scan QR' or use QR Scanner",
+        "3. Scan the QR code below",
+        "4. Verify the amount and merchant",
+        "5. Complete the payment",
+        "6. Take screenshot of receipt",
+        "7. Upload receipt to confirm payment"
+      ],
+      expires_in: "30 minutes"
+    });
+
+  } catch (error) {
+    console.error('Error creating GCash QR payment:', error);
+    res.status(500).json({
+      error: 'Failed to create GCash QR payment',
+      details: error.message
+    });
+  }
+};
+
+// Upload receipt for verification
+const uploadGCashReceipt = async (req, res) => {
+  try {
+    const { payment_reference, gcash_reference, receipt_image } = req.body;
+    
+    if (!payment_reference || !gcash_reference) {
+      return res.status(400).json({
+        error: 'Payment reference and GCash reference are required'
+      });
+    }
+
+    // Update payment with receipt
+    const updateQuery = `
+      UPDATE gcash_qr_payments 
+      SET 
+        gcash_reference = $1,
+        receipt_image = $2,
+        status = 'pending_verification',
+        verified_at = NOW()
+      WHERE payment_reference = $3
+      RETURNING *
+    `;
+    
+    const result = await pool.query(updateQuery, [
+      gcash_reference,
+      receipt_image,
+      payment_reference
+    ]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        error: 'Payment reference not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Receipt uploaded successfully. Payment is being verified.',
+      status: 'pending_verification'
+    });
+
+  } catch (error) {
+    console.error('Error uploading receipt:', error);
+    res.status(500).json({
+      error: 'Failed to upload receipt',
+      details: error.message
+    });
+  }
+};
+
+// Admin: Verify payment and activate subscription
+const verifyGCashQRPayment = async (req, res) => {
+  try {
+    const { payment_reference, approved } = req.body;
+    
+    if (!payment_reference || approved === undefined) {
+      return res.status(400).json({
+        error: 'Payment reference and approval status are required'
+      });
+    }
+
+    const status = approved ? 'verified' : 'rejected';
+    
+    // Update payment status
+    const updateQuery = `
+      UPDATE gcash_qr_payments 
+      SET status = $1
+      WHERE payment_reference = $2
+      RETURNING *
+    `;
+    
+    const result = await pool.query(updateQuery, [status, payment_reference]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        error: 'Payment not found'
+      });
+    }
+
+    const payment = result.rows[0];
+
+    if (approved) {
+      // Activate subscription
+      const activateQuery = `
+        UPDATE customer_subscriptions 
+        SET 
+          status = 'active',
+          payment_status = 'paid',
+          payment_method = 'gcash_qr',
+          updated_at = NOW()
+        WHERE subscription_id = $1
+      `;
+      
+      await pool.query(activateQuery, [payment.subscription_id]);
+
+      // Create payment record
+      const paymentQuery = `
+        INSERT INTO payments (
+          subscription_id, amount, payment_method, 
+          payment_date, reference_number, status
+        ) VALUES ($1, $2, $3, NOW(), $4, $5)
+      `;
+      
+      await pool.query(paymentQuery, [
+        payment.subscription_id,
+        payment.amount,
+        'GCash QR',
+        payment.gcash_reference,
+        'completed'
+      ]);
+    }
+
+    res.json({
+      success: true,
+      message: approved ? 'Payment verified and subscription activated' : 'Payment rejected',
+      payment: payment
+    });
+
+  } catch (error) {
+    console.error('Error verifying payment:', error);
+    res.status(500).json({
+      error: 'Failed to verify payment',
+      details: error.message
+    });
+  }
+};
+
+// Get payment status
+const getGCashQRPaymentStatus = async (req, res) => {
+  try {
+    const { payment_reference } = req.params;
+    
+    const query = `
+      SELECT gqp.*, cs.status as subscription_status
+      FROM gcash_qr_payments gqp
+      LEFT JOIN customer_subscriptions cs ON gqp.subscription_id = cs.subscription_id
+      WHERE gqp.payment_reference = $1
+    `;
+    
+    const result = await pool.query(query, [payment_reference]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        error: 'Payment not found'
+      });
+    }
+
+    const payment = result.rows[0];
+    
+    res.json({
+      success: true,
+      payment: {
+        reference: payment.payment_reference,
+        amount: payment.amount,
+        status: payment.status,
+        subscription_status: payment.subscription_status,
+        created_at: payment.created_at,
+        expires_at: payment.expires_at,
+        gcash_reference: payment.gcash_reference
+      }
+    });
+
+  } catch (error) {
+    console.error('Error getting payment status:', error);
+    res.status(500).json({
+      error: 'Failed to get payment status',
+      details: error.message
+    });
+  }
+};
+
+// Get pending payments for admin
+const getPendingGCashQRPayments = async (req, res) => {
+  try {
+    const query = `
+      SELECT 
+        gqp.*,
+        u.username,
+        COALESCE(un.first_name || ' ' || un.last_name, u.username) as user_name
+      FROM gcash_qr_payments gqp
+      JOIN users u ON gqp.user_id = u.user_id
+      LEFT JOIN user_names un ON u.name_id = un.name_id
+      WHERE gqp.status = 'pending_verification'
+      ORDER BY gqp.created_at DESC
+    `;
+    
+    const result = await pool.query(query);
+    
+    res.json({
+      success: true,
+      pending_payments: result.rows
+    });
+
+  } catch (error) {
+    console.error('Error getting pending payments:', error);
+    res.status(500).json({
+      error: 'Failed to get pending payments',
+      details: error.message
+    });
+  }
+};
+
 module.exports = {
   // Subscription Plans
   getAllSubscriptionPlans,
@@ -1245,6 +1561,13 @@ module.exports = {
   
   // GCash Integration
   createGcashSource,
+  
+  // GCash QR Integration
+  createGCashQRPayment,
+  uploadGCashReceipt,
+  verifyGCashQRPayment,
+  getGCashQRPaymentStatus,
+  getPendingGCashQRPayments,
 
   // Manual cancellation
   cancelSubscription,

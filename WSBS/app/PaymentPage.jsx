@@ -193,6 +193,8 @@ const PaymentPage = ({
       // Handle payment method specific logic
       if (selectedPaymentMethod.id === 'gcash') {
         await handleGcashPayment(subscriptionResult);
+      } else if (selectedPaymentMethod.id === 'gcash_qr') {
+        await handleGcashQRPayment(subscriptionResult);
       } else {
         // Cash on Collection - Show success message
         Alert.alert(
@@ -308,6 +310,44 @@ const PaymentPage = ({
       } else {
         const errMsg = data.error ? JSON.stringify(data.error) : 'Failed to initiate GCash payment.';
         Alert.alert('GCash Error', errMsg);
+      }
+    } catch (error) {
+      Alert.alert('Network Error', error.message);
+    }
+  };
+
+  const handleGcashQRPayment = async (subscriptionResult) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/billing/create-gcash-qr`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ 
+          amount: selectedPlanData.priceValue,
+          description: `Payment for ${selectedPlanData.name} subscription`,
+          subscription_id: subscriptionResult.subscription.id,
+          user_id: subscriptionResult.subscription.user_id
+        })
+      });
+      
+      const data = await response.json();
+      
+      if (data.success && data.qr_code_image) {
+        // Navigate to QR display screen
+        router.push({
+          pathname: '/GCashQRPage',
+          params: {
+            qr_code: data.qr_code_image,
+            payment_reference: data.payment_reference,
+            amount: data.amount,
+            merchant_info: JSON.stringify(data.merchant_info),
+            instructions: JSON.stringify(data.instructions),
+            subscription_id: subscriptionResult.subscription.id
+          }
+        });
+      } else {
+        Alert.alert('Error', data.error || 'Failed to generate QR code');
       }
     } catch (error) {
       Alert.alert('Network Error', error.message);

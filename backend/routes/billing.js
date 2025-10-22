@@ -8,6 +8,13 @@ const { pool } = require('../config/db');
 // GCash payment integration routes
 router.post('/create-gcash-source', billingController.createGcashSource);
 
+// GCash QR payment routes
+router.post('/create-gcash-qr', billingController.createGCashQRPayment);
+router.post('/upload-gcash-receipt', billingController.uploadGCashReceipt);
+router.post('/verify-gcash-qr', billingController.verifyGCashQRPayment);
+router.get('/gcash-qr-status/:payment_reference', billingController.getGCashQRPaymentStatus);
+router.get('/pending-gcash-qr', billingController.getPendingGCashQRPayments);
+
 // Mobile payment redirect routes (for PayMongo callbacks to mobile app)
 router.get('/mobile-payment-success', async (req, res) => {
   console.log('📱 Mobile payment success redirect:', req.query);

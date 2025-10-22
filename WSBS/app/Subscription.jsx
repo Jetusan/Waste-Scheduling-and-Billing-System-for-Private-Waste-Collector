@@ -37,6 +37,13 @@ const paymentMethods = [
     color: '#0066CC'
   },
   {
+    id: 'gcash_qr',
+    name: 'GCash QR',
+    icon: 'qr-code',
+    description: 'Scan QR code and pay with GCash',
+    color: '#0066CC'
+  },
+  {
     id: 'cash',
     name: 'Cash on Collection',
     icon: 'cash',
