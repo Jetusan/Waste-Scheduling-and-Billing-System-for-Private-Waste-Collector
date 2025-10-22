@@ -1211,6 +1211,30 @@ const GCASH_CONFIG = {
   account_name: process.env.GCASH_ACCOUNT_NAME || "Jytt Dela Pena"
 };
 
+// Generate payment instructions instead of QR code
+const generateGCashPaymentInstructions = ({ merchantName, merchantNumber, amount, reference }) => {
+  // Since GCash QR codes can only be generated from the GCash app,
+  // we'll provide manual payment instructions instead
+  
+  return {
+    paymentMethod: 'GCash Send Money',
+    recipientNumber: merchantNumber,
+    recipientName: merchantName,
+    amount: parseFloat(amount).toFixed(2),
+    reference: reference,
+    instructions: [
+      'Open your GCash app',
+      'Tap "Send Money"',
+      `Enter mobile number: ${merchantNumber}`,
+      `Enter amount: ₱${parseFloat(amount).toFixed(2)}`,
+      `Add message: ${merchantName} - ${reference}`,
+      'Complete the transaction',
+      'Take a screenshot of your receipt',
+      'Upload the receipt below'
+    ]
+  };
+};
+
 // Create GCash QR Payment (Like your screenshot)
 const createGCashQRPayment = async (req, res) => {
   try {
@@ -1235,16 +1259,24 @@ const createGCashQRPayment = async (req, res) => {
       description: description || `WSBS Subscription Payment`
     };
 
-    // Generate QR code (this will create the QR like in your screenshot)
-    const qrString = `GCash Payment\nMerchant: ${GCASH_CONFIG.merchant_name}\nAmount: ₱${amount}\nReference: ${paymentReference}\nScan to pay with GCash`;
+    // Generate GCash payment instructions instead of QR code
+    const paymentInstructions = generateGCashPaymentInstructions({
+      merchantName: GCASH_CONFIG.merchant_name,
+      merchantNumber: GCASH_CONFIG.gcash_number,
+      amount: amount,
+      reference: paymentReference
+    });
     
-    const qrCodeImage = await QRCode.toDataURL(qrString, {
+    // Create a simple QR code with payment details for reference
+    const qrData = `GCash Payment\nTo: ${GCASH_CONFIG.gcash_number}\nAmount: ₱${amount}\nRef: ${paymentReference}`;
+    const qrCodeImage = await QRCode.toDataURL(qrData, {
       width: 300,
       margin: 2,
       color: {
         dark: '#000000',
         light: '#ffffff'
-      }
+      },
+      errorCorrectionLevel: 'M'
     });
 
     // Create table and store payment record
@@ -1282,7 +1314,7 @@ const createGCashQRPayment = async (req, res) => {
       subscription_id,
       user_id,
       amount,
-      qrString,
+      qrData,
       GCASH_CONFIG.gcash_number
     ]);
 
@@ -1296,15 +1328,8 @@ const createGCashQRPayment = async (req, res) => {
         gcash_number: GCASH_CONFIG.gcash_number,
         account_name: GCASH_CONFIG.account_name
       },
-      instructions: [
-        "1. Open your GCash app",
-        "2. Tap 'Scan QR' or use QR Scanner",
-        "3. Scan the QR code below",
-        "4. Verify the amount and merchant",
-        "5. Complete the payment",
-        "6. Take screenshot of receipt",
-        "7. Upload receipt to confirm payment"
-      ],
+      payment_instructions: paymentInstructions,
+      instructions: paymentInstructions.instructions,
       expires_in: "30 minutes"
     });
 

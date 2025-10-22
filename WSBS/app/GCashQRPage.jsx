@@ -107,18 +107,29 @@ const GCashQRPage = () => {
           <Text style={styles.referenceText}>Ref: {paymentReference}</Text>
         </View>
 
-        {/* QR Code */}
+        {/* Payment Details */}
         <View style={styles.qrContainer}>
-          <Text style={styles.qrTitle}>Scan QR Code with GCash</Text>
-          <View style={styles.qrCodeWrapper}>
-            <Image 
-              source={{ uri: qrCode }} 
-              style={styles.qrCodeImage}
-              resizeMode="contain"
-            />
+          <Text style={styles.qrTitle}>GCash Payment Details</Text>
+          <View style={styles.paymentDetailsWrapper}>
+            <View style={styles.paymentDetailRow}>
+              <Text style={styles.paymentDetailLabel}>Send to:</Text>
+              <Text style={styles.paymentDetailValue}>{merchantInfo.gcash_number}</Text>
+            </View>
+            <View style={styles.paymentDetailRow}>
+              <Text style={styles.paymentDetailLabel}>Recipient:</Text>
+              <Text style={styles.paymentDetailValue}>{merchantInfo.account_name}</Text>
+            </View>
+            <View style={styles.paymentDetailRow}>
+              <Text style={styles.paymentDetailLabel}>Amount:</Text>
+              <Text style={styles.paymentDetailValue}>₱{amount}</Text>
+            </View>
+            <View style={styles.paymentDetailRow}>
+              <Text style={styles.paymentDetailLabel}>Reference:</Text>
+              <Text style={styles.paymentDetailValue}>{paymentReference}</Text>
+            </View>
           </View>
           <Text style={styles.qrSubtitle}>
-            or Log in to GCash and scan this QR with the QR Scanner
+            Use GCash "Send Money" feature to complete this payment
           </Text>
         </View>
 
@@ -268,15 +279,30 @@ const styles = StyleSheet.create({
     color: '#333',
     marginBottom: 20,
   },
-  qrCodeWrapper: {
+  paymentDetailsWrapper: {
     backgroundColor: '#f8f9fa',
     borderRadius: 12,
     padding: 20,
     marginBottom: 15,
   },
-  qrCodeImage: {
-    width: 250,
-    height: 250,
+  paymentDetailRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e9ecef',
+  },
+  paymentDetailLabel: {
+    fontSize: 14,
+    color: '#666',
+    fontWeight: '500',
+  },
+  paymentDetailValue: {
+    fontSize: 14,
+    color: '#333',
+    fontWeight: 'bold',
+    fontFamily: 'monospace',
   },
   qrSubtitle: {
     fontSize: 14,
