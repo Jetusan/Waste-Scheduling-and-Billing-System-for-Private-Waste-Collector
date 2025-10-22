@@ -1223,7 +1223,11 @@ const GCASH_CONFIG = {
 
 // PayMongo GCash Integration for Automatic Verification
 const createPayMongoGCashPayment = async ({ amount, reference, description, subscription_id }) => {
-  const PAYMONGO_SECRET_KEY = process.env.PAYMONGO_SECRET_KEY || 'sk_live_KdNRSzneGWPHoLvb5D5Tua6c';
+  const PAYMONGO_SECRET_KEY = process.env.PAYMONGO_SECRET_KEY;
+  
+  if (!PAYMONGO_SECRET_KEY) {
+    throw new Error('PAYMONGO_SECRET_KEY environment variable is required');
+  }
   
   try {
     // Create PayMongo Source for GCash
