@@ -15,7 +15,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_BASE_URL } from '../config';
 import { getToken, getUserId } from '../auth';
 
-const RequestChatSection = ({ requestId, isExpanded, onToggle }) => {
+const RequestChatSection = ({ requestId, isExpanded, onToggle, unreadCount = 0 }) => {
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(false);
@@ -247,13 +247,49 @@ const RequestChatSection = ({ requestId, isExpanded, onToggle }) => {
     );
   };
 
-  // Always show the chat toggle for debugging
+  // Always show the chat toggle
   if (!isExpanded) {
     return (
-      <TouchableOpacity style={styles.chatToggle} onPress={onToggle}>
-        <Ionicons name="chatbubble-outline" size={16} color="#4CAF50" />
-        <Text style={styles.chatToggleText}>Chat with Collector (Debug)</Text>
-        <Ionicons name="chevron-down" size={16} color="#4CAF50" />
+      <TouchableOpacity style={[
+        styles.chatToggle,
+        unreadCount > 0 && { backgroundColor: '#FFF3E0' }
+      ]} onPress={onToggle}>
+        <View style={{ position: 'relative' }}>
+          <Ionicons 
+            name="chatbubble-outline" 
+            size={16} 
+            color={unreadCount > 0 ? '#FF5722' : '#4CAF50'} 
+          />
+          {unreadCount > 0 && (
+            <View style={{
+              position: 'absolute',
+              top: -4,
+              right: -4,
+              backgroundColor: '#FF1744',
+              borderRadius: 8,
+              minWidth: 16,
+              height: 16,
+              justifyContent: 'center',
+              alignItems: 'center',
+              paddingHorizontal: 4,
+            }}>
+              <Text style={{
+                color: 'white',
+                fontSize: 10,
+                fontWeight: 'bold',
+              }}>
+                {unreadCount > 9 ? '9+' : unreadCount}
+              </Text>
+            </View>
+          )}
+        </View>
+        <Text style={[
+          styles.chatToggleText,
+          unreadCount > 0 && { color: '#FF5722', fontWeight: 'bold' }
+        ]}>
+          {unreadCount > 0 ? `Chat (${unreadCount} new)` : 'Chat with Collector'}
+        </Text>
+        <Ionicons name="chevron-down" size={16} color={unreadCount > 0 ? '#FF5722' : '#4CAF50'} />
       </TouchableOpacity>
     );
   }

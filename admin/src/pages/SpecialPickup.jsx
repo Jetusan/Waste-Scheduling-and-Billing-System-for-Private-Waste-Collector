@@ -19,11 +19,87 @@ const SpecialPickup = () => {
   const [updating, setUpdating] = useState(false);
   const [showChatModal, setShowChatModal] = useState(false);
   const [chatRequest, setChatRequest] = useState(null);
+  const [unreadMessages, setUnreadMessages] = useState({});
 
   useEffect(() => {
     fetchRequests();
     fetchCollectors();
   }, []);
+
+  // Function to check unread messages for all requests
+  const checkUnreadMessages = async (requestsList) => {
+    try {
+      console.log('🔍 [ADMIN] Checking unread messages for', requestsList.length, 'requests');
+      const token = localStorage.getItem('adminToken');
+      if (!token) {
+        console.log('⚠️ [ADMIN] No admin token, skipping unread check');
+        return;
+      }
+      
+      const unreadCounts = {};
+      
+      // Check unread messages for each request
+      for (const request of requestsList) {
+        try {
+          console.log(`🔍 [ADMIN] Checking unread for request ${request.request_id}`);
+          
+          // Get or create chat for this request
+          const chatResponse = await fetch(`${API_CONFIG.BASE_URL}/api/chat/request/${request.request_id}`, {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+          });
+          
+          console.log(`💬 [ADMIN] Chat response status for request ${request.request_id}:`, chatResponse.status);
+          
+          if (chatResponse.ok) {
+            const chatData = await chatResponse.json();
+            console.log(`💬 [ADMIN] Chat data for request ${request.request_id}:`, chatData);
+            const chatId = chatData.chat?.chat_id;
+            
+            if (chatId) {
+              // Get unread message count for admin
+              const unreadUrl = `${API_CONFIG.BASE_URL}/api/chat/${chatId}/unread-count-admin`;
+              console.log(`🔴 [ADMIN] Fetching unread count from:`, unreadUrl);
+              
+              const unreadResponse = await fetch(unreadUrl, {
+                headers: {
+                  'Authorization': `Bearer ${token}`,
+                  'Content-Type': 'application/json',
+                },
+              });
+              
+              console.log(`🔴 [ADMIN] Unread response status for request ${request.request_id}:`, unreadResponse.status);
+              
+              if (unreadResponse.ok) {
+                const unreadData = await unreadResponse.json();
+                console.log(`🔴 [ADMIN] Unread data for request ${request.request_id}:`, unreadData);
+                unreadCounts[request.request_id] = unreadData.count || 0;
+              } else {
+                console.error(`❌ [ADMIN] Unread response failed for request ${request.request_id}:`, await unreadResponse.text());
+                unreadCounts[request.request_id] = 0;
+              }
+            } else {
+              console.log(`⚠️ [ADMIN] No chat ID found for request ${request.request_id}`);
+              unreadCounts[request.request_id] = 0;
+            }
+          } else {
+            console.error(`❌ [ADMIN] Chat response failed for request ${request.request_id}:`, await chatResponse.text());
+            unreadCounts[request.request_id] = 0;
+          }
+        } catch (error) {
+          console.error(`❌ [ADMIN] Error checking unread messages for request ${request.request_id}:`, error);
+          unreadCounts[request.request_id] = 0;
+        }
+      }
+      
+      console.log('🔴 [ADMIN] Final unread counts:', unreadCounts);
+      setUnreadMessages(unreadCounts);
+    } catch (error) {
+      console.error('❌ [ADMIN] Error checking unread messages:', error);
+    }
+  };
 
   const fetchRequests = async () => {
     setLoading(true);
@@ -31,6 +107,8 @@ const SpecialPickup = () => {
     try {
       const { data } = await axios.get(API_URL);
       setRequests(data);
+      // Check unread messages after fetching requests
+      await checkUnreadMessages(data);
     } catch (err) {
       setError('Failed to fetch special pickup requests');
     } finally {
@@ -111,6 +189,20 @@ const SpecialPickup = () => {
           >
             Refresh
           </button>
+          <button 
+            onClick={() => {
+              console.log('🧪 [ADMIN] Testing red dot - setting fake unread messages');
+              const testUnread = {};
+              requests.forEach((req, index) => {
+                testUnread[req.request_id] = index + 1; // Set different counts for testing
+              });
+              setUnreadMessages(testUnread);
+              console.log('🧪 [ADMIN] Test unread messages set:', testUnread);
+            }}
+            style={{ padding: '5px 15px', backgroundColor: '#FF5722', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', marginLeft: '10px' }}
+          >
+            🧪 Test Red Dots
+          </button>
         </div>
       </div>
       
@@ -189,15 +281,37 @@ const SpecialPickup = () => {
                         onClick={() => { setChatRequest(req); setShowChatModal(true); }}
                         style={{ 
                           padding: '4px 8px', 
-                          backgroundColor: '#4CAF50', 
+                          backgroundColor: unreadMessages[req.request_id] > 0 ? '#FF5722' : '#4CAF50', 
                           color: 'white', 
                           border: 'none', 
                           borderRadius: '4px', 
                           cursor: 'pointer',
-                          fontSize: '12px'
+                          fontSize: '12px',
+                          position: 'relative',
+                          fontWeight: unreadMessages[req.request_id] > 0 ? 'bold' : 'normal'
                         }}
                       >
                         💬 Chat
+                        {unreadMessages[req.request_id] > 0 && (
+                          <span style={{
+                            position: 'absolute',
+                            top: '-2px',
+                            right: '-2px',
+                            backgroundColor: '#FF1744',
+                            color: 'white',
+                            borderRadius: '50%',
+                            width: '16px',
+                            height: '16px',
+                            fontSize: '10px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontWeight: 'bold',
+                            border: '2px solid white'
+                          }}>
+                            {unreadMessages[req.request_id] > 9 ? '9+' : unreadMessages[req.request_id]}
+                          </span>
+                        )}
                       </button>
                       {req.status === 'pending' && (
                         <button 

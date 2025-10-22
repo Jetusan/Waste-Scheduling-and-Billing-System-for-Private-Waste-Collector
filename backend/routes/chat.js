@@ -18,4 +18,10 @@ router.put('/:chatId/read', authenticateJWT, chatController.markMessagesAsRead);
 // Get chat summary for admin dashboard
 router.get('/admin/summary', authenticateJWT, chatController.getChatSummary);
 
+// Get unread message count for a specific chat
+router.get('/:chatId/unread-count', authenticateJWT, chatController.getUnreadCount);
+
+// Get unread message count for admin
+router.get('/:chatId/unread-count-admin', authenticateJWT, chatController.getUnreadCountAdmin);
+
 module.exports = router;

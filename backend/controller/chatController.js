@@ -236,10 +236,79 @@ const getChatSummary = async (req, res) => {
   }
 };
 
+// Get unread message count for a specific chat (for residents)
+const getUnreadCount = async (req, res) => {
+  try {
+    const { chatId } = req.params;
+    const { user_id } = req.query;
+    const userId = user_id || req.user?.userId;
+    
+    if (!userId) {
+      return res.status(400).json({ error: 'User ID is required' });
+    }
+    
+    // Count unread messages for this user in this chat
+    // For residents: count admin messages that are unread
+    // For admin: count resident messages that are unread
+    const query = `
+      SELECT COUNT(*) as count
+      FROM special_pickup_chat_messages m
+      JOIN special_pickup_chats c ON m.chat_id = c.chat_id
+      JOIN special_pickup_requests spr ON c.request_id = spr.request_id
+      WHERE m.chat_id = $1 
+      AND m.is_read = false
+      AND (
+        (spr.user_id = $2 AND m.sender_type = 'admin') OR
+        (spr.user_id != $2 AND m.sender_type = 'resident')
+      )
+    `;
+    
+    const result = await pool.query(query, [chatId, userId]);
+    
+    res.json({
+      success: true,
+      count: parseInt(result.rows[0]?.count || 0)
+    });
+    
+  } catch (error) {
+    console.error('Error getting unread count:', error);
+    res.status(500).json({ error: 'Failed to get unread count' });
+  }
+};
+
+// Get unread message count for admin (all chats)
+const getUnreadCountAdmin = async (req, res) => {
+  try {
+    const { chatId } = req.params;
+    
+    // Count unread messages from residents for this chat
+    const query = `
+      SELECT COUNT(*) as count
+      FROM special_pickup_chat_messages m
+      WHERE m.chat_id = $1 
+      AND m.sender_type = 'resident'
+      AND m.is_read = false
+    `;
+    
+    const result = await pool.query(query, [chatId]);
+    
+    res.json({
+      success: true,
+      count: parseInt(result.rows[0]?.count || 0)
+    });
+    
+  } catch (error) {
+    console.error('Error getting admin unread count:', error);
+    res.status(500).json({ error: 'Failed to get admin unread count' });
+  }
+};
+
 module.exports = {
   getOrCreateChat,
   getChatMessages,
   sendMessage,
   markMessagesAsRead,
-  getChatSummary
+  getChatSummary,
+  getUnreadCount,
+  getUnreadCountAdmin
 };
