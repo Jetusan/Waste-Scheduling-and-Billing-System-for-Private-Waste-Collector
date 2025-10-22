@@ -10,6 +10,7 @@ const LocationStatusCard = () => {
   const [locationStatus, setLocationStatus] = useState('loading'); // 'loading', 'set', 'not_set', 'error'
   const [locationData, setLocationData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [showDetails, setShowDetails] = useState(false);
 
   useEffect(() => {
     checkHomeLocation();
@@ -100,68 +101,92 @@ const LocationStatusCard = () => {
   }
 
   return (
-    <View style={styles.card}>
-      <View style={styles.header}>
-        <Ionicons 
-          name={locationStatus === 'set' ? 'location' : 'location-outline'} 
-          size={24} 
-          color={locationStatus === 'set' ? '#4CD964' : '#FF6B6B'} 
-        />
-        <Text style={styles.title}>Home Location</Text>
+    <TouchableOpacity 
+      style={styles.card} 
+      onPress={() => {
+        if (locationStatus === 'set') {
+          setShowDetails(!showDetails);
+        } else if (locationStatus === 'not_set') {
+          handleSetLocation();
+        } else if (locationStatus === 'error') {
+          checkHomeLocation();
+        }
+      }}
+      activeOpacity={0.7}
+    >
+      <View style={styles.compactHeader}>
+        <View style={styles.leftSection}>
+          <Ionicons 
+            name={locationStatus === 'set' ? 'location' : locationStatus === 'not_set' ? 'location-outline' : 'alert-circle-outline'} 
+            size={20} 
+            color={locationStatus === 'set' ? '#4CD964' : locationStatus === 'not_set' ? '#FF9800' : '#FF6B6B'} 
+          />
+          <Text style={styles.compactTitle}>Home Location</Text>
+        </View>
+        
+        <View style={styles.rightSection}>
+          {locationStatus === 'set' ? (
+            <View style={styles.statusIndicator}>
+              <Ionicons name="checkmark-circle" size={18} color="#4CD964" />
+              {showDetails && (
+                <Ionicons name="chevron-up" size={16} color="#666" style={{ marginLeft: 4 }} />
+              )}
+              {!showDetails && (
+                <Ionicons name="chevron-down" size={16} color="#666" style={{ marginLeft: 4 }} />
+              )}
+            </View>
+          ) : locationStatus === 'not_set' ? (
+            <View style={styles.statusIndicator}>
+              <Text style={styles.actionText}>Tap to set</Text>
+              <Ionicons name="chevron-forward" size={16} color="#FF9800" style={{ marginLeft: 4 }} />
+            </View>
+          ) : (
+            <View style={styles.statusIndicator}>
+              <Text style={styles.errorActionText}>Tap to retry</Text>
+              <Ionicons name="refresh" size={16} color="#FF6B6B" style={{ marginLeft: 4 }} />
+            </View>
+          )}
+        </View>
       </View>
 
-      {locationStatus === 'set' && locationData ? (
-        <View style={styles.locationInfo}>
-          <Text style={styles.statusText}>✅ Location Set</Text>
+      {/* Expandable Details - Only show when location is set and details are expanded */}
+      {locationStatus === 'set' && showDetails && locationData && (
+        <View style={styles.expandedDetails}>
+          <View style={styles.detailRow}>
+            <Ionicons name="pin" size={14} color="#666" />
+            <Text style={styles.detailLabel}>Coordinates:</Text>
+          </View>
           {locationData.latitude && locationData.longitude ? (
             <Text style={styles.coordsText}>
-              📍 {locationData.latitude.toFixed(6)}, {locationData.longitude.toFixed(6)}
+              {locationData.latitude.toFixed(6)}, {locationData.longitude.toFixed(6)}
             </Text>
           ) : (
-            <Text style={styles.coordsText}>
-              📍 Location coordinates unavailable
-            </Text>
+            <Text style={styles.coordsText}>Coordinates unavailable</Text>
           )}
+          
           {locationData.pinned_at && (
-            <Text style={styles.dateText}>
-              Set on: {formatDate(locationData.pinned_at)}
-            </Text>
+            <>
+              <View style={styles.detailRow}>
+                <Ionicons name="time" size={14} color="#666" />
+                <Text style={styles.detailLabel}>Set on:</Text>
+              </View>
+              <Text style={styles.dateText}>{formatDate(locationData.pinned_at)}</Text>
+            </>
           )}
+          
           <TouchableOpacity 
             style={styles.updateButton} 
-            onPress={handleUpdateLocation}
+            onPress={(e) => {
+              e.stopPropagation();
+              handleUpdateLocation();
+            }}
           >
-            <Ionicons name="refresh-outline" size={16} color="#4CD964" />
+            <Ionicons name="refresh-outline" size={14} color="#4CD964" />
             <Text style={styles.updateButtonText}>Update Location</Text>
           </TouchableOpacity>
         </View>
-      ) : locationStatus === 'not_set' ? (
-        <View style={styles.locationInfo}>
-          <Text style={styles.warningText}>⚠️ Location Not Set</Text>
-          <Text style={styles.descriptionText}>
-            Set your home location to help collectors find you for waste collection.
-          </Text>
-          <TouchableOpacity 
-            style={styles.setButton} 
-            onPress={handleSetLocation}
-          >
-            <Ionicons name="add-circle-outline" size={16} color="#fff" />
-            <Text style={styles.setButtonText}>Set Home Location</Text>
-          </TouchableOpacity>
-        </View>
-      ) : (
-        <View style={styles.locationInfo}>
-          <Text style={styles.errorText}>❌ Unable to check location</Text>
-          <TouchableOpacity 
-            style={styles.retryButton} 
-            onPress={checkHomeLocation}
-          >
-            <Ionicons name="refresh-outline" size={16} color="#4CD964" />
-            <Text style={styles.retryButtonText}>Retry</Text>
-          </TouchableOpacity>
-        </View>
       )}
-    </View>
+    </TouchableOpacity>
   );
 };
 
@@ -179,17 +204,6 @@ const styles = StyleSheet.create({
     borderLeftWidth: 3,
     borderLeftColor: '#4CD964',
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  title: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#333',
-    marginLeft: 8,
-  },
   loadingContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -201,81 +215,83 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
   },
-  locationInfo: {
-    alignItems: 'flex-start',
-  },
-  statusText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#4CD964',
-    marginBottom: 2,
-  },
-  warningText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#FF6B6B',
-    marginBottom: 4,
-  },
-  errorText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#FF6B6B',
-    marginBottom: 8,
-  },
-  coordsText: {
-    fontSize: 10,
-    color: '#666',
-    fontFamily: 'monospace',
-    marginBottom: 2,
-  },
-  dateText: {
-    fontSize: 10,
-    color: '#999',
-    marginBottom: 6,
-  },
-  descriptionText: {
-    fontSize: 13,
-    color: '#666',
-    lineHeight: 18,
-    marginBottom: 12,
-  },
-  setButton: {
+  compactHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#4CD964',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
+    justifyContent: 'space-between',
   },
-  setButtonText: {
-    color: '#fff',
+  leftSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  rightSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  compactTitle: {
     fontSize: 14,
     fontWeight: '600',
-    marginLeft: 4,
+    color: '#333',
+    marginLeft: 8,
+  },
+  statusIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  actionText: {
+    fontSize: 12,
+    color: '#FF9800',
+    fontWeight: '500',
+  },
+  errorActionText: {
+    fontSize: 12,
+    color: '#FF6B6B',
+    fontWeight: '500',
+  },
+  expandedDetails: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#f0f0f0',
+  },
+  detailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  detailLabel: {
+    fontSize: 12,
+    color: '#666',
+    fontWeight: '500',
+    marginLeft: 6,
+  },
+  coordsText: {
+    fontSize: 11,
+    color: '#333',
+    fontFamily: 'monospace',
+    marginBottom: 8,
+    marginLeft: 20,
+  },
+  dateText: {
+    fontSize: 11,
+    color: '#666',
+    marginBottom: 8,
+    marginLeft: 20,
   },
   updateButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'transparent',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
+    backgroundColor: 'rgba(76, 217, 100, 0.1)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+    alignSelf: 'flex-start',
+    marginTop: 4,
   },
   updateButtonText: {
     color: '#4CD964',
     fontSize: 11,
-    fontWeight: '600',
-    marginLeft: 4,
-  },
-  retryButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'transparent',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-  },
-  retryButtonText: {
-    color: '#4CD964',
-    fontSize: 14,
     fontWeight: '600',
     marginLeft: 4,
   },

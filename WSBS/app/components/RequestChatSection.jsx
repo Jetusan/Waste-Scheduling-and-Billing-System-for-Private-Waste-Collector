@@ -313,7 +313,10 @@ const RequestChatSection = ({ requestId, isExpanded, onToggle, unreadCount = 0 }
             ref={scrollViewRef}
             style={styles.messagesContainer}
             contentContainerStyle={styles.messagesContent}
+            showsVerticalScrollIndicator={true}
+            nestedScrollEnabled={true}
             onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
+            onLayout={() => scrollViewRef.current?.scrollToEnd({ animated: false })}
           >
             {messages.length === 0 ? (
               <View style={styles.emptyChat}>
@@ -399,11 +402,18 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   messagesContainer: {
-    maxHeight: 200,
+    maxHeight: 300,
+    minHeight: 150,
     paddingHorizontal: 12,
+    backgroundColor: '#fafafa',
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    borderRadius: 8,
+    margin: 8,
   },
   messagesContent: {
     paddingVertical: 8,
+    flexGrow: 1,
   },
   emptyChat: {
     alignItems: 'center',

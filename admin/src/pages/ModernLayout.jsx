@@ -91,9 +91,35 @@ export default function ModernLayout() {
     document.addEventListener('click', handler);
     return () => document.removeEventListener('click', handler);
   }, []);
+  
+  // Listen for notification read events from other components
+  useEffect(() => {
+    const handleNotificationRead = (event) => {
+      const { id } = event.detail;
+      // Update local notification state
+      setNotifications(prevNotifications => prevNotifications.map(notification => {
+        if (notification.notification_id === id) {
+          return { ...notification, is_read: true };
+        }
+        return notification;
+      }));
+      // Decrease unread count
+      setUnreadCount(prevUnreadCount => Math.max(0, prevUnreadCount - 1));
+    };
+    
+    window.addEventListener('notificationRead', handleNotificationRead);
+    return () => window.removeEventListener('notificationRead', handleNotificationRead);
+  }, []);
 
   useEffect(() => {
     fetchNotifications();
+    
+    // Set up periodic refresh every 60 seconds
+    const interval = setInterval(() => {
+      fetchNotifications();
+    }, 60000);
+    
+    return () => clearInterval(interval);
   }, []);
 
   const fetchNotifications = async () => {

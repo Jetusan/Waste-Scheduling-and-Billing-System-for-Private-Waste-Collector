@@ -152,25 +152,21 @@ const SPickup = () => {
     fetchUserInfo();
   }, []);
 
-  // Function to check unread messages for all requests
+  // Function to check unread messages for all requests (optimized)
   const checkUnreadMessages = async (requests) => {
     try {
-      console.log('🔍 Checking unread messages for', requests.length, 'requests');
       const token = await getToken();
       const userId = await getUserId();
       
-      if (!token || !userId) {
-        console.log('⚠️ No token or userId, skipping unread check');
+      if (!token || !userId || requests.length === 0) {
         return;
       }
       
       const unreadCounts = {};
       
-      // Check unread messages for each request
-      for (const request of requests) {
+      // Use Promise.all for parallel processing (faster)
+      const unreadPromises = requests.map(async (request) => {
         try {
-          console.log(`🔍 Checking unread for request ${request.request_id}`);
-          
           // Get or create chat for this request
           const chatResponse = await fetch(`${API_BASE_URL}/api/chat/request/${request.request_id}`, {
             headers: {
@@ -179,53 +175,43 @@ const SPickup = () => {
             },
           });
           
-          console.log(`💬 Chat response status for request ${request.request_id}:`, chatResponse.status);
-          
           if (chatResponse.ok) {
             const chatData = await chatResponse.json();
-            console.log(`💬 Chat data for request ${request.request_id}:`, chatData);
             const chatId = chatData.chat?.chat_id;
             
             if (chatId) {
               // Get unread message count
-              const unreadUrl = `${API_BASE_URL}/api/chat/${chatId}/unread-count?user_id=${userId}`;
-              console.log(`🔴 Fetching unread count from:`, unreadUrl);
-              
-              const unreadResponse = await fetch(unreadUrl, {
+              const unreadResponse = await fetch(`${API_BASE_URL}/api/chat/${chatId}/unread-count?user_id=${userId}`, {
                 headers: {
                   'Authorization': `Bearer ${token}`,
                   'Content-Type': 'application/json',
                 },
               });
               
-              console.log(`🔴 Unread response status for request ${request.request_id}:`, unreadResponse.status);
-              
               if (unreadResponse.ok) {
                 const unreadData = await unreadResponse.json();
-                console.log(`🔴 Unread data for request ${request.request_id}:`, unreadData);
-                unreadCounts[request.request_id] = unreadData.count || 0;
-              } else {
-                console.error(`❌ Unread response failed for request ${request.request_id}:`, await unreadResponse.text());
-                unreadCounts[request.request_id] = 0;
+                return { requestId: request.request_id, count: unreadData.count || 0 };
               }
-            } else {
-              console.log(`⚠️ No chat ID found for request ${request.request_id}`);
-              unreadCounts[request.request_id] = 0;
             }
-          } else {
-            console.error(`❌ Chat response failed for request ${request.request_id}:`, await chatResponse.text());
-            unreadCounts[request.request_id] = 0;
           }
+          return { requestId: request.request_id, count: 0 };
         } catch (error) {
-          console.error(`❌ Error checking unread messages for request ${request.request_id}:`, error);
-          unreadCounts[request.request_id] = 0;
+          console.error(`Error checking unread for request ${request.request_id}:`, error);
+          return { requestId: request.request_id, count: 0 };
         }
-      }
+      });
       
-      console.log('🔴 Final unread counts:', unreadCounts);
+      // Wait for all requests to complete
+      const results = await Promise.all(unreadPromises);
+      
+      // Build unread counts object
+      results.forEach(result => {
+        unreadCounts[result.requestId] = result.count;
+      });
+      
       setUnreadMessages(unreadCounts);
     } catch (error) {
-      console.error('❌ Error checking unread messages:', error);
+      console.error('Error checking unread messages:', error);
     }
   };
 
@@ -559,9 +545,9 @@ const SPickup = () => {
           {!showForm && (
             <TouchableOpacity 
               style={styles.refreshButton}
-              onPress={() => {
+              onPress={async () => {
                 console.log('🔄 Refreshing special pickup requests...');
-                fetchSpecialRequests();
+                await fetchSpecialRequests();
               }}
             >
               <Ionicons name="refresh-outline" size={24} color="#fff" />
@@ -683,23 +669,6 @@ const SPickup = () => {
             >
               <Ionicons name="add" size={24} color="#fff" />
               <Text style={styles.newRequestText}>New Special Pickup Request</Text>
-            </TouchableOpacity>
-            
-            {/* Temporary Test Button */}
-            <TouchableOpacity 
-              style={[styles.newRequestButton, { backgroundColor: '#FF5722', marginTop: 10 }]}
-              onPress={() => {
-                console.log('🧪 Testing red dot - setting fake unread messages');
-                const testUnread = {};
-                specialRequests.forEach((req, index) => {
-                  testUnread[req.request_id] = index + 1; // Set different counts for testing
-                });
-                setUnreadMessages(testUnread);
-                console.log('🧪 Test unread messages set:', testUnread);
-              }}
-            >
-              <Ionicons name="bug" size={24} color="#fff" />
-              <Text style={styles.newRequestText}>🧪 Test Red Dots</Text>
             </TouchableOpacity>
           </View>
         </ScrollView>

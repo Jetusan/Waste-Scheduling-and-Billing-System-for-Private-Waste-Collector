@@ -17,7 +17,7 @@ export default function PaymentHistory() {
 
       const token = await getToken();
       if (!token) {
-        setPayments([]);
+        setError('Please login again');
         return;
       }
 
@@ -25,20 +25,52 @@ export default function PaymentHistory() {
       const profileRes = await fetch(`${API_BASE_URL}/api/auth/profile`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (!profileRes.ok) throw new Error('Failed to load profile');
+      if (!profileRes.ok) {
+        throw new Error(`Failed to load profile: ${profileRes.status}`);
+      }
       const profile = await profileRes.json();
       const userId = profile?.user?.user_id ?? profile?.user?.id ?? profile?.user?.userId;
-      if (!userId) throw new Error('Invalid profile data');
+      if (!userId) {
+        throw new Error('No user ID found in profile');
+      }
+
+      console.log('📋 Fetching payment history for user:', userId);
 
       // 2) Get subscription status (contains paymentHistory)
       const subRes = await fetch(`${API_BASE_URL}/api/billing/subscription-status/${userId}`, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { 
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
       });
-      if (!subRes.ok) throw new Error('Failed to load subscription');
+      
+      if (!subRes.ok) {
+        throw new Error(`Failed to load subscription: ${subRes.status}`);
+      }
+      
       const subData = await subRes.json();
-      const items = subData?.paymentHistory || [];
-      setPayments(items);
+      console.log('📋 Subscription data received:', subData);
+      
+      // Handle both response formats
+      let paymentHistory = [];
+      
+      if (subData?.paymentHistory) {
+        // New format from subscriptionStatusController
+        paymentHistory = subData.paymentHistory;
+      } else if (subData?.has_subscription) {
+        // Old format from billingController - no payment history included
+        console.log('📋 Old format detected, no payment history available');
+        paymentHistory = [];
+      } else {
+        console.log('📋 No subscription found');
+        paymentHistory = [];
+      }
+      
+      console.log('📋 Payment history items:', paymentHistory.length);
+      setPayments(paymentHistory);
+      
     } catch (err) {
+      console.error('📋 Payment history error:', err);
       setError(err.message);
     } finally {
       setLoading(false);
@@ -67,7 +99,11 @@ export default function PaymentHistory() {
       ) : error ? (
         <Text style={styles.error}>{error}</Text>
       ) : payments.length === 0 ? (
-        <Text style={styles.empty}>No payments found.</Text>
+        <View style={{ padding: 20, alignItems: 'center' }}>
+          <Ionicons name="receipt-outline" size={48} color="#ccc" style={{ marginBottom: 10 }} />
+          <Text style={styles.empty}>No payment history found.</Text>
+          <Text style={[styles.empty, { fontSize: 12, marginTop: 5 }]}>Payments will appear here after you make them.</Text>
+        </View>
       ) : (
         <View style={{ padding: 16 }}>
           {payments.map((p) => (

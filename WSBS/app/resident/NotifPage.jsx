@@ -5,9 +5,11 @@ import { useFocusEffect } from '@react-navigation/native';
 import { API_BASE_URL } from '../config';
 import { getToken } from '../auth';
 import { useWebSocket } from '../../contexts/WebSocketContext';
+import { useNotification } from '../contexts/NotificationContext';
 
 export default function NotifPage() {
   const { isConnected, subscribe } = useWebSocket();
+  const { decreaseUnreadCount, resetUnreadCount, fetchUnreadCount } = useNotification();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
@@ -88,24 +90,36 @@ export default function NotifPage() {
     try {
       const token = await getToken();
       if (!token) return;
+      
+      // Optimistically update UI and decrease unread count
+      setNotifications((prev) => prev.map(n => n.notification_id === id ? { ...n, is_read: true } : n));
+      decreaseUnreadCount(1);
+      
       const res = await fetch(`${API_BASE_URL}/api/notifications/me/${id}/read`, {
         method: 'PUT',
         headers: { Authorization: `Bearer ${token}` },
       });
-      const data = await res.json().catch(() => ({}));
-      if (res.ok && data?.success !== false) {
-        setNotifications((prev) => prev.map(n => n.notification_id === id ? { ...n, is_read: true } : n));
+      
+      if (!res.ok) {
+        // If API call failed, revert the optimistic update
+        setNotifications((prev) => prev.map(n => n.notification_id === id ? { ...n, is_read: false } : n));
+        fetchUnreadCount(true); // Force refresh the count
       }
     } catch (_) {
-      // ignore
+      // If error, revert optimistic update and refresh count
+      setNotifications((prev) => prev.map(n => n.notification_id === id ? { ...n, is_read: false } : n));
+      fetchUnreadCount(true);
     }
-  }, []);
+  }, [decreaseUnreadCount, fetchUnreadCount]);
 
   const markAllAsRead = useCallback(async () => {
     const unreadIds = notifications.filter(n => !n.is_read).map(n => n.notification_id);
     if (unreadIds.length === 0) return;
-    // Optimistic UI update
+    
+    // Optimistic UI update and reset unread count
     setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
+    resetUnreadCount();
+    
     try {
       const token = await getToken();
       if (!token) return;
@@ -118,8 +132,9 @@ export default function NotifPage() {
     } catch (_) {
       // On failure, refetch to sync state
       fetchNotifications();
+      fetchUnreadCount(true); // Force refresh the count
     }
-  }, [notifications, fetchNotifications]);
+  }, [notifications, fetchNotifications, resetUnreadCount, fetchUnreadCount]);
 
   const renderItem = ({ item }) => (
     <TouchableOpacity

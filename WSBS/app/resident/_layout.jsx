@@ -1,89 +1,11 @@
 import { Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import React, { useEffect, useState, useRef } from "react";
-import { View, Text, AppState } from "react-native";
-import { API_BASE_URL } from "../config";
-import { getToken } from "../auth";
+import React from "react";
+import { View, Text } from "react-native";
+import { NotificationProvider, useNotification } from '../contexts/NotificationContext';
 
-export default function ResidentLayout() {
-  const [unread, setUnread] = useState(0);
-  const appState = useRef(AppState.currentState);
-  const [appStateVisible, setAppStateVisible] = useState(appState.current);
-  const intervalRef = useRef(null);
-  const lastFetchRef = useRef(0);
-
-  const fetchUnread = async () => {
-    // Debounce: Don't fetch if we just fetched within the last 5 seconds
-    const now = Date.now();
-    if (now - lastFetchRef.current < 5000) {
-      console.log('🔔 Skipping notification fetch - too soon after last fetch');
-      return;
-    }
-    
-    try {
-      const token = await getToken();
-      if (!token) {
-        setUnread(0);
-        return;
-      }
-      
-      lastFetchRef.current = now;
-      console.log('🔔 Fetching notification count...');
-      const res = await fetch(`${API_BASE_URL}/api/notifications/me/unread-count`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      
-      const data = await res.json().catch(() => ({}));
-      
-      if (res.ok && data?.success) {
-        const newCount = Number(data.count) || 0;
-        console.log('🔔 Notification count:', newCount);
-        setUnread(newCount);
-      }
-    } catch (error) {
-      console.error('🔔 Error fetching notifications:', error);
-    }
-  };
-
-  // Handle app state changes for better real-time updates
-  useEffect(() => {
-    const handleAppStateChange = (nextAppState) => {
-      if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
-        console.log('🔔 App has come to the foreground - will refresh notifications');
-        // Use debounced fetch - it will skip if we just fetched recently
-        fetchUnread();
-      }
-      appState.current = nextAppState;
-      setAppStateVisible(appState.current);
-    };
-
-    const subscription = AppState.addEventListener('change', handleAppStateChange);
-    return () => subscription?.remove();
-  }, []);
-
-  // Main notification polling effect
-  useEffect(() => {
-    let mounted = true;
-    
-    // Initial fetch
-    if (mounted) {
-      fetchUnread();
-    }
-
-    // Set up reasonable polling interval (30 seconds)
-    intervalRef.current = setInterval(() => {
-      if (mounted && appStateVisible === 'active') {
-        fetchUnread();
-      }
-    }, 30000); // 30 seconds - much more reasonable for notifications
-
-    return () => {
-      mounted = false;
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-      }
-    };
-  }, [appStateVisible]);
+function ResidentTabsContent() {
+  const { unreadCount } = useNotification();
 
   return (
     <Tabs
@@ -121,23 +43,30 @@ export default function ResidentLayout() {
           tabBarIcon: ({ color, size }) => (
             <View style={{ width: size, height: size }}>
               <Ionicons name="notifications-outline" size={size} color={color} />
-              {unread > 0 && (
+              {unreadCount > 0 && (
                 <View
                   style={{
-                    position: "absolute",
+                    position: 'absolute',
                     right: -6,
-                    top: -4,
-                    minWidth: 18,
-                    height: 18,
-                    borderRadius: 9,
-                    backgroundColor: "#FF3B30",
-                    justifyContent: "center",
-                    alignItems: "center",
+                    top: -3,
+                    backgroundColor: '#FF1744',
+                    borderRadius: 10,
+                    minWidth: 20,
+                    height: 20,
+                    justifyContent: 'center',
+                    alignItems: 'center',
                     paddingHorizontal: 4,
                   }}
                 >
-                  <Text style={{ color: "#fff", fontSize: 10, fontWeight: "bold" }}>
-                    {unread > 99 ? "99+" : String(unread)}
+                  <Text
+                    style={{
+                      color: 'white',
+                      fontSize: 12,
+                      fontWeight: 'bold',
+                      textAlign: 'center',
+                    }}
+                  >
+                    {unreadCount > 99 ? '99+' : unreadCount}
                   </Text>
                 </View>
               )}
@@ -166,5 +95,13 @@ export default function ResidentLayout() {
         }}
       />
     </Tabs>
+  );
+}
+
+export default function ResidentLayout() {
+  return (
+    <NotificationProvider>
+      <ResidentTabsContent />
+    </NotificationProvider>
   );
 }

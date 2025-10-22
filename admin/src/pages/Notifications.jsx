@@ -127,16 +127,27 @@ const Notifications = () => {
     // Only support marking unread -> read, as per backend route semantics
     const target = notifications.find(n => n.id === id);
     if (!target || target.readStatus === 'Read') return;
+    
+    // Optimistically update local state
+    setNotifications(prev => prev.map(n => (
+      n.id === id ? { ...n, readStatus: 'Read' } : n
+    )));
+    
     try {
       const token = localStorage.getItem('adminToken') || sessionStorage.getItem('adminToken');
       await axios.put(`${API_BASE_URL}/notifications/${id}/read`, {}, {
         headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
-      setNotifications(prev => prev.map(n => (
-        n.id === id ? { ...n, readStatus: 'Read' } : n
-      )));
+      
+      // Trigger a custom event to notify the layout to refresh its notification count
+      window.dispatchEvent(new CustomEvent('notificationRead', { detail: { id } }));
+      
     } catch (err) {
       console.error('Failed to mark notification as read:', err);
+      // Revert optimistic update on error
+      setNotifications(prev => prev.map(n => (
+        n.id === id ? { ...n, readStatus: 'Unread' } : n
+      )));
       alert('Failed to mark as read.');
     }
   };

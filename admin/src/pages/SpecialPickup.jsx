@@ -26,23 +26,19 @@ const SpecialPickup = () => {
     fetchCollectors();
   }, []);
 
-  // Function to check unread messages for all requests
+  // Function to check unread messages for all requests (optimized)
   const checkUnreadMessages = async (requestsList) => {
     try {
-      console.log('🔍 [ADMIN] Checking unread messages for', requestsList.length, 'requests');
       const token = localStorage.getItem('adminToken');
-      if (!token) {
-        console.log('⚠️ [ADMIN] No admin token, skipping unread check');
+      if (!token || requestsList.length === 0) {
         return;
       }
       
       const unreadCounts = {};
       
-      // Check unread messages for each request
-      for (const request of requestsList) {
+      // Use Promise.all for parallel processing (faster)
+      const unreadPromises = requestsList.map(async (request) => {
         try {
-          console.log(`🔍 [ADMIN] Checking unread for request ${request.request_id}`);
-          
           // Get or create chat for this request
           const chatResponse = await fetch(`${API_CONFIG.BASE_URL}/api/chat/request/${request.request_id}`, {
             headers: {
@@ -51,53 +47,43 @@ const SpecialPickup = () => {
             },
           });
           
-          console.log(`💬 [ADMIN] Chat response status for request ${request.request_id}:`, chatResponse.status);
-          
           if (chatResponse.ok) {
             const chatData = await chatResponse.json();
-            console.log(`💬 [ADMIN] Chat data for request ${request.request_id}:`, chatData);
             const chatId = chatData.chat?.chat_id;
             
             if (chatId) {
               // Get unread message count for admin
-              const unreadUrl = `${API_CONFIG.BASE_URL}/api/chat/${chatId}/unread-count-admin`;
-              console.log(`🔴 [ADMIN] Fetching unread count from:`, unreadUrl);
-              
-              const unreadResponse = await fetch(unreadUrl, {
+              const unreadResponse = await fetch(`${API_CONFIG.BASE_URL}/api/chat/${chatId}/unread-count-admin`, {
                 headers: {
                   'Authorization': `Bearer ${token}`,
                   'Content-Type': 'application/json',
                 },
               });
               
-              console.log(`🔴 [ADMIN] Unread response status for request ${request.request_id}:`, unreadResponse.status);
-              
               if (unreadResponse.ok) {
                 const unreadData = await unreadResponse.json();
-                console.log(`🔴 [ADMIN] Unread data for request ${request.request_id}:`, unreadData);
-                unreadCounts[request.request_id] = unreadData.count || 0;
-              } else {
-                console.error(`❌ [ADMIN] Unread response failed for request ${request.request_id}:`, await unreadResponse.text());
-                unreadCounts[request.request_id] = 0;
+                return { requestId: request.request_id, count: unreadData.count || 0 };
               }
-            } else {
-              console.log(`⚠️ [ADMIN] No chat ID found for request ${request.request_id}`);
-              unreadCounts[request.request_id] = 0;
             }
-          } else {
-            console.error(`❌ [ADMIN] Chat response failed for request ${request.request_id}:`, await chatResponse.text());
-            unreadCounts[request.request_id] = 0;
           }
+          return { requestId: request.request_id, count: 0 };
         } catch (error) {
-          console.error(`❌ [ADMIN] Error checking unread messages for request ${request.request_id}:`, error);
-          unreadCounts[request.request_id] = 0;
+          console.error(`Error checking unread for request ${request.request_id}:`, error);
+          return { requestId: request.request_id, count: 0 };
         }
-      }
+      });
       
-      console.log('🔴 [ADMIN] Final unread counts:', unreadCounts);
+      // Wait for all requests to complete
+      const results = await Promise.all(unreadPromises);
+      
+      // Build unread counts object
+      results.forEach(result => {
+        unreadCounts[result.requestId] = result.count;
+      });
+      
       setUnreadMessages(unreadCounts);
     } catch (error) {
-      console.error('❌ [ADMIN] Error checking unread messages:', error);
+      console.error('Error checking unread messages:', error);
     }
   };
 
@@ -188,20 +174,6 @@ const SpecialPickup = () => {
             style={{ padding: '5px 15px', backgroundColor: '#4CAF50', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
           >
             Refresh
-          </button>
-          <button 
-            onClick={() => {
-              console.log('🧪 [ADMIN] Testing red dot - setting fake unread messages');
-              const testUnread = {};
-              requests.forEach((req, index) => {
-                testUnread[req.request_id] = index + 1; // Set different counts for testing
-              });
-              setUnreadMessages(testUnread);
-              console.log('🧪 [ADMIN] Test unread messages set:', testUnread);
-            }}
-            style={{ padding: '5px 15px', backgroundColor: '#FF5722', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', marginLeft: '10px' }}
-          >
-            🧪 Test Red Dots
           </button>
         </div>
       </div>
