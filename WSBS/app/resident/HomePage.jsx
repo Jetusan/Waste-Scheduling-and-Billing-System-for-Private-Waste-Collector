@@ -92,8 +92,9 @@ export default function HomePage() {
                 setSubscriptionStatus('pending');
                 console.log('🔄 Setting subscription status to PENDING');
               } else {
-                setSubscriptionStatus('pending'); // Default to pending if has subscription but unknown state
-                console.log('🔄 Setting subscription status to PENDING (default)');
+                // If has subscription but invalid state (cancelled, expired, etc.), treat as no subscription
+                setSubscriptionStatus('none');
+                console.log('🔄 Setting subscription status to NONE (invalid state)');
               }
             } else {
               setSubscriptionStatus('none');
@@ -194,8 +195,9 @@ export default function HomePage() {
             setSubscriptionStatus('pending');
             console.log('🔄 Quick refresh: Setting to PENDING');
           } else {
-            setSubscriptionStatus('pending'); // Default to pending if has subscription
-            console.log('🔄 Quick refresh: Setting to PENDING (default)');
+            // If has subscription but invalid state, treat as no subscription
+            setSubscriptionStatus('none');
+            console.log('🔄 Quick refresh: Setting to NONE (invalid state)');
           }
         } else {
           setSubscriptionStatus('none');
@@ -307,10 +309,10 @@ export default function HomePage() {
         <Text style={styles.servicesTitle}>Choose your services</Text>
         <View style={[
           styles.servicesContainer,
-          { justifyContent: (subscriptionStatus === 'active' || subscriptionStatus === 'pending') ? 'space-between' : 'space-around' }
+          { justifyContent: subscriptionStatus === 'active' ? 'space-between' : 'space-around' }
         ]}>
-          {/* Collection Schedule - Only show if user has active or pending subscription */}
-          {(subscriptionStatus === 'active' || subscriptionStatus === 'pending') && (
+          {/* Collection Schedule - Only show if user has ACTIVE subscription (payment completed) */}
+          {subscriptionStatus === 'active' && (
             <Pressable 
               style={styles.serviceButton}
               onPress={() => router.push('/AllSchedules')}
@@ -332,11 +334,11 @@ export default function HomePage() {
             <Text style={styles.serviceText}>Special Pickup</Text>
           </Pressable>
 
-          {/* My Subscription - Keep same logic as previous */}
+          {/* Subscription/My Subscription Button */}
           <Pressable 
             style={[
               styles.serviceButton,
-              { width: (subscriptionStatus === 'active' || subscriptionStatus === 'pending') ? '48%' : '45%' }
+              { width: subscriptionStatus === 'active' ? '48%' : '45%' }
             ]}
             onPress={() => {
               // Navigate based on subscription status
