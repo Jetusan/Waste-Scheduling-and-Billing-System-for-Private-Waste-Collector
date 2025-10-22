@@ -334,14 +334,15 @@ const PaymentPage = ({
       const data = await response.json();
       
       if (data.success && data.qr_code_image) {
-        // Navigate to QR display screen
+        // Navigate to Enhanced GCash Payment screen
         router.push({
-          pathname: '/GCashQRPage',
+          pathname: '/EnhancedGCashPayment',
           params: {
             qr_code: data.qr_code_image,
             payment_reference: data.payment_reference,
             amount: data.amount,
             merchant_info: JSON.stringify(data.merchant_info),
+            payment_options: JSON.stringify(data.payment_options || {}),
             instructions: JSON.stringify(data.instructions),
             subscription_id: subscriptionResult.subscription.id
           }

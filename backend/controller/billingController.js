@@ -1,6 +1,14 @@
 const billingModel = require('../models/billingModel');
 const config = require('../config/config');
+const express = require('express');
 const { pool } = require('../config/db');
+const QRCode = require('qrcode');
+const { 
+  validatePaymentConfiguration, 
+  validateDeepLinkGeneration, 
+  validatePaymentOptions, 
+  logPaymentError 
+} = require('../utils/paymentValidation');
 const {
   notifySubscriptionActivated,
   notifyPaymentConfirmed,
@@ -8,7 +16,6 @@ const {
   notifyLateFeeAdded,
   notifyMonthlyInvoicesGenerated
 } = require('../services/subscriptionNotificationService');
-const QRCode = require('qrcode');
 
 // Subscription Plans Controllers
 const getAllSubscriptionPlans = async (req, res) => {
@@ -687,6 +694,36 @@ const createGcashSource = async (req, res) => {
     
     const { amount, description, isAdmin, subscription_id, invoice_id } = req.body;
     
+    // DEMO MODE: Check if we should simulate GCash payment for defense
+    const isDemoMode = process.env.DEMO_MODE === 'true' || process.env.NODE_ENV === 'demo';
+    
+    if (isDemoMode) {
+      console.log('🎭 DEMO MODE: Simulating GCash payment for defense presentation');
+      
+      // Create a simulated successful payment
+      const simulatedSourceId = `src_demo_${Date.now()}`;
+      const simulatedCheckoutUrl = `${process.env.PUBLIC_URL || 'https://waste-scheduling-and-billing-system-for.onrender.com'}/demo-gcash-payment?source_id=${simulatedSourceId}&subscription_id=${subscription_id}`;
+      
+      // Store payment source for tracking
+      try {
+        await pool.query(`
+          INSERT INTO payment_sources (source_id, subscription_id, invoice_id, amount, status, created_at)
+          VALUES ($1, $2, $3, $4, 'pending', NOW())
+          ON CONFLICT (source_id) DO NOTHING
+        `, [simulatedSourceId, subscription_id, invoice_id, amount]);
+      } catch (dbError) {
+        console.log('Note: payment_sources table may not exist, continuing with demo...');
+      }
+      
+      return res.json({
+        source_id: simulatedSourceId,
+        checkout_url: simulatedCheckoutUrl,
+        status: 'pending',
+        demo_mode: true,
+        message: 'Demo payment created - will auto-complete in 5 seconds'
+      });
+    }
+    
     // Validate required fields
     if (!amount || !description) {
       return res.status(400).json({
@@ -762,6 +799,27 @@ const createGcashSource = async (req, res) => {
 
     if (!response.ok) {
       console.error('❌ PayMongo API error:', paymongoResult);
+      
+      // Check for specific GCash configuration error
+      const isGCashNotConfigured = paymongoResult.errors?.some(error => 
+        error.code === 'payment_method_not_configured' && 
+        error.detail?.includes('gcash payments')
+      );
+      
+      if (isGCashNotConfigured) {
+        return res.status(400).json({
+          error: 'GCash payment method not enabled',
+          details: 'Your PayMongo account is not configured to accept GCash payments. Please enable GCash in your PayMongo dashboard or contact PayMongo support.',
+          code: 'GCASH_NOT_ENABLED',
+          suggestions: [
+            'Enable GCash in PayMongo Dashboard → Settings → Payment Methods',
+            'Complete business verification if required',
+            'Contact PayMongo support for assistance',
+            'Use card payments as alternative while waiting for GCash approval'
+          ]
+        });
+      }
+      
       return res.status(400).json({
         error: 'PayMongo API error',
         details: paymongoResult.errors || paymongoResult
@@ -1256,6 +1314,16 @@ const createPayMongoGCashPayment = async ({ amount, reference, description, subs
     const sourceData = await sourceResponse.json();
     
     if (!sourceResponse.ok) {
+      // Check for specific GCash configuration error
+      const isGCashNotConfigured = sourceData.errors?.some(error => 
+        error.code === 'payment_method_not_configured' && 
+        error.detail?.includes('gcash payments')
+      );
+      
+      if (isGCashNotConfigured) {
+        throw new Error('GCash payment method not enabled in PayMongo account. Please enable GCash in PayMongo Dashboard → Settings → Payment Methods');
+      }
+      
       throw new Error(sourceData.errors?.[0]?.detail || 'Failed to create payment source');
     }
 
@@ -1277,6 +1345,50 @@ const createGCashQRPayment = async (req, res) => {
     console.log('📱 Creating GCash QR Payment:', req.body);
     
     const { amount, subscription_id, user_id, description } = req.body;
+    
+    // DEMO MODE: Check if we should simulate GCash QR payment for defense
+    const isDemoMode = process.env.DEMO_MODE === 'true' || process.env.NODE_ENV === 'demo';
+    
+    if (isDemoMode) {
+      console.log('🎭 DEMO MODE: Simulating GCash QR payment for defense presentation');
+      
+      const paymentReference = `WSBS-DEMO-${subscription_id}-${Date.now()}`;
+      const demoQRUrl = `${process.env.PUBLIC_URL || 'https://waste-scheduling-and-billing-system-for.onrender.com'}/demo-gcash-payment?source_id=${paymentReference}&subscription_id=${subscription_id}`;
+      
+      // Generate QR code for demo URL
+      const QRCode = require('qrcode');
+      const qrCodeImage = await QRCode.toDataURL(demoQRUrl, {
+        width: 300,
+        margin: 2,
+        color: {
+          dark: '#000000',
+          light: '#ffffff'
+        },
+        errorCorrectionLevel: 'M'
+      });
+      
+      return res.json({
+        success: true,
+        payment_reference: paymentReference,
+        qr_code_image: qrCodeImage,
+        amount: parseFloat(amount),
+        merchant_info: {
+          name: "WSBS- Waste Management (DEMO)",
+          gcash_number: "09916771885",
+          account_name: "Jytt Dela Pena"
+        },
+        checkout_url: demoQRUrl,
+        instructions: [
+          "🎭 DEMO MODE - For Defense Presentation",
+          "1. Scan the QR code with any QR scanner",
+          "2. You'll see a demo payment page",
+          "3. Payment will auto-complete in 3 seconds",
+          "4. No actual money will be charged"
+        ],
+        expires_in: "30 minutes",
+        demo_mode: true
+      });
+    }
     
     if (!amount || !subscription_id) {
       console.error('❌ Missing required fields:', { amount, subscription_id });
@@ -1306,6 +1418,66 @@ const createGCashQRPayment = async (req, res) => {
       reference: paymentReference,
       description: description || `WSBS Subscription Payment`
     };
+
+    // Generate GCash deep link for direct app opening with error handling
+    let gcashDeepLink, gcashWebLink, paymayaDeepLink, universalPaymentLink;
+    
+    try {
+      console.log('🔗 Generating payment deep links...');
+      console.log('📊 Payment data:', { amount: parseFloat(amount), recipient: GCASH_CONFIG.gcash_number, description });
+      
+      // Validate payment configuration first
+      const configValidation = validatePaymentConfiguration();
+      if (!configValidation.isValid) {
+        logPaymentError('GCash Configuration', new Error('Invalid payment configuration'), {
+          errors: configValidation.errors,
+          warnings: configValidation.warnings
+        });
+      }
+      
+      // Validate deep link parameters
+      const deepLinkValidation = validateDeepLinkGeneration(amount, GCASH_CONFIG.gcash_number, description);
+      if (!deepLinkValidation.isValid) {
+        throw new Error(`Deep link validation failed: ${deepLinkValidation.errors.join(', ')}`);
+      }
+      
+      // Additional validation for GCASH_CONFIG
+      if (!GCASH_CONFIG.gcash_number) {
+        throw new Error('GCash number not configured in GCASH_CONFIG');
+      }
+      
+      const safeAmount = parseFloat(amount);
+      const safeRecipient = GCASH_CONFIG.gcash_number;
+      const safeMessage = encodeURIComponent(description || 'WSBS Payment');
+      const safeReference = encodeURIComponent(paymentReference);
+      
+      // Generate GCash deep link
+      gcashDeepLink = `gcash://pay?amount=${safeAmount}&recipient=${safeRecipient}&message=${safeMessage}&reference=${safeReference}`;
+      console.log('✅ GCash deep link generated:', gcashDeepLink);
+      
+      // Generate GCash web link as fallback
+      gcashWebLink = `https://m.gcash.com/gcashapp/gcash-web/send-money/mobile?amount=${safeAmount}&mobile=${safeRecipient}&message=${safeMessage}`;
+      console.log('✅ GCash web link generated:', gcashWebLink);
+      
+      // Generate PayMaya deep link as alternative
+      paymayaDeepLink = `paymaya://pay?amount=${safeAmount}&recipient=${safeRecipient}&message=${safeMessage}`;
+      console.log('✅ PayMaya deep link generated:', paymayaDeepLink);
+      
+      // Generate universal payment link that works with multiple wallets
+      universalPaymentLink = `intent://pay?amount=${safeAmount}&recipient=${safeRecipient}&message=${safeMessage}#Intent;scheme=gcash;package=com.globe.gcash.android;S.browser_fallback_url=${encodeURIComponent(gcashWebLink)};end`;
+      console.log('✅ Universal payment link generated:', universalPaymentLink);
+      
+    } catch (linkError) {
+      console.error('❌ Error generating payment deep links:', linkError);
+      
+      // Fallback to basic links if generation fails
+      gcashDeepLink = `gcash://pay?amount=${amount}&recipient=${GCASH_CONFIG.gcash_number || '09916771885'}`;
+      gcashWebLink = `https://m.gcash.com/gcashapp/gcash-web/send-money/mobile`;
+      paymayaDeepLink = `paymaya://pay?amount=${amount}`;
+      universalPaymentLink = gcashWebLink; // Use web link as universal fallback
+      
+      console.log('⚠️ Using fallback payment links due to error');
+    }
 
     // Create PayMongo GCash payment for automatic verification
     console.log('🔄 Creating PayMongo GCash payment...');
@@ -1377,6 +1549,24 @@ const createGCashQRPayment = async (req, res) => {
       GCASH_CONFIG.gcash_number
     ]);
 
+    // Validate payment options before sending response
+    const paymentOptionsToSend = {
+      gcash_deep_link: gcashDeepLink,
+      gcash_web_link: gcashWebLink,
+      paymaya_deep_link: paymayaDeepLink,
+      universal_link: universalPaymentLink
+    };
+    
+    const optionsValidation = validatePaymentOptions(paymentOptionsToSend);
+    if (!optionsValidation.isValid) {
+      console.warn('⚠️ Payment options validation failed, but continuing with response');
+      logPaymentError('Payment Options Validation', new Error('Invalid payment options'), {
+        errors: optionsValidation.errors,
+        warnings: optionsValidation.warnings,
+        paymentOptions: paymentOptionsToSend
+      });
+    }
+
     res.json({
       success: true,
       payment_reference: paymentReference,
@@ -1389,21 +1579,66 @@ const createGCashQRPayment = async (req, res) => {
       },
       checkout_url: paymongoPayment.checkout_url,
       source_id: paymongoPayment.source_id,
+      // Add deep links for direct app opening
+      payment_options: paymentOptionsToSend,
       instructions: [
-        "1. Scan the QR code with any QR scanner",
-        "2. You'll be redirected to PayMongo checkout",
-        "3. Select GCash as payment method",
-        "4. Complete payment in GCash app",
-        "5. Payment will be automatically verified"
+        "Option 1: Tap 'Open in GCash' to pay directly in GCash app",
+        "Option 2: Scan QR code with any QR scanner",
+        "Option 3: Use PayMongo checkout for card payments",
+        "Payment will be automatically verified"
       ],
-      expires_in: "30 minutes"
+      expires_in: "30 minutes",
+      // Add validation status for debugging
+      validation_status: {
+        config_valid: configValidation?.isValid || false,
+        deep_links_valid: deepLinkValidation?.isValid || false,
+        options_valid: optionsValidation.isValid
+      }
     });
 
   } catch (error) {
     console.error('Error creating GCash QR payment:', error);
+    
+    // Log detailed error information
+    logPaymentError('GCash QR Payment Creation', error, {
+      amount,
+      subscription_id,
+      user_id,
+      description,
+      gcash_config: {
+        merchant_name: GCASH_CONFIG.merchant_name,
+        gcash_number: GCASH_CONFIG.gcash_number ? 'SET' : 'NOT SET',
+        account_name: GCASH_CONFIG.account_name ? 'SET' : 'NOT SET'
+      },
+      environment: {
+        demo_mode: process.env.DEMO_MODE,
+        paymongo_mode: process.env.PAYMONGO_MODE,
+        node_env: process.env.NODE_ENV
+      }
+    });
+    
+    // Return user-friendly error message
     res.status(500).json({
       error: 'Failed to create GCash QR payment',
-      details: error.message
+      details: error.message,
+      troubleshooting: {
+        common_causes: [
+          'PayMongo account not configured for GCash',
+          'Invalid GCash configuration',
+          'Network connectivity issues',
+          'Invalid payment parameters'
+        ],
+        suggested_actions: [
+          'Check PayMongo dashboard for GCash enablement',
+          'Verify environment variables are set',
+          'Try demo mode for testing',
+          'Contact support if issue persists'
+        ]
+      },
+      support_info: {
+        reference: paymentReference || `ERR-${Date.now()}`,
+        timestamp: new Date().toISOString()
+      }
     });
   }
 };
