@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { API_BASE_URL } from '../config';
+import { API_BASE_URL } from './config';
 
 const GCashQRPage = () => {
   const router = useRouter();

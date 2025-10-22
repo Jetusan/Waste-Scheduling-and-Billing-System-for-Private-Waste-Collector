@@ -14,7 +14,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
-import { API_BASE_URL } from '../config';
+import { API_BASE_URL } from './config';
 
 const UploadReceiptPage = () => {
   const router = useRouter();

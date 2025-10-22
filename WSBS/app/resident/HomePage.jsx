@@ -5,6 +5,7 @@ import { useRouter, useFocusEffect } from 'expo-router';
 import { getToken, getUserId, logout } from '../auth';
 import { clearAuthAndRestart } from '../utils/authFixer';
 import { API_BASE_URL } from '../config';
+import LocationStatusCard from '../components/LocationStatusCard';
 
 export default function HomePage() {
   const router = useRouter();
@@ -261,6 +262,9 @@ export default function HomePage() {
             <Text style={styles.barangayText}>Your Area: {userBarangay}</Text>
           </View>
         )}
+
+        {/* Location Status Card */}
+        <LocationStatusCard />
 
         {/* Services Section */}
         <Text style={styles.servicesTitle}>Choose your services</Text>
