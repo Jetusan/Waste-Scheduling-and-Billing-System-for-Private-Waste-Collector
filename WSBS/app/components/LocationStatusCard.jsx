@@ -34,8 +34,15 @@ const LocationStatusCard = () => {
 
       if (response.ok) {
         const data = await response.json();
+        console.log('Location data received:', data); // Debug log
         if (data.success && data.data) {
-          setLocationData(data.data);
+          // Ensure latitude and longitude are numbers
+          const locationData = {
+            ...data.data,
+            latitude: data.data.latitude ? Number(data.data.latitude) : null,
+            longitude: data.data.longitude ? Number(data.data.longitude) : null
+          };
+          setLocationData(locationData);
           setLocationStatus('set');
         } else {
           setLocationStatus('not_set');
@@ -106,9 +113,15 @@ const LocationStatusCard = () => {
       {locationStatus === 'set' && locationData ? (
         <View style={styles.locationInfo}>
           <Text style={styles.statusText}>✅ Location Set</Text>
-          <Text style={styles.coordsText}>
-            📍 {locationData.latitude?.toFixed(6)}, {locationData.longitude?.toFixed(6)}
-          </Text>
+          {locationData.latitude && locationData.longitude ? (
+            <Text style={styles.coordsText}>
+              📍 {locationData.latitude.toFixed(6)}, {locationData.longitude.toFixed(6)}
+            </Text>
+          ) : (
+            <Text style={styles.coordsText}>
+              📍 Location coordinates unavailable
+            </Text>
+          )}
           {locationData.pinned_at && (
             <Text style={styles.dateText}>
               Set on: {formatDate(locationData.pinned_at)}
@@ -155,24 +168,24 @@ const LocationStatusCard = () => {
 const styles = StyleSheet.create({
   card: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
-    elevation: 3,
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 12,
+    elevation: 2,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    borderLeftWidth: 4,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
+    borderLeftWidth: 3,
     borderLeftColor: '#4CD964',
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 8,
   },
   title: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: 'bold',
     color: '#333',
     marginLeft: 8,
@@ -192,10 +205,10 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   statusText: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '600',
     color: '#4CD964',
-    marginBottom: 4,
+    marginBottom: 2,
   },
   warningText: {
     fontSize: 14,
@@ -210,15 +223,15 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   coordsText: {
-    fontSize: 12,
+    fontSize: 10,
     color: '#666',
     fontFamily: 'monospace',
-    marginBottom: 4,
+    marginBottom: 2,
   },
   dateText: {
-    fontSize: 11,
+    fontSize: 10,
     color: '#999',
-    marginBottom: 8,
+    marginBottom: 6,
   },
   descriptionText: {
     fontSize: 13,
@@ -244,12 +257,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: 'transparent',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
   },
   updateButtonText: {
     color: '#4CD964',
-    fontSize: 13,
+    fontSize: 11,
     fontWeight: '600',
     marginLeft: 4,
   },

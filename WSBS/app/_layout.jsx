@@ -29,7 +29,7 @@ export default function Layout() {
         }}
       />
       <Stack.Screen 
-        name="SPickup" 
+        name="spickup" 
         options={{
           headerShown: false
         }}
@@ -53,19 +53,7 @@ export default function Layout() {
         }}
       />
       <Stack.Screen 
-        name="payment" 
-        options={{
-          headerShown: false
-        }}
-      />
-      <Stack.Screen 
         name="AllSchedules" 
-        options={{
-          headerShown: false
-        }}
-      />
-      <Stack.Screen 
-        name="spickup" 
         options={{
           headerShown: false
         }}

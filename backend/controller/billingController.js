@@ -1206,9 +1206,9 @@ const getPaymentAttemptAnalytics = async (req, res) => {
 
 // GCash QR Configuration (Environment-aware)
 const GCASH_CONFIG = {
-  merchant_name: process.env.GCASH_MERCHANT_NAME || "WSBS Waste Collection",
-  gcash_number: process.env.GCASH_NUMBER || "09123456789", // ⚠️ SET IN RENDER ENVIRONMENT
-  account_name: process.env.GCASH_ACCOUNT_NAME || "Your Name" // ⚠️ SET IN RENDER ENVIRONMENT
+  merchant_name: process.env.GCASH_MERCHANT_NAME || "WSBS- Waste Management",
+  gcash_number: process.env.GCASH_NUMBER || "09916771885",
+  account_name: process.env.GCASH_ACCOUNT_NAME || "Jytt Dela Pena"
 };
 
 // Create GCash QR Payment (Like your screenshot)

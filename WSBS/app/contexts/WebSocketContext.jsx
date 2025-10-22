@@ -179,3 +179,6 @@ export const WebSocketProvider = ({ children }) => {
     </WebSocketContext.Provider>
   );
 };
+
+// Default export for Expo Router compatibility
+export default WebSocketProvider;

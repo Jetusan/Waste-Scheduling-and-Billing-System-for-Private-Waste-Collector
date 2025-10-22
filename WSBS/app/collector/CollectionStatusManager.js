@@ -270,3 +270,6 @@ export const {
   getCompletionSummary,
   getStatusDisplay
 } = collectionStatusManager;
+
+// Default export for Expo Router compatibility
+export default CollectionStatusManager;

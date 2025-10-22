@@ -40,3 +40,11 @@ export const handlePersistent401 = async (router, errorCount = 0) => {
     console.log('⚠️ 401 error detected, count:', errorCount + 1);
   }
 };
+
+// Default export for Expo Router compatibility
+const authFixer = {
+  clearAuthAndRestart,
+  handlePersistent401
+};
+
+export default authFixer;
