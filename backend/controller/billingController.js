@@ -1244,8 +1244,8 @@ const createPayMongoGCashPayment = async ({ amount, reference, description, subs
             currency: 'PHP',
             type: 'gcash',
             redirect: {
-              success: `wsbs://payment/success?subscription_id=${subscription_id}&payment_reference=${reference}`,
-              failed: `wsbs://payment/failed?subscription_id=${subscription_id}&payment_reference=${reference}`
+              success: `${process.env.PUBLIC_URL || 'https://waste-scheduling-and-billing-system-for.onrender.com'}/api/billing/mobile-payment-success?subscription_id=${subscription_id}&payment_reference=${reference}`,
+              failed: `${process.env.PUBLIC_URL || 'https://waste-scheduling-and-billing-system-for.onrender.com'}/api/billing/mobile-payment-failed?subscription_id=${subscription_id}&payment_reference=${reference}`
             },
             description: description || `WSBS Payment - ${reference}`
           }
@@ -1274,11 +1274,23 @@ const createPayMongoGCashPayment = async ({ amount, reference, description, subs
 // Create GCash QR Payment (Like your screenshot)
 const createGCashQRPayment = async (req, res) => {
   try {
+    console.log('📱 Creating GCash QR Payment:', req.body);
+    
     const { amount, subscription_id, user_id, description } = req.body;
     
     if (!amount || !subscription_id) {
+      console.error('❌ Missing required fields:', { amount, subscription_id });
       return res.status(400).json({
         error: 'Missing required fields: amount and subscription_id'
+      });
+    }
+
+    // Check PayMongo configuration
+    const PAYMONGO_SECRET_KEY = process.env.PAYMONGO_SECRET_KEY;
+    if (!PAYMONGO_SECRET_KEY) {
+      console.error('❌ PayMongo Secret Key not configured');
+      return res.status(500).json({
+        error: 'PayMongo configuration not found. Please check server configuration.'
       });
     }
 
@@ -1296,12 +1308,24 @@ const createGCashQRPayment = async (req, res) => {
     };
 
     // Create PayMongo GCash payment for automatic verification
-    const paymongoPayment = await createPayMongoGCashPayment({
-      amount: amount,
-      reference: paymentReference,
-      description: description || `WSBS Subscription Payment`,
-      subscription_id: subscription_id
-    });
+    console.log('🔄 Creating PayMongo GCash payment...');
+    let paymongoPayment;
+    try {
+      paymongoPayment = await createPayMongoGCashPayment({
+        amount: amount,
+        reference: paymentReference,
+        description: description || `WSBS Subscription Payment`,
+        subscription_id: subscription_id
+      });
+      console.log('✅ PayMongo payment created:', paymongoPayment);
+    } catch (paymongoError) {
+      console.error('❌ PayMongo API error:', paymongoError);
+      return res.status(500).json({
+        error: 'Failed to create GCash QR payment',
+        details: paymongoError.message,
+        hint: 'Please check PayMongo configuration and try again'
+      });
+    }
     
     // Create QR code for the PayMongo checkout URL
     const qrCodeImage = await QRCode.toDataURL(paymongoPayment.checkout_url, {
