@@ -8,6 +8,9 @@ router.get('/', ReportController.getAllReports);
 // Generate new report
 router.post('/generate', ReportController.generateReport);
 
+// Generate PDF directly from report data (for preview downloads)
+router.post('/generate-pdf', ReportController.generateDirectPDF);
+
 // Download report
 router.get('/:id/download', ReportController.downloadReport);
 

@@ -477,23 +477,48 @@ const Reports = () => {
 
   const handleExport = async (format, report) => {
     try {
-      if (report.status !== 'Completed') {
+      // Check if this is a freshly generated report (has data directly)
+      const isGeneratedReport = report && report.data && !report.report_id;
+      
+      if (!isGeneratedReport && report.status !== 'Completed') {
         alert('Report is not ready for download. Status: ' + report.status);
         return;
       }
       
       if (format === 'pdf') {
-        // Download PDF directly as blob
-        const response = await axios.get(`${API_URL}/reports/${report.report_id}/download?format=pdf`, {
-          responseType: 'blob'
-        });
+        let pdfResponse;
+        
+        if (isGeneratedReport) {
+          // For freshly generated reports, send the data directly to PDF generation
+          pdfResponse = await axios.post(`${API_URL}/reports/generate-pdf`, {
+            reportData: {
+              type: report.reportType || report.type,
+              generated_by: 'Admin User',
+              date: new Date().toISOString().split('T')[0],
+              period: 'custom',
+              data: report,
+              report_id: 'preview',
+              start_date: report.dateRange?.startDate,
+              end_date: report.dateRange?.endDate
+            }
+          }, {
+            responseType: 'blob'
+          });
+        } else {
+          // For stored reports, use existing download endpoint
+          pdfResponse = await axios.get(`${API_URL}/reports/${report.report_id}/download?format=pdf`, {
+            responseType: 'blob'
+          });
+        }
         
         // Create download link
-        const blob = new Blob([response.data], { type: 'application/pdf' });
+        const blob = new Blob([pdfResponse.data], { type: 'application/pdf' });
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
-        link.download = `WSBS_Report_${report.type}_${report.report_id}_${new Date().toISOString().split('T')[0]}.pdf`;
+        const reportId = report.report_id || 'preview';
+        const reportType = report.reportType || report.type || 'report';
+        link.download = `WSBS_Report_${reportType}_${reportId}_${new Date().toISOString().split('T')[0]}.pdf`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);

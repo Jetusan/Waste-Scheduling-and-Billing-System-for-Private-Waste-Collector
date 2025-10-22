@@ -1384,6 +1384,26 @@ class ReportController {
     }
   }
 
+  // 📄 GENERATE PDF DIRECTLY FROM REPORT DATA (for preview downloads)
+  static async generateDirectPDF(req, res) {
+    try {
+      const { reportData } = req.body;
+      
+      if (!reportData) {
+        return res.status(400).json({ error: 'Report data is required' });
+      }
+      
+      console.log('Generating direct PDF for report type:', reportData.type);
+      
+      // Use the same PDF generation logic
+      return await ReportController.generatePDF(reportData, res);
+      
+    } catch (error) {
+      console.error('Error generating direct PDF:', error);
+      res.status(500).json({ error: 'Failed to generate PDF', details: error.message });
+    }
+  }
+
   //  GENERATE PDF REPORT
   static async generatePDF(reportData, res) {
     try {
