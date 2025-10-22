@@ -694,35 +694,7 @@ const createGcashSource = async (req, res) => {
     
     const { amount, description, isAdmin, subscription_id, invoice_id } = req.body;
     
-    // DEMO MODE: Check if we should simulate GCash payment for defense
-    const isDemoMode = process.env.DEMO_MODE === 'true' || process.env.NODE_ENV === 'demo';
-    
-    if (isDemoMode) {
-      console.log('🎭 DEMO MODE: Simulating GCash payment for defense presentation');
-      
-      // Create a simulated successful payment
-      const simulatedSourceId = `src_demo_${Date.now()}`;
-      const simulatedCheckoutUrl = `${process.env.PUBLIC_URL || 'https://waste-scheduling-and-billing-system-for.onrender.com'}/demo-gcash-payment?source_id=${simulatedSourceId}&subscription_id=${subscription_id}`;
-      
-      // Store payment source for tracking
-      try {
-        await pool.query(`
-          INSERT INTO payment_sources (source_id, subscription_id, invoice_id, amount, status, created_at)
-          VALUES ($1, $2, $3, $4, 'pending', NOW())
-          ON CONFLICT (source_id) DO NOTHING
-        `, [simulatedSourceId, subscription_id, invoice_id, amount]);
-      } catch (dbError) {
-        console.log('Note: payment_sources table may not exist, continuing with demo...');
-      }
-      
-      return res.json({
-        source_id: simulatedSourceId,
-        checkout_url: simulatedCheckoutUrl,
-        status: 'pending',
-        demo_mode: true,
-        message: 'Demo payment created - will auto-complete in 5 seconds'
-      });
-    }
+    // Production PayMongo integration
     
     // Validate required fields
     if (!amount || !description) {
@@ -1346,49 +1318,7 @@ const createGCashQRPayment = async (req, res) => {
     
     const { amount, subscription_id, user_id, description } = req.body;
     
-    // DEMO MODE: Check if we should simulate GCash QR payment for defense
-    const isDemoMode = process.env.DEMO_MODE === 'true' || process.env.NODE_ENV === 'demo';
-    
-    if (isDemoMode) {
-      console.log('🎭 DEMO MODE: Simulating GCash QR payment for defense presentation');
-      
-      const paymentReference = `WSBS-DEMO-${subscription_id}-${Date.now()}`;
-      const demoQRUrl = `${process.env.PUBLIC_URL || 'https://waste-scheduling-and-billing-system-for.onrender.com'}/demo-gcash-payment?source_id=${paymentReference}&subscription_id=${subscription_id}`;
-      
-      // Generate QR code for demo URL
-      const QRCode = require('qrcode');
-      const qrCodeImage = await QRCode.toDataURL(demoQRUrl, {
-        width: 300,
-        margin: 2,
-        color: {
-          dark: '#000000',
-          light: '#ffffff'
-        },
-        errorCorrectionLevel: 'M'
-      });
-      
-      return res.json({
-        success: true,
-        payment_reference: paymentReference,
-        qr_code_image: qrCodeImage,
-        amount: parseFloat(amount),
-        merchant_info: {
-          name: "WSBS- Waste Management (DEMO)",
-          gcash_number: "09916771885",
-          account_name: "Jytt Dela Pena"
-        },
-        checkout_url: demoQRUrl,
-        instructions: [
-          "🎭 DEMO MODE - For Defense Presentation",
-          "1. Scan the QR code with any QR scanner",
-          "2. You'll see a demo payment page",
-          "3. Payment will auto-complete in 3 seconds",
-          "4. No actual money will be charged"
-        ],
-        expires_in: "30 minutes",
-        demo_mode: true
-      });
-    }
+    // Production PayMongo GCash QR integration
     
     if (!amount || !subscription_id) {
       console.error('❌ Missing required fields:', { amount, subscription_id });
@@ -1605,20 +1535,6 @@ const createGCashQRPayment = async (req, res) => {
       subscription_id,
       user_id,
       description,
-      gcash_config: {
-        merchant_name: GCASH_CONFIG.merchant_name,
-        gcash_number: GCASH_CONFIG.gcash_number ? 'SET' : 'NOT SET',
-        account_name: GCASH_CONFIG.account_name ? 'SET' : 'NOT SET'
-      },
-      environment: {
-        demo_mode: process.env.DEMO_MODE,
-        paymongo_mode: process.env.PAYMONGO_MODE,
-        node_env: process.env.NODE_ENV
-      }
-    });
-    
-    // Return user-friendly error message
-    res.status(500).json({
       error: 'Failed to create GCash QR payment',
       details: error.message,
       troubleshooting: {

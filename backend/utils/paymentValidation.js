@@ -47,10 +47,7 @@ const validatePaymentConfiguration = () => {
     }
   }
   
-  // Demo Mode Validation
-  if (process.env.DEMO_MODE && !['true', 'false'].includes(process.env.DEMO_MODE.toLowerCase())) {
-    warnings.push('DEMO_MODE should be "true" or "false"');
-  }
+  // Demo Mode removed - using production PayMongo only
   
   // PayMongo Mode Validation
   if (process.env.PAYMONGO_MODE && !['test', 'live'].includes(process.env.PAYMONGO_MODE.toLowerCase())) {
@@ -80,7 +77,7 @@ const validatePaymentConfiguration = () => {
     configuration: {
       paymongoConfigured: !!process.env.PAYMONGO_SECRET_KEY,
       gcashConfigured: !!process.env.GCASH_NUMBER,
-      demoMode: process.env.DEMO_MODE === 'true',
+      demoMode: false, // Demo mode removed
       paymongoMode: process.env.PAYMONGO_MODE || 'live'
     }
   };
