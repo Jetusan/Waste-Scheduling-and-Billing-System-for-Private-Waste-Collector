@@ -332,6 +332,16 @@ const getBillingHistory = async (req, res) => {
       plan: transaction.plan,
       amount: `₱${parseFloat(transaction.amount).toLocaleString()}`,
       paymentDate: transaction.payment_date,
+      checkout_url: transaction.checkout_url,
+      source_id: transaction.source_id,
+      instructions: [
+        "1. Scan the QR code with any QR scanner",
+        "2. You'll be redirected to PayMongo checkout",
+        "3. Select GCash as payment method", 
+        "4. Complete payment in GCash app",
+        "5. Payment will be automatically verified"
+      ],
+      expires_in: "30 minutes",
       paymentMethod: transaction.payment_method,
       status: transaction.status,
       notes: transaction.notes,
@@ -1211,28 +1221,50 @@ const GCASH_CONFIG = {
   account_name: process.env.GCASH_ACCOUNT_NAME || "Jytt Dela Pena"
 };
 
-// Generate payment instructions instead of QR code
-const generateGCashPaymentInstructions = ({ merchantName, merchantNumber, amount, reference }) => {
-  // Since GCash QR codes can only be generated from the GCash app,
-  // we'll provide manual payment instructions instead
+// PayMongo GCash Integration for Automatic Verification
+const createPayMongoGCashPayment = async ({ amount, reference, description, subscription_id }) => {
+  const PAYMONGO_SECRET_KEY = process.env.PAYMONGO_SECRET_KEY || 'sk_live_KdNRSzneGWPHoLvb5D5Tua6c';
   
-  return {
-    paymentMethod: 'GCash Send Money',
-    recipientNumber: merchantNumber,
-    recipientName: merchantName,
-    amount: parseFloat(amount).toFixed(2),
-    reference: reference,
-    instructions: [
-      'Open your GCash app',
-      'Tap "Send Money"',
-      `Enter mobile number: ${merchantNumber}`,
-      `Enter amount: ₱${parseFloat(amount).toFixed(2)}`,
-      `Add message: ${merchantName} - ${reference}`,
-      'Complete the transaction',
-      'Take a screenshot of your receipt',
-      'Upload the receipt below'
-    ]
-  };
+  try {
+    // Create PayMongo Source for GCash
+    const sourceResponse = await fetch('https://api.paymongo.com/v1/sources', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Basic ${Buffer.from(PAYMONGO_SECRET_KEY + ':').toString('base64')}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        data: {
+          attributes: {
+            amount: parseInt(amount * 100), // Convert to centavos
+            currency: 'PHP',
+            type: 'gcash',
+            redirect: {
+              success: `wsbs://payment/success?subscription_id=${subscription_id}&payment_reference=${reference}`,
+              failed: `wsbs://payment/failed?subscription_id=${subscription_id}&payment_reference=${reference}`
+            },
+            description: description || `WSBS Payment - ${reference}`
+          }
+        }
+      })
+    });
+
+    const sourceData = await sourceResponse.json();
+    
+    if (!sourceResponse.ok) {
+      throw new Error(sourceData.errors?.[0]?.detail || 'Failed to create payment source');
+    }
+
+    return {
+      source_id: sourceData.data.id,
+      checkout_url: sourceData.data.attributes.redirect.checkout_url,
+      status: sourceData.data.attributes.status
+    };
+    
+  } catch (error) {
+    console.error('PayMongo error:', error);
+    throw error;
+  }
 };
 
 // Create GCash QR Payment (Like your screenshot)
@@ -1259,17 +1291,16 @@ const createGCashQRPayment = async (req, res) => {
       description: description || `WSBS Subscription Payment`
     };
 
-    // Generate GCash payment instructions instead of QR code
-    const paymentInstructions = generateGCashPaymentInstructions({
-      merchantName: GCASH_CONFIG.merchant_name,
-      merchantNumber: GCASH_CONFIG.gcash_number,
+    // Create PayMongo GCash payment for automatic verification
+    const paymongoPayment = await createPayMongoGCashPayment({
       amount: amount,
-      reference: paymentReference
+      reference: paymentReference,
+      description: description || `WSBS Subscription Payment`,
+      subscription_id: subscription_id
     });
     
-    // Create a simple QR code with payment details for reference
-    const qrData = `GCash Payment\nTo: ${GCASH_CONFIG.gcash_number}\nAmount: ₱${amount}\nRef: ${paymentReference}`;
-    const qrCodeImage = await QRCode.toDataURL(qrData, {
+    // Create QR code for the PayMongo checkout URL
+    const qrCodeImage = await QRCode.toDataURL(paymongoPayment.checkout_url, {
       width: 300,
       margin: 2,
       color: {
@@ -1314,7 +1345,7 @@ const createGCashQRPayment = async (req, res) => {
       subscription_id,
       user_id,
       amount,
-      qrData,
+      paymongoPayment.checkout_url,
       GCASH_CONFIG.gcash_number
     ]);
 
@@ -1328,8 +1359,15 @@ const createGCashQRPayment = async (req, res) => {
         gcash_number: GCASH_CONFIG.gcash_number,
         account_name: GCASH_CONFIG.account_name
       },
-      payment_instructions: paymentInstructions,
-      instructions: paymentInstructions.instructions,
+      checkout_url: paymongoPayment.checkout_url,
+      source_id: paymongoPayment.source_id,
+      instructions: [
+        "1. Scan the QR code with any QR scanner",
+        "2. You'll be redirected to PayMongo checkout",
+        "3. Select GCash as payment method",
+        "4. Complete payment in GCash app",
+        "5. Payment will be automatically verified"
+      ],
       expires_in: "30 minutes"
     });
 
@@ -1544,6 +1582,60 @@ const getPendingGCashQRPayments = async (req, res) => {
   }
 };
 
+// PayMongo Webhook Handler for Automatic Payment Verification
+const handlePayMongoWebhook = async (req, res) => {
+  try {
+    const { data } = req.body;
+    
+    if (data.attributes.type === 'source.chargeable') {
+      const sourceId = data.attributes.data.id;
+      
+      // Find payment by source_id
+      const findQuery = `
+        SELECT * FROM gcash_qr_payments 
+        WHERE qr_data = $1 AND status = 'pending'
+      `;
+      
+      const paymentResult = await pool.query(findQuery, [sourceId]);
+      
+      if (paymentResult.rows.length > 0) {
+        const payment = paymentResult.rows[0];
+        
+        // Update payment status to verified
+        const updateQuery = `
+          UPDATE gcash_qr_payments 
+          SET status = 'verified', verified_at = NOW()
+          WHERE id = $1
+          RETURNING *
+        `;
+        
+        await pool.query(updateQuery, [payment.id]);
+        
+        // Activate subscription
+        const activateQuery = `
+          UPDATE customer_subscriptions 
+          SET 
+            status = 'active',
+            payment_status = 'paid',
+            payment_method = 'gcash_paymongo',
+            updated_at = NOW()
+          WHERE subscription_id = $1
+        `;
+        
+        await pool.query(activateQuery, [payment.subscription_id]);
+        
+        console.log(`Payment automatically verified for subscription ${payment.subscription_id}`);
+      }
+    }
+    
+    res.status(200).json({ received: true });
+    
+  } catch (error) {
+    console.error('Webhook error:', error);
+    res.status(500).json({ error: 'Webhook processing failed' });
+  }
+};
+
 module.exports = {
   // Subscription Plans
   getAllSubscriptionPlans,
@@ -1593,6 +1685,7 @@ module.exports = {
   verifyGCashQRPayment,
   getGCashQRPaymentStatus,
   getPendingGCashQRPayments,
+  handlePayMongoWebhook,
 
   // Manual cancellation
   cancelSubscription,
