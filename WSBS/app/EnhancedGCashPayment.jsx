@@ -12,7 +12,7 @@ import {
   ScrollView
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import * as Clipboard from 'expo-clipboard';
+// Clipboard functionality replaced with Alert dialogs
 
 const EnhancedGCashPayment = ({ route, navigation }) => {
   const {
@@ -183,7 +183,7 @@ const EnhancedGCashPayment = ({ route, navigation }) => {
 
   const copyToClipboard = async (text, label) => {
     try {
-      console.log(`📋 Copying to clipboard: ${label} = ${text}`);
+      console.log(`📋 Showing copy dialog: ${label} = ${text}`);
       
       if (!text || text.trim() === '') {
         console.error('❌ Cannot copy empty text');
@@ -191,12 +191,22 @@ const EnhancedGCashPayment = ({ route, navigation }) => {
         return;
       }
       
-      await Clipboard.setStringAsync(text.toString());
-      console.log('✅ Successfully copied to clipboard');
-      Alert.alert('Copied!', `${label} copied to clipboard`);
+      // Show alert with the text to copy manually
+      Alert.alert(
+        `${label}`,
+        `Please copy this ${label}:\n\n${text}`,
+        [
+          {
+            text: 'Done',
+            style: 'default'
+          }
+        ]
+      );
+      
+      console.log('✅ Copy dialog shown successfully');
     } catch (error) {
-      console.error('❌ Error copying to clipboard:', error);
-      Alert.alert('Copy Error', `Failed to copy ${label}. Please copy manually: ${text}`);
+      console.error('❌ Error showing copy dialog:', error);
+      Alert.alert('Copy Error', `Failed to show ${label}. Value: ${text}`);
     }
   };
 

@@ -20,6 +20,7 @@ import * as Location from 'expo-location';
 import { useRouter } from 'expo-router';
 import { getToken, getUserId, logout } from './auth';
 import { API_BASE_URL } from './config';
+import RequestChatSection from './components/RequestChatSection';
 
 const SPickup = () => {
   const router = useRouter();
@@ -45,6 +46,7 @@ const SPickup = () => {
   // New states for preview mode
   const [showForm, setShowForm] = useState(false);
   const [specialRequests, setSpecialRequests] = useState([]);
+  const [expandedChat, setExpandedChat] = useState(null);
   const [requestsLoading, setRequestsLoading] = useState(true);
 
   // Handle authentication errors
@@ -505,21 +507,50 @@ const SPickup = () => {
                 <View key={request.request_id} style={styles.requestCard}>
                   <View style={styles.requestHeader}>
                     <View style={styles.requestStatus}>
-                      <View style={[
-                        styles.statusDot, 
-                        { backgroundColor: 
+                      <Ionicons 
+                        name={
+                          request.status === 'collected' ? 'checkmark-circle' :
+                          request.status === 'completed' ? 'checkmark-circle' :
+                          request.status === 'in_progress' ? 'time' :
+                          request.status === 'assigned' ? 'person' :
+                          request.status === 'pending' ? 'hourglass' :
+                          request.status === 'cancelled' ? 'close-circle' :
+                          request.status === 'missed' ? 'alert-circle' :
+                          'help-circle'
+                        }
+                        size={16}
+                        color={
+                          request.status === 'collected' ? '#4CAF50' :
                           request.status === 'completed' ? '#4CAF50' :
                           request.status === 'in_progress' ? '#FF9800' :
-                          request.status === 'approved' ? '#2196F3' :
+                          request.status === 'assigned' ? '#2196F3' :
+                          request.status === 'pending' ? '#9E9E9E' :
+                          request.status === 'cancelled' ? '#F44336' :
+                          request.status === 'missed' ? '#FF5722' :
                           '#9E9E9E'
                         }
-                      ]} />
-                      <Text style={styles.statusText}>
-                        {request.status === 'completed' ? 'Completed' :
+                      />
+                      <Text style={[
+                        styles.statusText,
+                        { color: 
+                          request.status === 'collected' ? '#4CAF50' :
+                          request.status === 'completed' ? '#4CAF50' :
+                          request.status === 'in_progress' ? '#FF9800' :
+                          request.status === 'assigned' ? '#2196F3' :
+                          request.status === 'pending' ? '#9E9E9E' :
+                          request.status === 'cancelled' ? '#F44336' :
+                          request.status === 'missed' ? '#FF5722' :
+                          '#9E9E9E'
+                        }
+                      ]}>
+                        {request.status === 'collected' ? 'Collected ✓' :
+                         request.status === 'completed' ? 'Completed ✓' :
                          request.status === 'in_progress' ? 'In Progress' :
-                         request.status === 'approved' ? 'Approved' :
-                         request.status === 'pending' ? 'Pending' :
-                         'Unknown'}
+                         request.status === 'assigned' ? 'Assigned to Collector' :
+                         request.status === 'pending' ? 'Pending Review' :
+                         request.status === 'cancelled' ? 'Cancelled' :
+                         request.status === 'missed' ? 'Missed Pickup' :
+                         `Status: ${request.status}`}
                       </Text>
                     </View>
                     <Text style={styles.requestDate}>
@@ -543,6 +574,15 @@ const SPickup = () => {
                       <Text style={styles.priceText}>₱{request.final_price}</Text>
                     </View>
                   )}
+                  
+                  {/* Chat Section */}
+                  <RequestChatSection 
+                    requestId={request.request_id}
+                    isExpanded={expandedChat === request.request_id}
+                    onToggle={() => setExpandedChat(
+                      expandedChat === request.request_id ? null : request.request_id
+                    )}
+                  />
                 </View>
               ))
             ) : (
@@ -1115,6 +1155,10 @@ const styles = StyleSheet.create({
   requestStatus: {
     flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.05)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
   },
   statusDot: {
     width: 8,
@@ -1123,9 +1167,9 @@ const styles = StyleSheet.create({
     marginRight: 6,
   },
   statusText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
-    textTransform: 'uppercase',
+    marginLeft: 4,
   },
   requestDate: {
     fontSize: 12,
