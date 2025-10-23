@@ -483,7 +483,9 @@ router.post('/submit', authenticateJWT, upload.single('paymentProof'), async (re
       `, [subscription_id]);
 
       // Create invoice record with all required fields
-      const invoiceNumber = `INV-${Date.now()}-${user_id}`;
+      // Generate shorter invoice number to fit 20-char limit
+      const timestamp = Date.now().toString().slice(-8); // Last 8 digits
+      const invoiceNumber = `INV-${timestamp}${user_id}`;
       const currentDate = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
       
       await pool.query(`
@@ -770,7 +772,9 @@ router.post('/admin/verify/:verification_id', authenticateJWT, authorizeRoles('a
       `, [verification.subscription_id]);
 
       // Create invoice record with all required fields
-      const invoiceNumber = `INV-${Date.now()}-${verification.user_id}`;
+      // Generate shorter invoice number to fit 20-char limit
+      const timestamp = Date.now().toString().slice(-8); // Last 8 digits
+      const invoiceNumber = `INV-${timestamp}${verification.user_id}`;
       const currentDate = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
       
       await pool.query(`
