@@ -481,30 +481,32 @@ const createMobileSubscription = async (req, res) => {
         if (needsEnhanced) {
           console.log('🔄 Using enhanced reactivation (long-term cancellation)');
           
-          // For manual payment methods, don't auto-activate - create pending subscription
+          // For manual payment methods, don't auto-activate - update existing subscription to pending
           if (payment_method.toLowerCase() === 'manual_gcash' || payment_method.toLowerCase() === 'cash') {
-            console.log('🔄 Manual payment method - creating pending subscription instead of auto-activation');
+            console.log('🔄 Manual payment method - updating existing subscription to pending instead of auto-activation');
             
-            // Get the single ₱199 plan
-            const plans = await billingModel.getAllSubscriptionPlans();
-            const plan = plans.find(p => p.price == 199);
-            if (!plan) {
-              return res.status(404).json({ error: 'Full Plan (₱199) not found in database' });
+            // Update the existing subscription to pending payment status
+            const updateQuery = `
+              UPDATE customer_subscriptions 
+              SET 
+                status = 'pending_payment',
+                payment_status = 'pending',
+                payment_method = $1,
+                updated_at = CURRENT_TIMESTAMP,
+                reactivated_at = CURRENT_TIMESTAMP,
+                payment_confirmed_at = NULL
+              WHERE user_id = $2
+              RETURNING *
+            `;
+            
+            const { pool } = require('../config/db');
+            const updateResult = await pool.query(updateQuery, [payment_method, user_id]);
+            
+            if (updateResult.rows.length === 0) {
+              return res.status(404).json({ error: 'No subscription found to update' });
             }
-
-            // Set billing start date to current date
-            const billing_start_date = new Date().toISOString().split('T')[0];
-
-            // Create new pending subscription instead of reactivating
-            const subscriptionData = {
-              user_id,
-              plan_id: plan.plan_id,
-              billing_start_date,
-              payment_method,
-              user_id: user_id
-            };
-
-            subscription = await billingModel.createCustomerSubscription(subscriptionData);
+            
+            subscription = updateResult.rows[0];
           } else {
             // For automatic payment methods, use enhanced reactivation
             const reactivationResult = await enhancedReactivation(user_id, {
