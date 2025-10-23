@@ -3,6 +3,7 @@ const router = express.Router();
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
 const pool = require('../config/dbAdmin');
 const { authenticateJWT, authorizeRoles } = require('../middleware/auth');
 // Make OCR optional for deployment
@@ -46,6 +47,110 @@ const upload = multer({
   }
 });
 
+// Fraud Prevention Utilities
+const fraudPrevention = {
+  // Generate unique hash for uploaded images
+  generateImageHash: (imagePath) => {
+    try {
+      const imageBuffer = fs.readFileSync(imagePath);
+      return crypto.createHash('md5').update(imageBuffer).digest('hex');
+    } catch (error) {
+      console.error('Error generating image hash:', error);
+      return null;
+    }
+  },
+
+  // Check for duplicate image submissions
+  checkDuplicateImage: async (imageHash, userId) => {
+    try {
+      const duplicate = await pool.query(`
+        SELECT id, created_at, status FROM manual_payment_verifications 
+        WHERE image_hash = $1 AND user_id = $2
+        ORDER BY created_at DESC LIMIT 1
+      `, [imageHash, userId]);
+      
+      return duplicate.rows.length > 0 ? duplicate.rows[0] : null;
+    } catch (error) {
+      console.error('Error checking duplicate image:', error);
+      return null;
+    }
+  },
+
+  // Enhanced OCR validation
+  validatePaymentDetails: (ocrText, expectedAmount, expectedRecipient = '09916771885') => {
+    const validation = {
+      hasCorrectRecipient: false,
+      hasCorrectAmount: false,
+      hasRecentDate: false,
+      hasGCashKeywords: false,
+      confidence: 0
+    };
+
+    if (!ocrText) return validation;
+
+    const text = ocrText.toLowerCase();
+
+    // Check for correct GCash recipient number
+    const phoneNumbers = ocrText.match(/09\d{9}/g) || [];
+    validation.hasCorrectRecipient = phoneNumbers.includes(expectedRecipient);
+
+    // Check for correct amount
+    const amounts = ocrText.match(/₱[\d,]+\.?\d*/g) || [];
+    const numericAmounts = amounts.map(a => parseFloat(a.replace(/[₱,]/g, '')));
+    validation.hasCorrectAmount = numericAmounts.includes(parseFloat(expectedAmount));
+
+    // Check for GCash keywords
+    const requiredKeywords = ['gcash', 'sent', 'successful', 'transaction', 'transfer'];
+    const foundKeywords = requiredKeywords.filter(keyword => text.includes(keyword));
+    validation.hasGCashKeywords = foundKeywords.length >= 2;
+
+    // Check for recent date patterns (basic check)
+    const currentYear = new Date().getFullYear();
+    const hasCurrentYear = text.includes(currentYear.toString());
+    validation.hasRecentDate = hasCurrentYear;
+
+    // Calculate confidence score
+    let score = 0;
+    if (validation.hasCorrectRecipient) score += 40;
+    if (validation.hasCorrectAmount) score += 30;
+    if (validation.hasGCashKeywords) score += 20;
+    if (validation.hasRecentDate) score += 10;
+    
+    validation.confidence = score;
+
+    return validation;
+  },
+
+  // Check user submission behavior
+  checkSubmissionBehavior: async (userId) => {
+    try {
+      // Check submissions in last hour
+      const recentSubmissions = await pool.query(`
+        SELECT COUNT(*) as count 
+        FROM manual_payment_verifications 
+        WHERE user_id = $1 AND created_at > NOW() - INTERVAL '1 hour'
+      `, [userId]);
+
+      // Check failed submissions in last 24 hours
+      const recentFailures = await pool.query(`
+        SELECT COUNT(*) as count 
+        FROM manual_payment_verifications 
+        WHERE user_id = $1 AND status IN ('rejected', 'auto_rejected') 
+        AND created_at > NOW() - INTERVAL '24 hours'
+      `, [userId]);
+
+      return {
+        recentSubmissions: parseInt(recentSubmissions.rows[0].count),
+        recentFailures: parseInt(recentFailures.rows[0].count),
+        isSuspicious: recentSubmissions.rows[0].count > 3 || recentFailures.rows[0].count > 2
+      };
+    } catch (error) {
+      console.error('Error checking submission behavior:', error);
+      return { recentSubmissions: 0, recentFailures: 0, isSuspicious: false };
+    }
+  }
+};
+
 // POST /api/manual-payments/submit - Submit manual payment proof
 router.post('/submit', authenticateJWT, upload.single('paymentProof'), async (req, res) => {
   try {
@@ -83,6 +188,40 @@ router.post('/submit', authenticateJWT, upload.single('paymentProof'), async (re
     const paymentProofUrl = `/uploads/payment-proofs/${req.file.filename}`;
     const fullImagePath = path.join(process.cwd(), 'uploads/payment-proofs', req.file.filename);
 
+    // ========== FRAUD PREVENTION CHECKS ==========
+    console.log('🛡️ Starting fraud prevention checks...');
+    
+    // 1. Generate image hash for duplicate detection
+    const imageHash = fraudPrevention.generateImageHash(fullImagePath);
+    if (!imageHash) {
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to process payment proof image'
+      });
+    }
+
+    // 2. Check for duplicate image submissions
+    const duplicateCheck = await fraudPrevention.checkDuplicateImage(imageHash, user_id);
+    if (duplicateCheck) {
+      console.log('🚨 Duplicate image detected:', duplicateCheck);
+      return res.status(400).json({
+        success: false,
+        message: 'This payment proof has already been submitted',
+        details: `Previously submitted on ${new Date(duplicateCheck.created_at).toLocaleDateString()}`
+      });
+    }
+
+    // 3. Check user submission behavior
+    const behaviorCheck = await fraudPrevention.checkSubmissionBehavior(user_id);
+    if (behaviorCheck.isSuspicious) {
+      console.log('🚨 Suspicious submission behavior detected:', behaviorCheck);
+      return res.status(429).json({
+        success: false,
+        message: 'Too many submission attempts. Please wait before trying again.',
+        details: `Recent submissions: ${behaviorCheck.recentSubmissions}, Recent failures: ${behaviorCheck.recentFailures}`
+      });
+    }
+
     // Initialize OCR verification
     let verificationResult = null;
     let autoVerificationStatus = 'pending';
@@ -100,17 +239,50 @@ router.post('/submit', authenticateJWT, upload.single('paymentProof'), async (re
           verificationReport = ocrVerifier.generateVerificationReport(verificationResult);
           console.log('📊 Verification Report:\n', verificationReport);
           
-          // If verification passes with high confidence, auto-approve
-          if (verificationResult.isValid && verificationResult.confidence >= 90) {
-            autoVerificationStatus = 'auto_verified';
-            console.log('✅ Payment auto-verified with high confidence!');
-          } else if (verificationResult.confidence >= 70) {
-            autoVerificationStatus = 'needs_review';
-            console.log('⚠️ Payment needs manual review');
-          } else {
+          // 4. Enhanced OCR validation for fraud detection
+          const enhancedValidation = fraudPrevention.validatePaymentDetails(
+            verificationResult.extractedText || '', 
+            amount
+          );
+          
+          console.log('🔍 Enhanced validation results:', enhancedValidation);
+          
+          // Auto-reject if critical validations fail
+          if (!enhancedValidation.hasCorrectRecipient) {
             autoVerificationStatus = 'auto_rejected';
-            console.log('❌ Payment auto-rejected due to low confidence');
+            verificationReport += '\n❌ FRAUD ALERT: Wrong GCash recipient number detected';
+            console.log('🚨 FRAUD ALERT: Wrong recipient number');
+          } else if (!enhancedValidation.hasCorrectAmount) {
+            autoVerificationStatus = 'auto_rejected';
+            verificationReport += '\n❌ FRAUD ALERT: Payment amount mismatch detected';
+            console.log('🚨 FRAUD ALERT: Amount mismatch');
+          } else if (!enhancedValidation.hasGCashKeywords) {
+            autoVerificationStatus = 'auto_rejected';
+            verificationReport += '\n❌ FRAUD ALERT: Missing GCash transaction keywords';
+            console.log('🚨 FRAUD ALERT: Missing GCash keywords');
+          } else {
+            // Use combined confidence score
+            const combinedConfidence = Math.min(verificationResult.confidence, enhancedValidation.confidence);
+            
+            if (verificationResult.isValid && combinedConfidence >= 90) {
+              autoVerificationStatus = 'auto_verified';
+              console.log('✅ Payment auto-verified with high confidence!');
+            } else if (combinedConfidence >= 70) {
+              autoVerificationStatus = 'needs_review';
+              console.log('⚠️ Payment needs manual review');
+            } else {
+              autoVerificationStatus = 'auto_rejected';
+              console.log('❌ Payment auto-rejected due to low confidence');
+            }
           }
+          
+          // Add enhanced validation to report
+          verificationReport += `\n\n🛡️ Enhanced Fraud Detection:
+- Correct Recipient: ${enhancedValidation.hasCorrectRecipient ? '✅' : '❌'}
+- Correct Amount: ${enhancedValidation.hasCorrectAmount ? '✅' : '❌'}
+- GCash Keywords: ${enhancedValidation.hasGCashKeywords ? '✅' : '❌'}
+- Recent Date: ${enhancedValidation.hasRecentDate ? '✅' : '❌'}
+- Fraud Score: ${enhancedValidation.confidence}/100`;
         }
       } catch (error) {
         console.error('OCR Verification Error:', error);
@@ -123,13 +295,13 @@ router.post('/submit', authenticateJWT, upload.single('paymentProof'), async (re
       verificationReport = 'OCR dependencies not installed - manual verification required';
     }
 
-    // Insert manual payment verification record with OCR results
+    // Insert manual payment verification record with OCR results and fraud prevention data
     const result = await pool.query(`
       INSERT INTO manual_payment_verifications 
       (subscription_id, user_id, amount, reference_number, payment_proof_url, 
        gcash_number, payment_date, notes, verification_status, ocr_confidence, 
-       ocr_report, ocr_extracted_data)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+       ocr_report, ocr_extracted_data, image_hash, fraud_checks)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
       RETURNING verification_id
     `, [
       subscription_id, 
@@ -143,7 +315,13 @@ router.post('/submit', authenticateJWT, upload.single('paymentProof'), async (re
       autoVerificationStatus,
       verificationResult?.confidence || 0,
       verificationReport,
-      JSON.stringify(verificationResult?.paymentDetails || {})
+      JSON.stringify(verificationResult?.paymentDetails || {}),
+      imageHash,
+      JSON.stringify({
+        behaviorCheck,
+        duplicateCheck: duplicateCheck ? 'found' : 'none',
+        timestamp: new Date().toISOString()
+      })
     ]);
 
     // Handle different verification outcomes

@@ -481,9 +481,9 @@ const createMobileSubscription = async (req, res) => {
         if (needsEnhanced) {
           console.log('🔄 Using enhanced reactivation (long-term cancellation)');
           
-          // For manual payment methods, don't auto-activate - update existing subscription to pending
-          if (payment_method.toLowerCase() === 'manual_gcash' || payment_method.toLowerCase() === 'cash') {
-            console.log('🔄 Manual payment method - updating existing subscription to pending instead of auto-activation');
+          // For ALL payment methods that require confirmation, create pending subscription
+          if (payment_method.toLowerCase() === 'manual_gcash' || payment_method.toLowerCase() === 'cash' || payment_method.toLowerCase() === 'gcash') {
+            console.log('🔄 Payment method requires confirmation - updating existing subscription to pending instead of auto-activation');
             
             // Update the existing subscription to pending payment status
             const updateQuery = `
@@ -508,7 +508,7 @@ const createMobileSubscription = async (req, res) => {
             
             subscription = updateResult.rows[0];
           } else {
-            // For automatic payment methods, use enhanced reactivation
+            // For other automatic payment methods (if any), use enhanced reactivation
             const reactivationResult = await enhancedReactivation(user_id, {
               amount: 199,
               payment_method: payment_method,
@@ -526,13 +526,42 @@ const createMobileSubscription = async (req, res) => {
           
         } else {
           console.log('🔄 Using standard reactivation');
-          // Standard reactivation for recent cancellations
-          subscription = await billingModel.reactivateSubscription(user_id, {
-            amount: 199,
-            payment_method: payment_method,
-            reference_number: `REACTIVATION-${Date.now()}`,
-            notes: 'Standard subscription reactivation'
-          });
+          
+          // For payment methods that require confirmation, create pending subscription
+          if (payment_method.toLowerCase() === 'manual_gcash' || payment_method.toLowerCase() === 'cash' || payment_method.toLowerCase() === 'gcash') {
+            console.log('🔄 Standard reactivation - Payment method requires confirmation, updating to pending');
+            
+            // Update the existing subscription to pending payment status
+            const updateQuery = `
+              UPDATE customer_subscriptions 
+              SET 
+                status = 'pending_payment',
+                payment_status = 'pending',
+                payment_method = $1,
+                updated_at = CURRENT_TIMESTAMP,
+                reactivated_at = CURRENT_TIMESTAMP,
+                payment_confirmed_at = NULL
+              WHERE user_id = $2
+              RETURNING *
+            `;
+            
+            const { pool } = require('../config/db');
+            const updateResult = await pool.query(updateQuery, [payment_method, user_id]);
+            
+            if (updateResult.rows.length === 0) {
+              return res.status(404).json({ error: 'No subscription found to update' });
+            }
+            
+            subscription = updateResult.rows[0];
+          } else {
+            // For other automatic payment methods, use standard reactivation
+            subscription = await billingModel.reactivateSubscription(user_id, {
+              amount: 199,
+              payment_method: payment_method,
+              reference_number: `REACTIVATION-${Date.now()}`,
+              notes: 'Standard subscription reactivation'
+            });
+          }
         }
       }
     } else {
