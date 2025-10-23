@@ -81,6 +81,13 @@ const getSubscriptionStatus = async (req, res) => {
       uiState = 'pending_cash';
       actionRequired = true;
       primaryAction = 'await_collector';
+    } else if (subscription.status === 'cancelled' || subscription.status === 'expired' || subscription.status === 'suspended') {
+      // Cancelled, expired, or suspended subscriptions should be treated as no subscription
+      return res.json({
+        hasSubscription: false,
+        message: `Subscription ${subscription.status}`,
+        uiState: subscription.status
+      });
     }
     
     // Format response for mobile app
