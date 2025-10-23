@@ -343,11 +343,14 @@ export default function HomePage() {
             onPress={() => {
               // Navigate based on subscription status
               console.log('🔥 Button pressed! Current subscriptionStatus:', subscriptionStatus);
-              if (subscriptionStatus === 'active' || subscriptionStatus === 'pending') {
+              if (subscriptionStatus === 'active') {
                 console.log('🔥 Navigating to SubscriptionStatusScreen');
                 router.push('/SubscriptionStatusScreen');
+              } else if (subscriptionStatus === 'pending') {
+                console.log('🔥 Subscription pending - navigating to SubscriptionStatusScreen to complete payment');
+                router.push('/SubscriptionStatusScreen');
               } else {
-                console.log('🔥 Navigating to Subscription signup');
+                console.log('🔥 Navigating to Subscription');
                 router.push('/Subscription');
               }
             }}
@@ -359,7 +362,7 @@ export default function HomePage() {
             />
             <Text style={styles.serviceText}>
               {subscriptionLoading ? 'Loading...' : 
-                (subscriptionStatus === 'active' || subscriptionStatus === 'pending') ? 'My Subscription' : 'Subscription'}
+                subscriptionStatus === 'active' ? 'My Subscription' : 'Subscription'}
             </Text>
             {subscriptionLoading && (
               <View style={styles.loadingDot}>

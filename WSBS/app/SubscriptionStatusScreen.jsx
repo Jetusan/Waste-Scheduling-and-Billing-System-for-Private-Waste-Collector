@@ -155,7 +155,7 @@ const SubscriptionStatusScreen = () => {
       if (hasSubscription) {
         // Guard: Allow ACTIVE and PENDING states to render here so users can pay
         const incomingUiState = data.uiState || data.subscription?.status;
-        const allowedStates = ['active', 'pending_gcash', 'pending_cash'];
+        const allowedStates = ['active', 'pending_gcash', 'pending_manual_gcash', 'pending_cash'];
         if (incomingUiState && !allowedStates.includes(incomingUiState)) {
           Alert.alert('Access Restricted', 'Your subscription is not active yet. Please complete payment to continue.', [
             { text: 'OK', onPress: () => router.replace('/Subscription') }
@@ -181,8 +181,10 @@ const SubscriptionStatusScreen = () => {
           await cancelDueNotifications();
         }
       } else {
-        console.log('🔥 No subscription found or API error:', data.error || data.message);
-        Alert.alert('Error', data.error || data.message || 'Failed to fetch subscription status');
+        console.log('🔥 No subscription found:', data.message || 'No active subscription');
+        // Don't show error alert - this is normal for cancelled/no subscriptions
+        // The UI will render the "No Active Subscription" screen below
+        setSubscriptionData(null);
       }
     } catch (error) {
       console.error('Error fetching subscription status:', error);
