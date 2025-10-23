@@ -35,6 +35,7 @@ const healthRouter = require('./routes/health');
 const demoPaymentRouter = require('./routes/demoPayment');
 const issueAnalyticsRouter = require('./routes/issueAnalytics');
 const manualPaymentsRouter = require('./routes/manualPayments');
+const testingHelpersRouter = require('./routes/testingHelpers');
 
 const app = express();
 
@@ -118,6 +119,7 @@ app.use('/api/collector/emergency', collectorEmergencyRouter);
 app.use('/api/reports', reportsRouter);
 app.use('/api/analytics', issueAnalyticsRouter);
 app.use('/api/manual-payments', manualPaymentsRouter);
+app.use('/api/testing', testingHelpersRouter);
 app.use('/api/webhooks', require('./routes/webhooks'));
 app.use('/', demoPaymentRouter); // Demo payment routes for defense
 

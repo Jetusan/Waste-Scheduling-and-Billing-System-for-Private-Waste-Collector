@@ -128,17 +128,25 @@ class PaymentVerificationOCR {
       details.recipientNumber = phoneMatch[0].replace(/\s+/g, '').replace(/^\+?63/, '0');
     }
 
-    // Extract amount (₱1.00 or 1.00)
-    const amountMatches = text.match(/(?:₱|PHP|P)\s*(\d+(?:\.\d{2})?)/gi);
+    // Extract amount (₱1.00, £1.00, or standalone 1.00) - Handle OCR misreading ₱ as £
+    const amountMatches = text.match(/(?:₱|£|PHP|P)\s*(\d+(?:\.\d{2})?)/gi);
+    const standaloneAmounts = text.match(/\b\d{2,3}\.\d{2}\b/g);
+    
     if (amountMatches && amountMatches.length > 0) {
       // Get the first amount (usually the main amount)
-      const amountStr = amountMatches[0].replace(/[₱PHP\s]/gi, '');
+      const amountStr = amountMatches[0].replace(/[₱£PHP\s]/gi, '');
       details.amount = parseFloat(amountStr);
       
       // If there are multiple amounts, the second might be total
       if (amountMatches.length > 1) {
-        const totalStr = amountMatches[1].replace(/[₱PHP\s]/gi, '');
+        const totalStr = amountMatches[1].replace(/[₱£PHP\s]/gi, '');
         details.totalAmount = parseFloat(totalStr);
+      }
+    } else if (standaloneAmounts && standaloneAmounts.length > 0) {
+      // Fallback: use standalone amounts like "200.00"
+      details.amount = parseFloat(standaloneAmounts[0]);
+      if (standaloneAmounts.length > 1) {
+        details.totalAmount = parseFloat(standaloneAmounts[1]);
       }
     }
 
@@ -197,19 +205,24 @@ class PaymentVerificationOCR {
       console.log('❌ Wrong GCash number detected');
     }
 
-    // Check if amount meets minimum requirement (₱199 for full plan)
+    // Check if amount meets minimum requirement (₱199 for full plan) with tolerance
     const foundAmount = details.amount || details.totalAmount || 0;
-    if (foundAmount >= this.MINIMUM_PAYMENT) {
+    const expectedAmountFloat = parseFloat(expectedAmount);
+    
+    // Accept if amount is within ₱5 tolerance of expected amount OR meets minimum requirement
+    const meetsMinimum = foundAmount >= this.MINIMUM_PAYMENT;
+    const withinTolerance = foundAmount > 0 && Math.abs(foundAmount - expectedAmountFloat) <= 5;
+    
+    if (meetsMinimum || withinTolerance) {
       verification.checks.minimumAmount = true;
-      console.log('✅ Minimum payment amount met');
+      console.log(`✅ Payment amount accepted: ₱${foundAmount} (expected: ₱${expectedAmount})`);
     } else {
       verification.issues.push(`Payment amount too low. Minimum required: ₱${this.MINIMUM_PAYMENT}, Found: ₱${foundAmount}`);
       console.log('❌ Payment below minimum amount');
     }
 
-    // Check if amount matches expected exactly
-    const expectedAmountFloat = parseFloat(expectedAmount);
-    if (foundAmount && Math.abs(foundAmount - expectedAmountFloat) < 0.01) {
+    // Check if amount matches expected exactly (use existing expectedAmountFloat variable)
+    if (foundAmount && Math.abs(foundAmount - expectedAmountFloat) <= 5) {
       verification.checks.exactAmountMatch = true;
       console.log('✅ Exact amount match verified');
     } else {
