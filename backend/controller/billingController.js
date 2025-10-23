@@ -480,19 +480,47 @@ const createMobileSubscription = async (req, res) => {
         
         if (needsEnhanced) {
           console.log('🔄 Using enhanced reactivation (long-term cancellation)');
-          const reactivationResult = await enhancedReactivation(user_id, {
-            amount: 199,
-            payment_method: payment_method,
-            reference_number: `ENHANCED-REACTIVATION-${Date.now()}`,
-            notes: 'Enhanced subscription reactivation'
-          });
           
-          subscription = reactivationResult.subscription;
-          
-          // Add reactivation metadata to response
-          subscription.reactivation_type = reactivationResult.reactivationType;
-          subscription.days_since_cancellation = reactivationResult.daysSinceCancellation;
-          subscription.archived_old_invoices = reactivationResult.archivedInvoices;
+          // For manual payment methods, don't auto-activate - create pending subscription
+          if (payment_method.toLowerCase() === 'manual_gcash' || payment_method.toLowerCase() === 'cash') {
+            console.log('🔄 Manual payment method - creating pending subscription instead of auto-activation');
+            
+            // Get the single ₱199 plan
+            const plans = await billingModel.getAllSubscriptionPlans();
+            const plan = plans.find(p => p.price == 199);
+            if (!plan) {
+              return res.status(404).json({ error: 'Full Plan (₱199) not found in database' });
+            }
+
+            // Set billing start date to current date
+            const billing_start_date = new Date().toISOString().split('T')[0];
+
+            // Create new pending subscription instead of reactivating
+            const subscriptionData = {
+              user_id,
+              plan_id: plan.plan_id,
+              billing_start_date,
+              payment_method,
+              user_id: user_id
+            };
+
+            subscription = await billingModel.createCustomerSubscription(subscriptionData);
+          } else {
+            // For automatic payment methods, use enhanced reactivation
+            const reactivationResult = await enhancedReactivation(user_id, {
+              amount: 199,
+              payment_method: payment_method,
+              reference_number: `ENHANCED-REACTIVATION-${Date.now()}`,
+              notes: 'Enhanced subscription reactivation'
+            });
+            
+            subscription = reactivationResult.subscription;
+            
+            // Add reactivation metadata to response
+            subscription.reactivation_type = reactivationResult.reactivationType;
+            subscription.days_since_cancellation = reactivationResult.daysSinceCancellation;
+            subscription.archived_old_invoices = reactivationResult.archivedInvoices;
+          }
           
         } else {
           console.log('🔄 Using standard reactivation');
