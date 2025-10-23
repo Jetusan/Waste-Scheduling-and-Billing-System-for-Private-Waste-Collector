@@ -64,7 +64,7 @@ const fraudPrevention = {
   checkDuplicateImage: async (imageHash, userId) => {
     try {
       const duplicate = await pool.query(`
-        SELECT id, created_at, status FROM manual_payment_verifications 
+        SELECT verification_id, created_at, verification_status FROM manual_payment_verifications 
         WHERE image_hash = $1 AND user_id = $2
         ORDER BY created_at DESC LIMIT 1
       `, [imageHash, userId]);
@@ -94,9 +94,13 @@ const fraudPrevention = {
     const phoneNumbers = ocrText.match(/09\d{9}/g) || [];
     validation.hasCorrectRecipient = phoneNumbers.includes(expectedRecipient);
 
-    // Check for correct amount
-    const amounts = ocrText.match(/₱[\d,]+\.?\d*/g) || [];
-    const numericAmounts = amounts.map(a => parseFloat(a.replace(/[₱,]/g, '')));
+    // Check for correct amount (handle both ₱ and £ symbols due to OCR misreading)
+    const amounts = ocrText.match(/[₱£][\d,]+\.?\d*/g) || [];
+    // Also look for standalone numbers that might be amounts
+    const standaloneAmounts = ocrText.match(/\b\d{2,3}\.00\b/g) || [];
+    
+    const allAmounts = [...amounts, ...standaloneAmounts];
+    const numericAmounts = allAmounts.map(a => parseFloat(a.replace(/[₱£,]/g, '')));
     validation.hasCorrectAmount = numericAmounts.includes(parseFloat(expectedAmount));
 
     // Check for GCash keywords
@@ -135,7 +139,7 @@ const fraudPrevention = {
       const recentFailures = await pool.query(`
         SELECT COUNT(*) as count 
         FROM manual_payment_verifications 
-        WHERE user_id = $1 AND status IN ('rejected', 'auto_rejected') 
+        WHERE user_id = $1 AND verification_status IN ('rejected', 'auto_rejected') 
         AND created_at > NOW() - INTERVAL '24 hours'
       `, [userId]);
 
@@ -357,7 +361,11 @@ router.post('/submit', authenticateJWT, upload.single('paymentProof'), async (re
             amount
           );
           
-          console.log('🔍 Enhanced validation results:', enhancedValidation);
+          console.log('🔍 Enhanced validation debug:', {
+            extractedText: verificationResult.extractedText,
+            expectedAmount: amount,
+            validation: enhancedValidation
+          });
           
           // Auto-reject if critical validations fail
           if (!enhancedValidation.hasCorrectRecipient) {
@@ -521,10 +529,24 @@ router.post('/submit', authenticateJWT, upload.single('paymentProof'), async (re
       ]);
     }
 
+    // Determine user-friendly message based on verification status
+    let userMessage = 'Payment proof submitted successfully.';
+    if (autoVerificationStatus === 'auto_verified') {
+      userMessage = 'Payment automatically verified and approved! Your subscription is now active.';
+    } else if (autoVerificationStatus === 'needs_review') {
+      userMessage = 'Payment submitted for manual review. You will receive a notification once processed.';
+    } else if (autoVerificationStatus === 'auto_rejected') {
+      userMessage = 'Payment verification failed. Please check your payment proof and try again.';
+    } else {
+      userMessage = 'Payment proof submitted successfully. Please wait for admin verification.';
+    }
+
     return res.json({
       success: true,
       verification_id: result.rows[0].verification_id,
-      message: 'Payment proof submitted successfully. Please wait for admin verification.'
+      verification_status: autoVerificationStatus,
+      message: userMessage,
+      confidence: verificationResult?.confidence || 0
     });
 
   } catch (error) {

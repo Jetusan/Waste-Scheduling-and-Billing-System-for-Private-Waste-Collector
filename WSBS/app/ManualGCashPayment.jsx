@@ -141,18 +141,169 @@ const ManualGCashPayment = () => {
       const data = await response.json();
 
       if (data.success) {
-        Alert.alert(
-          'Payment Submitted!',
-          'Your payment proof has been submitted for verification. You will receive a notification once it\'s approved.',
-          [
-            {
-              text: 'OK',
-              onPress: () => router.back()
-            }
-          ]
-        );
+        // Handle different verification statuses
+        const verificationStatus = data.verification_status || 'pending';
+        
+        if (verificationStatus === 'auto_verified') {
+          // Auto-approved payment
+          Alert.alert(
+            '✅ Payment Approved!',
+            'Your payment has been automatically verified and approved. Your subscription is now active!',
+            [
+              {
+                text: 'View Subscription',
+                onPress: () => router.push('/resident/subscription')
+              },
+              {
+                text: 'Go to Home',
+                onPress: () => router.push('/resident/home'),
+                style: 'default'
+              }
+            ]
+          );
+        } else if (verificationStatus === 'needs_review') {
+          // Needs manual review
+          Alert.alert(
+            '⏳ Under Review',
+            'Your payment proof has been submitted and is under manual review. You will receive a notification once it\'s processed.',
+            [
+              {
+                text: 'Check Status',
+                onPress: () => router.push('/resident/subscription')
+              },
+              {
+                text: 'Go to Home',
+                onPress: () => router.push('/resident/home'),
+                style: 'default'
+              }
+            ]
+          );
+        } else if (verificationStatus === 'auto_rejected') {
+          // Auto-rejected payment
+          Alert.alert(
+            '❌ Payment Issue Detected',
+            data.message || 'There was an issue with your payment proof. Please check the details and try again.',
+            [
+              {
+                text: 'Try Again',
+                onPress: () => {
+                  // Reset form
+                  setFormData({
+                    referenceNumber: '',
+                    gcashNumber: '',
+                    notes: ''
+                  });
+                  setSelectedImage(null);
+                }
+              },
+              {
+                text: 'Go Back',
+                onPress: () => router.back(),
+                style: 'cancel'
+              }
+            ]
+          );
+        } else {
+          // Default pending status
+          Alert.alert(
+            '📤 Payment Submitted!',
+            'Your payment proof has been submitted for verification. You will receive a notification once it\'s approved.',
+            [
+              {
+                text: 'Check Status',
+                onPress: () => router.push('/resident/subscription')
+              },
+              {
+                text: 'Go to Home',
+                onPress: () => router.push('/resident/home'),
+                style: 'default'
+              }
+            ]
+          );
+        }
       } else {
-        Alert.alert('Error', data.message || 'Failed to submit payment proof');
+        // Enhanced error handling with specific error codes
+        const errorCode = data.errorCode || 'UNKNOWN_ERROR';
+        let errorTitle = 'Submission Error';
+        let errorMessage = data.message || 'Failed to submit payment proof';
+        let actions = [
+          {
+            text: 'Try Again',
+            onPress: () => {}
+          }
+        ];
+
+        switch (errorCode) {
+          case 'DUPLICATE_IMAGE':
+            errorTitle = '🔄 Duplicate Submission';
+            actions = [
+              {
+                text: 'Choose Different Image',
+                onPress: () => setSelectedImage(null)
+              },
+              {
+                text: 'Go Back',
+                onPress: () => router.back(),
+                style: 'cancel'
+              }
+            ];
+            break;
+            
+          case 'RATE_LIMITED':
+            errorTitle = '⏰ Too Many Attempts';
+            actions = [
+              {
+                text: 'Go to Home',
+                onPress: () => router.push('/resident/home')
+              }
+            ];
+            break;
+            
+          case 'NO_SUBSCRIPTION':
+            errorTitle = '📋 No Subscription Found';
+            actions = [
+              {
+                text: 'Subscribe Now',
+                onPress: () => router.push('/resident/subscription')
+              },
+              {
+                text: 'Go to Home',
+                onPress: () => router.push('/resident/home'),
+                style: 'cancel'
+              }
+            ];
+            break;
+            
+          case 'WRONG_SUBSCRIPTION_ID':
+            errorTitle = '🔍 Subscription Mismatch';
+            actions = [
+              {
+                text: 'Check Subscription',
+                onPress: () => router.push('/resident/subscription')
+              },
+              {
+                text: 'Go Back',
+                onPress: () => router.back(),
+                style: 'cancel'
+              }
+            ];
+            break;
+            
+          default:
+            actions = [
+              {
+                text: 'Try Again',
+                onPress: () => {}
+              },
+              {
+                text: 'Go Back',
+                onPress: () => router.back(),
+                style: 'cancel'
+              }
+            ];
+        }
+
+        Alert.alert(errorTitle, errorMessage, actions);
       }
 
     } catch (error) {
