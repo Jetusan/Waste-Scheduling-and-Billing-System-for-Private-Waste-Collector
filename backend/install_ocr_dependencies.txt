@@ -1,0 +1,22 @@
+# Install OCR Dependencies for Automatic Payment Verification
+
+# Core OCR library
+npm install tesseract.js
+
+# Image processing library
+npm install sharp
+
+# Additional utilities (if not already installed)
+npm install multer
+npm install fs-extra
+
+# Installation Commands:
+# Run these in your backend directory:
+
+cd backend
+npm install tesseract.js sharp fs-extra
+
+# Note: These libraries enable:
+# - tesseract.js: OCR text extraction from images
+# - sharp: Image preprocessing for better OCR accuracy
+# - fs-extra: Enhanced file system operations
