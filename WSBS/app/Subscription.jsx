@@ -31,10 +31,17 @@ const singlePlan = {
 const paymentMethods = [
   {
     id: 'gcash',
-    name: 'GCash',
+    name: 'GCash (Auto)',
     icon: 'phone-portrait',
-    description: 'Pay using GCash mobile wallet',
+    description: 'Automated GCash payment via PayMongo',
     color: '#0066CC'
+  },
+  {
+    id: 'manual_gcash',
+    name: 'GCash (Manual)',
+    icon: 'camera',
+    description: 'Send to GCash then upload receipt',
+    color: '#00A651'
   },
   {
     id: 'cash',

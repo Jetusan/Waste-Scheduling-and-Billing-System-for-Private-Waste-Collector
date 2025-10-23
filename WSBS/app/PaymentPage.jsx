@@ -168,7 +168,8 @@ const PaymentPage = ({
 
       // Single plan system - no plan_id needed (backend will use ₱199 plan)
       const subscriptionPayload = {
-        payment_method: selectedPaymentMethod.id === 'gcash' ? 'gcash' : 'cash'
+        payment_method: selectedPaymentMethod.id === 'gcash' ? 'gcash' : 
+                       selectedPaymentMethod.id === 'manual_gcash' ? 'manual_gcash' : 'cash'
       };
 
       const subscriptionResponse = await fetch(`${API_BASE_URL}/api/billing/mobile-subscription`, {
@@ -193,6 +194,16 @@ const PaymentPage = ({
       // Handle payment method specific logic
       if (selectedPaymentMethod.id === 'gcash') {
         await handleGcashPayment(subscriptionResult);
+      } else if (selectedPaymentMethod.id === 'manual_gcash') {
+        // Manual GCash - Navigate to manual payment page
+        router.push({
+          pathname: '/ManualGCashPayment',
+          params: {
+            subscription: JSON.stringify(subscriptionResult.subscription),
+            amount: selectedPlanData.priceValue.toString(),
+            subscription_id: subscriptionResult.subscription.id.toString()
+          }
+        });
       } else {
         // Cash on Collection - Show success message
         Alert.alert(

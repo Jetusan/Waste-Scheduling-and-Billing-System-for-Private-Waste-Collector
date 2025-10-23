@@ -617,6 +617,9 @@ const createMobileSubscription = async (req, res) => {
     if (payment_method.toLowerCase() === 'gcash') {
       nextStep = 'complete_gcash_payment';
       paymentStatus = paymentStatus === 'paid' ? 'paid' : 'awaiting_gcash';
+    } else if (payment_method.toLowerCase() === 'manual_gcash') {
+      nextStep = 'upload_gcash_receipt';
+      paymentStatus = paymentStatus === 'paid' ? 'paid' : 'awaiting_manual_verification';
     } else if (payment_method.toLowerCase() === 'cash') {
       nextStep = 'await_collection_payment';
       paymentStatus = paymentStatus === 'paid' ? 'paid' : 'awaiting_cash';
