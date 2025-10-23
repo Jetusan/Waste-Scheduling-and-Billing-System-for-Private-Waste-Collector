@@ -163,14 +163,16 @@ router.post('/submit', authenticateJWT, upload.single('paymentProof'), async (re
       notes 
     } = req.body;
     
-    const user_id = req.user?.user_id;
+    // Handle both user_id and userId naming conventions
+    const user_id = req.user?.user_id || req.user?.userId;
     
     console.log('🔍 Manual payment submission debug:', {
       user_id,
       subscription_id,
       amount,
       hasFile: !!req.file,
-      userObject: req.user
+      userObject: req.user,
+      extractedUserId: user_id
     });
     
     // Enhanced validation with better error messages
@@ -178,7 +180,11 @@ router.post('/submit', authenticateJWT, upload.single('paymentProof'), async (re
       return res.status(401).json({ 
         success: false, 
         message: 'User authentication failed. Please log in again.',
-        errorCode: 'AUTH_FAILED'
+        errorCode: 'AUTH_FAILED',
+        debug: {
+          userObject: req.user,
+          availableFields: req.user ? Object.keys(req.user) : 'no user object'
+        }
       });
     }
     
@@ -572,7 +578,7 @@ router.post('/submit', authenticateJWT, upload.single('paymentProof'), async (re
 router.get('/status/:subscription_id', authenticateJWT, async (req, res) => {
   try {
     const { subscription_id } = req.params;
-    const user_id = req.user.user_id;
+    const user_id = req.user?.user_id || req.user?.userId;
 
     const result = await pool.query(`
       SELECT mpv.*, cs.manual_payment_status
@@ -653,7 +659,7 @@ router.post('/admin/verify/:verification_id', authenticateJWT, authorizeRoles('a
   try {
     const { verification_id } = req.params;
     const { action, rejection_reason } = req.body; // action: 'verify' or 'reject'
-    const admin_id = req.user.user_id;
+    const admin_id = req.user?.user_id || req.user?.userId;
 
     if (!['verify', 'reject'].includes(action)) {
       return res.status(400).json({ 
