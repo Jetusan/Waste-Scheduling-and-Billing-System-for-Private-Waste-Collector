@@ -482,11 +482,31 @@ router.post('/submit', authenticateJWT, upload.single('paymentProof'), async (re
         WHERE subscription_id = $1
       `, [subscription_id]);
 
-      // Create invoice record
+      // Create invoice record with all required fields
+      const invoiceNumber = `INV-${Date.now()}-${user_id}`;
+      const currentDate = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
+      
       await pool.query(`
-        INSERT INTO invoices (user_id, subscription_id, amount, status, generated_date)
-        VALUES ($1, $2, $3, 'paid', NOW())
-      `, [user_id, subscription_id, parseFloat(amount)]);
+        INSERT INTO invoices (
+          invoice_number, 
+          user_id, 
+          subscription_id, 
+          plan_id,
+          amount, 
+          status, 
+          due_date,
+          generated_date,
+          notes
+        )
+        VALUES ($1, $2, $3, (SELECT plan_id FROM customer_subscriptions WHERE subscription_id = $3), $4, 'paid', $5, $5, $6)
+      `, [
+        invoiceNumber,
+        user_id, 
+        subscription_id, 
+        parseFloat(amount),
+        currentDate,
+        `Manual GCash payment verification - Auto-verified with ${verificationResult?.confidence || 100}% confidence`
+      ]);
 
       // Update verification record
       await pool.query(`
@@ -749,11 +769,31 @@ router.post('/admin/verify/:verification_id', authenticateJWT, authorizeRoles('a
         WHERE subscription_id = $1
       `, [verification.subscription_id]);
 
-      // Create invoice record
+      // Create invoice record with all required fields
+      const invoiceNumber = `INV-${Date.now()}-${verification.user_id}`;
+      const currentDate = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
+      
       await pool.query(`
-        INSERT INTO invoices (user_id, subscription_id, amount, status, generated_date)
-        VALUES ($1, $2, $3, 'paid', NOW())
-      `, [verification.user_id, verification.subscription_id, verification.amount]);
+        INSERT INTO invoices (
+          invoice_number, 
+          user_id, 
+          subscription_id, 
+          plan_id,
+          amount, 
+          status, 
+          due_date,
+          generated_date,
+          notes
+        )
+        VALUES ($1, $2, $3, (SELECT plan_id FROM customer_subscriptions WHERE subscription_id = $3), $4, 'paid', $5, $5, $6)
+      `, [
+        invoiceNumber,
+        verification.user_id, 
+        verification.subscription_id, 
+        parseFloat(verification.amount),
+        currentDate,
+        `Manual GCash payment verification - Admin approved`
+      ]);
 
       // Notify user of approval
       await pool.query(`
