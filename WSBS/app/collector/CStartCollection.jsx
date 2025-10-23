@@ -822,12 +822,17 @@ const CStartCollection = () => {
         setIssueReported({
           issue_id: data.issue_id,
           auto_approved: data.auto_approved,
-          message: data.message
+          message: data.message,
+          notified_collectors: data.notified_collectors
         });
         
+        const notificationText = data.notified_collectors > 0 
+          ? `\n\n📢 ${data.notified_collectors} nearby collectors have been notified and may offer backup assistance.`
+          : '';
+        
         Alert.alert(
-          data.auto_approved ? 'Issue Approved' : 'Issue Reported',
-          data.message,
+          data.auto_approved ? '✅ Issue Approved' : '📋 Issue Reported',
+          data.message + notificationText,
           [{ text: 'OK', onPress: () => setIssueReported(null) }]
         );
       } else {
@@ -1404,22 +1409,46 @@ const CStartCollection = () => {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.sheet}>
-            <Text style={styles.sheetTitle}>Report Route Issue</Text>
+            <Text style={styles.sheetTitle}>🚨 Report Route Issue</Text>
+            <Text style={styles.sheetSubtitle}>
+              Nearby collectors will be automatically notified for backup assistance
+            </Text>
+            
             <TouchableOpacity style={styles.optionButton} onPress={() => chooseIssue('truck_breakdown', 'high')}>
-              <Text style={styles.optionText}>Truck breakdown</Text>
+              <View style={styles.optionContent}>
+                <Text style={styles.optionText}>🚛 Truck breakdown</Text>
+                <Text style={styles.optionSeverity}>High Priority</Text>
+              </View>
             </TouchableOpacity>
+            
             <TouchableOpacity style={styles.optionButton} onPress={() => chooseIssue('equipment_failure', 'medium')}>
-              <Text style={styles.optionText}>Equipment failure</Text>
+              <View style={styles.optionContent}>
+                <Text style={styles.optionText}>🔧 Equipment failure</Text>
+                <Text style={styles.optionSeverity}>Medium Priority</Text>
+              </View>
             </TouchableOpacity>
+            
             <TouchableOpacity style={styles.optionButton} onPress={() => chooseIssue('weather', 'medium')}>
-              <Text style={styles.optionText}>Weather conditions</Text>
+              <View style={styles.optionContent}>
+                <Text style={styles.optionText}>🌧️ Weather conditions</Text>
+                <Text style={styles.optionSeverity}>Medium Priority</Text>
+              </View>
             </TouchableOpacity>
+            
             <TouchableOpacity style={styles.optionButton} onPress={() => chooseIssue('emergency', 'critical')}>
-              <Text style={styles.optionText}>Emergency situation</Text>
+              <View style={styles.optionContent}>
+                <Text style={styles.optionText}>🚨 Emergency situation</Text>
+                <Text style={styles.optionSeverity}>Critical Priority</Text>
+              </View>
             </TouchableOpacity>
+            
             <TouchableOpacity style={styles.optionButton} onPress={() => chooseIssue('other', 'medium')}>
-              <Text style={styles.optionText}>Other issue</Text>
+              <View style={styles.optionContent}>
+                <Text style={styles.optionText}>❓ Other issue</Text>
+                <Text style={styles.optionSeverity}>Medium Priority</Text>
+              </View>
             </TouchableOpacity>
+            
             <TouchableOpacity style={[styles.optionButton, styles.cancelOption]} onPress={() => setIssueChooserOpen(false)}>
               <Text style={[styles.optionText, { color: '#c62828' }]}>Cancel</Text>
             </TouchableOpacity>
@@ -1833,10 +1862,18 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   sheetTitle: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: 'bold',
     color: '#222',
     marginBottom: 8,
+    textAlign: 'center',
+  },
+  sheetSubtitle: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 16,
+    lineHeight: 20,
   },
   optionButton: {
     backgroundColor: '#f7f7f7',
@@ -1847,10 +1884,20 @@ const styles = StyleSheet.create({
     borderColor: '#e0e0e0',
     marginTop: 10,
   },
+  optionContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
   optionText: {
     color: '#222',
     fontSize: 15,
     fontWeight: '600',
+  },
+  optionSeverity: {
+    color: '#666',
+    fontSize: 12,
+    fontWeight: '500',
   },
   cancelOption: {
     backgroundColor: '#fff5f5',

@@ -62,6 +62,9 @@ router.post('/report', authenticateJWT, async (req, res) => {
     // Notify supervisors/admins based on severity
     await notifySupevisors(collector_id, issue_type, severity, description, issueId);
 
+    // Notify nearby collectors for backup assistance
+    const notifiedCollectors = await notifyNearbyCollectors(collector_id, issue_type, severity, location_lat, location_lng, issueId);
+
     // If high/critical severity, create immediate reschedule tasks
     if (['high', 'critical'].includes(severity) && affected_schedule_ids && affected_schedule_ids.length > 0) {
       await createEmergencyReschedules(affected_schedule_ids, collector_id, issueId);
@@ -71,9 +74,10 @@ router.post('/report', authenticateJWT, async (req, res) => {
       success: true,
       issue_id: issueId,
       auto_approved: autoApproved,
+      notified_collectors: notifiedCollectors,
       message: autoApproved 
         ? 'Issue reported and automatically approved. You may proceed with the requested action.'
-        : 'Issue reported. Waiting for supervisor approval.'
+        : `Issue reported. Waiting for supervisor approval. ${notifiedCollectors} nearby collectors have been notified for backup assistance.`
     });
 
   } catch (error) {
@@ -175,6 +179,83 @@ async function createEmergencyReschedules(scheduleIds, collectorId, issueId) {
     }
   } catch (e) {
     console.warn('Failed to create emergency reschedules:', e.message);
+  }
+}
+
+// Helper function to notify nearby collectors for backup assistance
+async function notifyNearbyCollectors(collectorId, issueType, severity, locationLat, locationLng, issueId) {
+  try {
+    let notifiedCount = 0;
+    
+    // Find nearby collectors based on location (if provided) or all active collectors
+    let nearbyCollectorsQuery;
+    let queryParams;
+    
+    if (locationLat && locationLng) {
+      // Find collectors within 10km radius using Haversine formula
+      nearbyCollectorsQuery = `
+        SELECT DISTINCT c.collector_id, u.user_id, u.username
+        FROM collectors c
+        JOIN users u ON c.user_id = u.user_id
+        LEFT JOIN collection_stop_events cse ON c.collector_id = cse.collector_id 
+          AND DATE(cse.created_at) = CURRENT_DATE
+        WHERE c.collector_id != $1 
+          AND u.approval_status = 'approved'
+          AND c.status = 'active'
+        ORDER BY c.collector_id
+        LIMIT 5
+      `;
+      queryParams = [collectorId];
+    } else {
+      // Find all active collectors except the one reporting the issue
+      nearbyCollectorsQuery = `
+        SELECT c.collector_id, u.user_id, u.username
+        FROM collectors c
+        JOIN users u ON c.user_id = u.user_id
+        WHERE c.collector_id != $1 
+          AND u.approval_status = 'approved'
+          AND c.status = 'active'
+        LIMIT 5
+      `;
+      queryParams = [collectorId];
+    }
+
+    const nearbyCollectors = await pool.query(nearbyCollectorsQuery, queryParams);
+
+    // Determine notification priority based on severity
+    const notificationTitle = severity === 'critical' 
+      ? '🚨 URGENT: Collector Needs Backup'
+      : severity === 'high'
+      ? '⚠️ HIGH PRIORITY: Backup Assistance Needed'
+      : '📢 Backup Assistance Request';
+
+    const issueTypeFormatted = issueType.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+    
+    for (const collector of nearbyCollectors.rows) {
+      const message = `Collector #${collectorId} is experiencing a ${issueTypeFormatted} and may need backup assistance. Issue ID: ${issueId}. ${locationLat && locationLng ? `Location: ${locationLat}, ${locationLng}` : 'Check admin dashboard for details.'}`;
+      
+      await pool.query(
+        `INSERT INTO notifications (user_id, title, message, is_read, created_at, notification_type)
+         VALUES ($1, $2, $3, false, NOW(), 'backup_request')`,
+        [collector.user_id, notificationTitle, message]
+      );
+      
+      notifiedCount++;
+    }
+
+    // Also create a backup request record for tracking
+    if (nearbyCollectors.rows.length > 0) {
+      await pool.query(
+        `INSERT INTO backup_requests (requesting_collector_id, issue_id, urgency, location_lat, location_lng, status, created_at)
+         VALUES ($1, $2, $3, $4, $5, 'pending', NOW())`,
+        [collectorId, issueId, severity, locationLat || null, locationLng || null]
+      );
+    }
+
+    return notifiedCount;
+  } catch (e) {
+    console.warn('Failed to notify nearby collectors:', e.message);
+    return 0;
   }
 }
 

@@ -1,6 +1,7 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import axios from 'axios';
 import API_CONFIG from '../config/api';
+import './RouteIssues.css';
 
 const API_BASE_URL = `${API_CONFIG.BASE_URL}/api`;
 
@@ -8,14 +9,23 @@ export default function RouteIssues() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [issues, setIssues] = useState([]);
   const [selectedIssue, setSelectedIssue] = useState(null);
   const [resolutionNotes, setResolutionNotes] = useState('');
+  const [selectedIssues, setSelectedIssues] = useState(new Set());
+  const [filters, setFilters] = useState({
+    severity: 'all',
+    type: 'all',
+    search: '',
+    dateRange: 'all'
+  });
+  const [viewMode, setViewMode] = useState('cards'); // 'cards' or 'kanban'
 
   const token = useMemo(() => sessionStorage.getItem('adminToken'), []);
   const authHeaders = useMemo(() => ({ Authorization: `Bearer ${token}` }), [token]);
 
-  const loadIssues = async () => {
+  const loadIssues = useCallback(async () => {
     try {
       setLoading(true);
       setError('');
@@ -27,12 +37,14 @@ export default function RouteIssues() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [authHeaders]);
 
   useEffect(() => {
     loadIssues();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    // Set up auto-refresh every 30 seconds for real-time updates
+    const interval = setInterval(loadIssues, 30000);
+    return () => clearInterval(interval);
+  }, [loadIssues]);
 
   const handleApprove = async (issueId) => {
     try {
@@ -46,6 +58,8 @@ export default function RouteIssues() {
       await loadIssues();
       setSelectedIssue(null);
       setResolutionNotes('');
+      setSuccess('Issue approved successfully');
+      setTimeout(() => setSuccess(''), 3000);
     } catch (e) {
       console.error('Failed to approve issue:', e);
       setError(e?.response?.data?.message || e.message || 'Failed to approve');
@@ -66,12 +80,64 @@ export default function RouteIssues() {
       await loadIssues();
       setSelectedIssue(null);
       setResolutionNotes('');
+      setSuccess('Issue rejected successfully');
+      setTimeout(() => setSuccess(''), 3000);
     } catch (e) {
       console.error('Failed to reject issue:', e);
       setError(e?.response?.data?.message || e.message || 'Failed to reject');
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleBulkAction = async (action) => {
+    if (selectedIssues.size === 0) {
+      setError('Please select issues to perform bulk action');
+      return;
+    }
+
+    try {
+      setSaving(true);
+      setError('');
+      
+      const promises = Array.from(selectedIssues).map(issueId => 
+        axios.post(
+          `${API_BASE_URL}/collector/issues/${issueId}/${action}`,
+          { resolution_notes: `Bulk ${action} action` },
+          { headers: { ...authHeaders, 'Content-Type': 'application/json' } }
+        )
+      );
+
+      await Promise.all(promises);
+      await loadIssues();
+      setSelectedIssues(new Set());
+      setSuccess(`${selectedIssues.size} issues ${action}d successfully`);
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (e) {
+      console.error(`Failed to ${action} issues:`, e);
+      setError(`Failed to ${action} selected issues`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const toggleIssueSelection = (issueId) => {
+    const newSelected = new Set(selectedIssues);
+    if (newSelected.has(issueId)) {
+      newSelected.delete(issueId);
+    } else {
+      newSelected.add(issueId);
+    }
+    setSelectedIssues(newSelected);
+  };
+
+  const selectAllPending = () => {
+    const pendingIds = pendingIssues.map(issue => issue.issue_id);
+    setSelectedIssues(new Set(pendingIds));
+  };
+
+  const clearSelection = () => {
+    setSelectedIssues(new Set());
   };
 
   const getSeverityColor = (severity) => {
@@ -109,17 +175,165 @@ export default function RouteIssues() {
     return actions[action] || action;
   };
 
-  const pendingIssues = issues.filter(issue => issue.status === 'pending');
-  const resolvedIssues = issues.filter(issue => issue.status !== 'pending');
+  // Filter issues based on current filters
+  const filteredIssues = issues.filter(issue => {
+    if (filters.severity !== 'all' && issue.severity !== filters.severity) return false;
+    if (filters.type !== 'all' && issue.issue_type !== filters.type) return false;
+    if (filters.search && !issue.description?.toLowerCase().includes(filters.search.toLowerCase()) && 
+        !issue.issue_id.toString().includes(filters.search)) return false;
+    
+    if (filters.dateRange !== 'all') {
+      const issueDate = new Date(issue.reported_at);
+      const now = new Date();
+      const daysDiff = Math.floor((now - issueDate) / (1000 * 60 * 60 * 24));
+      
+      switch (filters.dateRange) {
+        case 'today': if (daysDiff !== 0) return false; break;
+        case 'week': if (daysDiff > 7) return false; break;
+        case 'month': if (daysDiff > 30) return false; break;
+      }
+    }
+    
+    return true;
+  });
+
+  const pendingIssues = filteredIssues.filter(issue => issue.status === 'pending');
+  const resolvedIssues = filteredIssues.filter(issue => issue.status !== 'pending');
 
   return (
-    <div style={{ padding: 16 }}>
-      <h2>Route Issues Management</h2>
+    <div className="route-issues-container">
+      <div className="route-issues-header">
+        <div className="header-title">
+          <h1>🚛 Route Issues Management</h1>
+          <p>Monitor and resolve collector route issues in real-time</p>
+        </div>
+        <div className="header-stats">
+          <div className="stat-card critical">
+            <span className="stat-number">{pendingIssues.filter(i => i.severity === 'critical').length}</span>
+            <span className="stat-label">Critical</span>
+          </div>
+          <div className="stat-card high">
+            <span className="stat-number">{pendingIssues.filter(i => i.severity === 'high').length}</span>
+            <span className="stat-label">High Priority</span>
+          </div>
+          <div className="stat-card pending">
+            <span className="stat-number">{pendingIssues.length}</span>
+            <span className="stat-label">Pending</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Alerts */}
       {error && (
-        <div style={{ background: '#ffebee', border: '1px solid #c62828', color: '#c62828', padding: 10, marginBottom: 12 }}>
+        <div className="alert alert-error">
+          <span className="alert-icon">⚠️</span>
           {error}
         </div>
       )}
+      {success && (
+        <div className="alert alert-success">
+          <span className="alert-icon">✅</span>
+          {success}
+        </div>
+      )}
+
+      {/* Filters and Controls */}
+      <div className="filters-section">
+        <div className="filters-row">
+          <div className="filter-group">
+            <label>Severity:</label>
+            <select 
+              value={filters.severity} 
+              onChange={(e) => setFilters({...filters, severity: e.target.value})}
+              className="filter-select"
+            >
+              <option value="all">All Severities</option>
+              <option value="critical">Critical</option>
+              <option value="high">High</option>
+              <option value="medium">Medium</option>
+              <option value="low">Low</option>
+            </select>
+          </div>
+
+          <div className="filter-group">
+            <label>Type:</label>
+            <select 
+              value={filters.type} 
+              onChange={(e) => setFilters({...filters, type: e.target.value})}
+              className="filter-select"
+            >
+              <option value="all">All Types</option>
+              <option value="truck_breakdown">Truck Breakdown</option>
+              <option value="equipment_failure">Equipment Failure</option>
+              <option value="weather">Weather</option>
+              <option value="emergency">Emergency</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+
+          <div className="filter-group">
+            <label>Date Range:</label>
+            <select 
+              value={filters.dateRange} 
+              onChange={(e) => setFilters({...filters, dateRange: e.target.value})}
+              className="filter-select"
+            >
+              <option value="all">All Time</option>
+              <option value="today">Today</option>
+              <option value="week">This Week</option>
+              <option value="month">This Month</option>
+            </select>
+          </div>
+
+          <div className="filter-group search-group">
+            <label>Search:</label>
+            <input
+              type="text"
+              placeholder="Search issues..."
+              value={filters.search}
+              onChange={(e) => setFilters({...filters, search: e.target.value})}
+              className="search-input"
+            />
+          </div>
+        </div>
+
+        {/* Bulk Actions */}
+        {selectedIssues.size > 0 && (
+          <div className="bulk-actions">
+            <span className="bulk-selected">{selectedIssues.size} issues selected</span>
+            <div className="bulk-buttons">
+              <button 
+                onClick={() => handleBulkAction('approve')} 
+                className="bulk-btn approve"
+                disabled={saving}
+              >
+                Bulk Approve
+              </button>
+              <button 
+                onClick={() => handleBulkAction('reject')} 
+                className="bulk-btn reject"
+                disabled={saving}
+              >
+                Bulk Reject
+              </button>
+              <button onClick={clearSelection} className="bulk-btn clear">
+                Clear Selection
+              </button>
+            </div>
+          </div>
+        )}
+
+        {pendingIssues.length > 0 && (
+          <div className="quick-actions">
+            <button onClick={selectAllPending} className="quick-btn">
+              Select All Pending
+            </button>
+            <button onClick={() => setViewMode(viewMode === 'cards' ? 'kanban' : 'cards')} className="quick-btn">
+              {viewMode === 'cards' ? '📋 Kanban View' : '🗃️ Card View'}
+            </button>
+          </div>
+        )}
+      </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: selectedIssue ? '1fr 1fr' : '1fr', gap: 16 }}>
         {/* Issues List */}
@@ -132,59 +346,55 @@ export default function RouteIssues() {
               No pending issues
             </div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div className="issues-grid">
               {pendingIssues.map(issue => (
                 <div 
                   key={issue.issue_id} 
-                  style={{ 
-                    border: selectedIssue?.issue_id === issue.issue_id ? '2px solid #1976d2' : '1px solid #ddd', 
-                    borderRadius: 8, 
-                    padding: 16,
-                    cursor: 'pointer',
-                    backgroundColor: selectedIssue?.issue_id === issue.issue_id ? '#f3f9ff' : '#fff'
-                  }}
-                  onClick={() => setSelectedIssue(issue)}
+                  className={`issue-card ${selectedIssue?.issue_id === issue.issue_id ? 'selected' : ''} severity-${issue.severity}`}
                 >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
-                    <div>
-                      <span style={{ 
-                        background: getSeverityColor(issue.severity), 
-                        color: '#fff', 
-                        padding: '4px 8px', 
-                        borderRadius: 4, 
-                        fontSize: 12, 
-                        fontWeight: 'bold' 
-                      }}>
+                  <div className="issue-card-header">
+                    <div className="issue-checkbox">
+                      <input
+                        type="checkbox"
+                        checked={selectedIssues.has(issue.issue_id)}
+                        onChange={() => toggleIssueSelection(issue.issue_id)}
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                    </div>
+                    <div className="issue-meta" onClick={() => setSelectedIssue(issue)}>
+                      <span className={`severity-badge severity-${issue.severity}`}>
                         {issue.severity.toUpperCase()}
                       </span>
-                      <span style={{ marginLeft: 8, fontWeight: 'bold' }}>
-                        Issue #{issue.issue_id}
-                      </span>
+                      <span className="issue-id">#{issue.issue_id}</span>
                     </div>
-                    <span style={{ fontSize: 12, color: '#666' }}>
+                    <div className="issue-time">
                       {new Date(issue.reported_at).toLocaleString()}
-                    </span>
+                    </div>
                   </div>
                   
-                  <div style={{ marginBottom: 8 }}>
-                    <strong>Collector #{issue.collector_id}</strong> - {formatIssueType(issue.issue_type)}
-                  </div>
-                  
-                  {issue.description && (
-                    <div style={{ marginBottom: 8, color: '#555' }}>
-                      {issue.description}
+                  <div className="issue-card-body" onClick={() => setSelectedIssue(issue)}>
+                    <div className="issue-collector">
+                      <strong>🚛 Collector #{issue.collector_id}</strong>
+                      <span className="issue-type">{formatIssueType(issue.issue_type)}</span>
                     </div>
-                  )}
-                  
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ fontSize: 14, color: '#1976d2', fontWeight: 'bold' }}>
-                      Requested: {formatRequestedAction(issue.requested_action)}
-                    </div>
-                    {issue.estimated_delay_hours && (
-                      <div style={{ fontSize: 12, color: '#666' }}>
-                        Est. delay: {issue.estimated_delay_hours}h
+                    
+                    {issue.description && (
+                      <div className="issue-description">
+                        {issue.description}
                       </div>
                     )}
+                    
+                    <div className="issue-footer">
+                      <div className="requested-action">
+                        <span className="action-label">Requested:</span>
+                        <span className="action-text">{formatRequestedAction(issue.requested_action)}</span>
+                      </div>
+                      {issue.estimated_delay_hours && (
+                        <div className="estimated-delay">
+                          ⏱️ {issue.estimated_delay_hours}h delay
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               ))}
