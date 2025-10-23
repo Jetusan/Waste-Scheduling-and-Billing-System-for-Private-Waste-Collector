@@ -165,6 +165,13 @@ router.post('/submit', authenticateJWT, upload.single('paymentProof'), async (re
     
     const user_id = req.user.user_id;
     
+    console.log('🔍 Manual payment submission debug:', {
+      user_id,
+      subscription_id,
+      amount,
+      hasFile: !!req.file
+    });
+    
     if (!subscription_id || !amount || !req.file) {
       return res.status(400).json({ 
         success: false, 
@@ -173,15 +180,37 @@ router.post('/submit', authenticateJWT, upload.single('paymentProof'), async (re
     }
 
     // Verify subscription belongs to user
+    console.log('🔍 Checking subscription with query:', {
+      subscription_id,
+      user_id
+    });
+    
     const subscriptionCheck = await pool.query(
       'SELECT * FROM customer_subscriptions WHERE subscription_id = $1 AND user_id = $2',
       [subscription_id, user_id]
     );
+    
+    console.log('🔍 Subscription check result:', {
+      found: subscriptionCheck.rows.length > 0,
+      subscription: subscriptionCheck.rows[0] || 'none'
+    });
 
     if (subscriptionCheck.rows.length === 0) {
+      // Debug: Check what subscriptions exist for this user
+      const userSubscriptions = await pool.query(
+        'SELECT subscription_id, status, payment_status FROM customer_subscriptions WHERE user_id = $1',
+        [user_id]
+      );
+      
+      console.log('🚨 No subscription found. User subscriptions:', userSubscriptions.rows);
+      
       return res.status(404).json({ 
         success: false, 
-        message: 'Subscription not found' 
+        message: 'Subscription not found',
+        debug: {
+          requested_subscription_id: subscription_id,
+          user_subscriptions: userSubscriptions.rows
+        }
       });
     }
 
