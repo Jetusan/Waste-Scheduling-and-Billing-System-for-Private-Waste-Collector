@@ -163,32 +163,69 @@ router.post('/submit', authenticateJWT, upload.single('paymentProof'), async (re
       notes 
     } = req.body;
     
-    const user_id = req.user.user_id;
+    const user_id = req.user?.user_id;
     
     console.log('🔍 Manual payment submission debug:', {
       user_id,
       subscription_id,
       amount,
-      hasFile: !!req.file
+      hasFile: !!req.file,
+      userObject: req.user
     });
     
-    if (!subscription_id || !amount || !req.file) {
+    // Enhanced validation with better error messages
+    if (!user_id) {
+      return res.status(401).json({ 
+        success: false, 
+        message: 'User authentication failed. Please log in again.',
+        errorCode: 'AUTH_FAILED'
+      });
+    }
+    
+    if (!subscription_id) {
       return res.status(400).json({ 
         success: false, 
-        message: 'Subscription ID, amount, and payment proof are required' 
+        message: 'Subscription ID is required. Please try again from the subscription page.',
+        errorCode: 'MISSING_SUBSCRIPTION_ID'
+      });
+    }
+    
+    if (!amount) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Payment amount is required.',
+        errorCode: 'MISSING_AMOUNT'
+      });
+    }
+    
+    if (!req.file) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Payment proof image is required. Please select an image file.',
+        errorCode: 'MISSING_FILE'
       });
     }
 
-    // Verify subscription belongs to user
+    // Verify subscription belongs to user with enhanced error handling
     console.log('🔍 Checking subscription with query:', {
       subscription_id,
       user_id
     });
     
-    const subscriptionCheck = await pool.query(
-      'SELECT * FROM customer_subscriptions WHERE subscription_id = $1 AND user_id = $2',
-      [subscription_id, user_id]
-    );
+    let subscriptionCheck;
+    try {
+      subscriptionCheck = await pool.query(
+        'SELECT * FROM customer_subscriptions WHERE subscription_id = $1 AND user_id = $2',
+        [subscription_id, user_id]
+      );
+    } catch (dbError) {
+      console.error('🚨 Database error during subscription check:', dbError);
+      return res.status(500).json({
+        success: false,
+        message: 'Database error occurred. Please try again later.',
+        errorCode: 'DB_ERROR'
+      });
+    }
     
     console.log('🔍 Subscription check result:', {
       found: subscriptionCheck.rows.length > 0,
@@ -197,16 +234,44 @@ router.post('/submit', authenticateJWT, upload.single('paymentProof'), async (re
 
     if (subscriptionCheck.rows.length === 0) {
       // Debug: Check what subscriptions exist for this user
-      const userSubscriptions = await pool.query(
-        'SELECT subscription_id, status, payment_status FROM customer_subscriptions WHERE user_id = $1',
-        [user_id]
-      );
+      let userSubscriptions;
+      try {
+        userSubscriptions = await pool.query(
+          'SELECT subscription_id, status, payment_status FROM customer_subscriptions WHERE user_id = $1',
+          [user_id]
+        );
+      } catch (dbError) {
+        console.error('🚨 Database error during user subscriptions check:', dbError);
+        userSubscriptions = { rows: [] };
+      }
       
       console.log('🚨 No subscription found. User subscriptions:', userSubscriptions.rows);
       
+      // Provide helpful error messages based on the situation
+      let errorMessage = 'Subscription not found.';
+      let errorCode = 'SUBSCRIPTION_NOT_FOUND';
+      
+      if (userSubscriptions.rows.length === 0) {
+        errorMessage = 'No active subscription found. Please subscribe to a plan first.';
+        errorCode = 'NO_SUBSCRIPTION';
+      } else {
+        const activeSubscription = userSubscriptions.rows.find(sub => 
+          sub.status === 'active' || sub.status === 'pending_payment'
+        );
+        
+        if (activeSubscription) {
+          errorMessage = `Subscription ID mismatch. Please use subscription ID: ${activeSubscription.subscription_id}`;
+          errorCode = 'WRONG_SUBSCRIPTION_ID';
+        } else {
+          errorMessage = 'No active subscription found. Your subscription may have expired or been cancelled.';
+          errorCode = 'INACTIVE_SUBSCRIPTION';
+        }
+      }
+      
       return res.status(404).json({ 
         success: false, 
-        message: 'Subscription not found',
+        message: errorMessage,
+        errorCode,
         debug: {
           requested_subscription_id: subscription_id,
           user_subscriptions: userSubscriptions.rows
@@ -220,35 +285,47 @@ router.post('/submit', authenticateJWT, upload.single('paymentProof'), async (re
     // ========== FRAUD PREVENTION CHECKS ==========
     console.log('🛡️ Starting fraud prevention checks...');
     
-    // 1. Generate image hash for duplicate detection
-    const imageHash = fraudPrevention.generateImageHash(fullImagePath);
-    if (!imageHash) {
-      return res.status(500).json({
-        success: false,
-        message: 'Failed to process payment proof image'
-      });
-    }
+    let imageHash = null;
+    let duplicateCheck = null;
+    let behaviorCheck = { recentSubmissions: 0, recentFailures: 0, isSuspicious: false };
+    
+    try {
+      // 1. Generate image hash for duplicate detection
+      imageHash = fraudPrevention.generateImageHash(fullImagePath);
+      if (!imageHash) {
+        console.warn('⚠️ Failed to generate image hash, continuing without duplicate check');
+      }
 
-    // 2. Check for duplicate image submissions
-    const duplicateCheck = await fraudPrevention.checkDuplicateImage(imageHash, user_id);
-    if (duplicateCheck) {
-      console.log('🚨 Duplicate image detected:', duplicateCheck);
-      return res.status(400).json({
-        success: false,
-        message: 'This payment proof has already been submitted',
-        details: `Previously submitted on ${new Date(duplicateCheck.created_at).toLocaleDateString()}`
-      });
-    }
+      // 2. Check for duplicate image submissions (only if hash was generated)
+      if (imageHash) {
+        duplicateCheck = await fraudPrevention.checkDuplicateImage(imageHash, user_id);
+        if (duplicateCheck) {
+          console.log('🚨 Duplicate image detected:', duplicateCheck);
+          return res.status(400).json({
+            success: false,
+            message: 'This payment proof has already been submitted',
+            errorCode: 'DUPLICATE_IMAGE',
+            details: `Previously submitted on ${new Date(duplicateCheck.created_at).toLocaleDateString()}`
+          });
+        }
+      }
 
-    // 3. Check user submission behavior
-    const behaviorCheck = await fraudPrevention.checkSubmissionBehavior(user_id);
-    if (behaviorCheck.isSuspicious) {
-      console.log('🚨 Suspicious submission behavior detected:', behaviorCheck);
-      return res.status(429).json({
-        success: false,
-        message: 'Too many submission attempts. Please wait before trying again.',
-        details: `Recent submissions: ${behaviorCheck.recentSubmissions}, Recent failures: ${behaviorCheck.recentFailures}`
-      });
+      // 3. Check user submission behavior
+      behaviorCheck = await fraudPrevention.checkSubmissionBehavior(user_id);
+      if (behaviorCheck.isSuspicious) {
+        console.log('🚨 Suspicious submission behavior detected:', behaviorCheck);
+        return res.status(429).json({
+          success: false,
+          message: 'Too many submission attempts. Please wait before trying again.',
+          errorCode: 'RATE_LIMITED',
+          details: `Recent submissions: ${behaviorCheck.recentSubmissions}, Recent failures: ${behaviorCheck.recentFailures}`
+        });
+      }
+    } catch (fraudError) {
+      console.error('⚠️ Fraud prevention error (continuing with submission):', fraudError);
+      // Continue with submission even if fraud checks fail
+      imageHash = imageHash || 'error-generating-hash';
+      behaviorCheck = { recentSubmissions: 0, recentFailures: 0, isSuspicious: false, error: true };
     }
 
     // Initialize OCR verification
@@ -445,11 +522,48 @@ router.post('/submit', authenticateJWT, upload.single('paymentProof'), async (re
     });
 
   } catch (error) {
-    console.error('Error submitting manual payment:', error);
+    console.error('🚨 Error submitting manual payment:', error);
+    
+    // Clean up uploaded file if it exists
+    if (req.file) {
+      try {
+        const fs = require('fs');
+        const filePath = path.join(process.cwd(), 'uploads/payment-proofs', req.file.filename);
+        if (fs.existsSync(filePath)) {
+          fs.unlinkSync(filePath);
+          console.log('🗑️ Cleaned up uploaded file after error');
+        }
+      } catch (cleanupError) {
+        console.error('Error cleaning up file:', cleanupError);
+      }
+    }
+    
+    // Provide specific error messages based on error type
+    let errorMessage = 'Failed to submit payment proof. Please try again.';
+    let errorCode = 'SUBMISSION_ERROR';
+    
+    if (error.code === 'ENOENT') {
+      errorMessage = 'File upload failed. Please try uploading the image again.';
+      errorCode = 'FILE_ERROR';
+    } else if (error.code === '23503') {
+      errorMessage = 'Invalid subscription reference. Please try again from the subscription page.';
+      errorCode = 'FOREIGN_KEY_ERROR';
+    } else if (error.code === '23505') {
+      errorMessage = 'Duplicate submission detected. Please wait for the previous submission to be processed.';
+      errorCode = 'DUPLICATE_ERROR';
+    } else if (error.message.includes('timeout')) {
+      errorMessage = 'Request timeout. Please check your internet connection and try again.';
+      errorCode = 'TIMEOUT_ERROR';
+    } else if (error.message.includes('connection')) {
+      errorMessage = 'Database connection error. Please try again in a moment.';
+      errorCode = 'CONNECTION_ERROR';
+    }
+    
     return res.status(500).json({ 
       success: false, 
-      message: 'Failed to submit payment proof', 
-      details: error.message 
+      message: errorMessage,
+      errorCode,
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 });
