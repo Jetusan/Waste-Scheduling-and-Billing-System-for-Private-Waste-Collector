@@ -193,7 +193,7 @@ const ManualGCashPayment = () => {
                     gcashNumber: '',
                     notes: ''
                   });
-                  setSelectedImage(null);
+                  setPaymentProof(null);
                 }
               },
               {
@@ -239,7 +239,7 @@ const ManualGCashPayment = () => {
             actions = [
               {
                 text: 'Choose Different Image',
-                onPress: () => setSelectedImage(null)
+                onPress: () => setPaymentProof(null)
               },
               {
                 text: 'Go Back',

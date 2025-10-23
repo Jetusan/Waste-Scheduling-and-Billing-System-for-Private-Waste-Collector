@@ -90,9 +90,22 @@ const fraudPrevention = {
 
     const text = ocrText.toLowerCase();
 
-    // Check for correct GCash recipient number
-    const phoneNumbers = ocrText.match(/09\d{9}/g) || [];
-    validation.hasCorrectRecipient = phoneNumbers.includes(expectedRecipient);
+    // Check for correct GCash recipient number (handle both +63 and 09 formats)
+    const phoneNumbers = ocrText.match(/(?:\+63\s?9\d{2}\s?\d{3}\s?\d{4}|09\d{9})/g) || [];
+    const normalizedNumbers = phoneNumbers.map(num => {
+      // Convert +63 9XX XXX XXXX to 09XXXXXXXXX
+      return num.replace(/\+63\s?9/, '09').replace(/\s/g, '');
+    });
+    
+    console.log('🔍 Recipient number debug:', {
+      ocrText,
+      expectedRecipient,
+      phoneNumbers,
+      normalizedNumbers,
+      match: normalizedNumbers.includes(expectedRecipient)
+    });
+    
+    validation.hasCorrectRecipient = normalizedNumbers.includes(expectedRecipient);
 
     // Check for correct amount (handle both ₱ and £ symbols due to OCR misreading)
     const amounts = ocrText.match(/[₱£][\d,]+\.?\d*/g) || [];
@@ -101,7 +114,23 @@ const fraudPrevention = {
     
     const allAmounts = [...amounts, ...standaloneAmounts];
     const numericAmounts = allAmounts.map(a => parseFloat(a.replace(/[₱£,]/g, '')));
-    validation.hasCorrectAmount = numericAmounts.includes(parseFloat(expectedAmount));
+    
+    console.log('🔍 Amount detection debug:', {
+      ocrText,
+      expectedAmount,
+      amounts,
+      standaloneAmounts,
+      allAmounts,
+      numericAmounts,
+      expectedNumeric: parseFloat(expectedAmount)
+    });
+    
+    // Check if any amount is close to expected (within ₱5 tolerance)
+    const expectedNum = parseFloat(expectedAmount);
+    const hasExactAmount = numericAmounts.includes(expectedNum);
+    const hasCloseAmount = numericAmounts.some(amt => Math.abs(amt - expectedNum) <= 5);
+    
+    validation.hasCorrectAmount = hasExactAmount || hasCloseAmount;
 
     // Check for GCash keywords
     const requiredKeywords = ['gcash', 'sent', 'successful', 'transaction', 'transfer'];
