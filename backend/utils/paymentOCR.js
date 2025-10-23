@@ -1,5 +1,13 @@
-const Tesseract = require('tesseract.js');
-const sharp = require('sharp');
+// Handle optional dependencies gracefully
+let Tesseract, sharp;
+try {
+  Tesseract = require('tesseract.js');
+  sharp = require('sharp');
+} catch (error) {
+  console.error('⚠️ OCR dependencies not found. Please install: npm install tesseract.js sharp');
+  throw new Error('OCR dependencies missing. Run: npm install tesseract.js sharp');
+}
+
 const path = require('path');
 
 class PaymentVerificationOCR {

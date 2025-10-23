@@ -5,7 +5,13 @@ const path = require('path');
 const fs = require('fs');
 const pool = require('../config/dbAdmin');
 const { authenticateJWT, authorizeRoles } = require('../middleware/auth');
-const PaymentVerificationOCR = require('../utils/paymentOCR');
+// Make OCR optional for deployment
+let PaymentVerificationOCR = null;
+try {
+  PaymentVerificationOCR = require('../utils/paymentOCR');
+} catch (error) {
+  console.warn('⚠️ OCR dependencies not available. Manual verification will be used.');
+}
 
 // Ensure upload directory exists
 const uploadDir = 'uploads/payment-proofs/';
@@ -78,35 +84,43 @@ router.post('/submit', authenticateJWT, upload.single('paymentProof'), async (re
     const fullImagePath = path.join(process.cwd(), 'uploads/payment-proofs', req.file.filename);
 
     // Initialize OCR verification
-    const ocrVerifier = new PaymentVerificationOCR();
     let verificationResult = null;
     let autoVerificationStatus = 'pending';
     let verificationReport = '';
 
-    try {
-      // Perform automatic verification
-      console.log('🔍 Starting automatic payment verification...');
-      verificationResult = await ocrVerifier.verifyPaymentProof(fullImagePath, amount);
-      
-      if (verificationResult.success) {
-        verificationReport = ocrVerifier.generateVerificationReport(verificationResult);
-        console.log('📊 Verification Report:\n', verificationReport);
+    if (PaymentVerificationOCR) {
+      try {
+        const ocrVerifier = new PaymentVerificationOCR();
         
-        // If verification passes with high confidence, auto-approve
-        if (verificationResult.isValid && verificationResult.confidence >= 90) {
-          autoVerificationStatus = 'auto_verified';
-          console.log('✅ Payment auto-verified with high confidence!');
-        } else if (verificationResult.confidence >= 70) {
-          autoVerificationStatus = 'needs_review';
-          console.log('⚠️ Payment needs manual review');
-        } else {
-          autoVerificationStatus = 'auto_rejected';
-          console.log('❌ Payment auto-rejected due to low confidence');
+        // Perform automatic verification
+        console.log('🔍 Starting automatic payment verification...');
+        verificationResult = await ocrVerifier.verifyPaymentProof(fullImagePath, amount);
+        
+        if (verificationResult.success) {
+          verificationReport = ocrVerifier.generateVerificationReport(verificationResult);
+          console.log('📊 Verification Report:\n', verificationReport);
+          
+          // If verification passes with high confidence, auto-approve
+          if (verificationResult.isValid && verificationResult.confidence >= 90) {
+            autoVerificationStatus = 'auto_verified';
+            console.log('✅ Payment auto-verified with high confidence!');
+          } else if (verificationResult.confidence >= 70) {
+            autoVerificationStatus = 'needs_review';
+            console.log('⚠️ Payment needs manual review');
+          } else {
+            autoVerificationStatus = 'auto_rejected';
+            console.log('❌ Payment auto-rejected due to low confidence');
+          }
         }
+      } catch (error) {
+        console.error('OCR Verification Error:', error);
+        verificationReport = `OCR Error: ${error.message}`;
+        autoVerificationStatus = 'needs_review'; // Fallback to manual review
       }
-    } catch (error) {
-      console.error('OCR Verification Error:', error);
-      verificationReport = `OCR Error: ${error.message}`;
+    } else {
+      console.log('⚠️ OCR not available - defaulting to manual review');
+      autoVerificationStatus = 'needs_review';
+      verificationReport = 'OCR dependencies not installed - manual verification required';
     }
 
     // Insert manual payment verification record with OCR results
