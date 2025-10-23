@@ -205,6 +205,21 @@ const SubscriptionStatusScreen = () => {
       case 'pay_gcash':
         await handleGCashPayment();
         break;
+      case 'upload_receipt':
+        // Navigate to Manual GCash Payment page
+        router.push({
+          pathname: '/ManualGCashPayment',
+          params: {
+            subscription: JSON.stringify(subscriptionData.subscription),
+            amount: subscriptionData.subscription.plan.price.toString(),
+            subscription_id: subscriptionData.subscription.id.toString()
+          }
+        });
+        break;
+      case 'continue_gcash_payment':
+        // Continue with PayMongo GCash payment
+        await handleGCashPayment();
+        break;
       case 'view_schedule':
         router.push('/CollectionSchedule');
         break;

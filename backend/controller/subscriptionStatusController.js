@@ -163,7 +163,7 @@ const getAvailableActions = (uiState, subscription, invoice) => {
       
     case 'pending_gcash':
       actions.push(
-        { id: 'pay_gcash', label: 'Pay Now via GCash', type: 'payment', primary: true },
+        { id: 'pay_gcash', label: 'Continue GCash Payment', type: 'payment', primary: true },
         { id: 'change_payment_method', label: 'Change to Cash Payment', type: 'form' },
         { id: 'view_invoice', label: 'View Invoice Details', type: 'navigation' }
       );
@@ -171,7 +171,7 @@ const getAvailableActions = (uiState, subscription, invoice) => {
       
     case 'pending_manual_gcash':
       actions.push(
-        { id: 'upload_receipt', label: 'Upload GCash Receipt', type: 'payment', primary: true },
+        { id: 'upload_receipt', label: 'Continue Manual GCash Payment', type: 'payment', primary: true },
         { id: 'change_payment_method', label: 'Change to Cash Payment', type: 'form' },
         { id: 'view_invoice', label: 'View Invoice Details', type: 'navigation' }
       );
