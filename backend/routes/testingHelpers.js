@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const pool = require('../config/database');
+const pool = require('../config/db');
 const { authenticateJWT } = require('../middleware/auth');
 
 // Clear duplicate image records for testing
