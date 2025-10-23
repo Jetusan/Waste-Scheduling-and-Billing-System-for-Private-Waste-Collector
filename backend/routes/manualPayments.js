@@ -484,7 +484,7 @@ router.post('/submit', authenticateJWT, upload.single('paymentProof'), async (re
 
       // Create invoice record
       await pool.query(`
-        INSERT INTO invoices (user_id, subscription_id, amount, status, paid_at)
+        INSERT INTO invoices (user_id, subscription_id, amount, status, generated_date)
         VALUES ($1, $2, $3, 'paid', NOW())
       `, [user_id, subscription_id, parseFloat(amount)]);
 
@@ -751,7 +751,7 @@ router.post('/admin/verify/:verification_id', authenticateJWT, authorizeRoles('a
 
       // Create invoice record
       await pool.query(`
-        INSERT INTO invoices (user_id, subscription_id, amount, status, paid_at)
+        INSERT INTO invoices (user_id, subscription_id, amount, status, generated_date)
         VALUES ($1, $2, $3, 'paid', NOW())
       `, [verification.user_id, verification.subscription_id, verification.amount]);
 
