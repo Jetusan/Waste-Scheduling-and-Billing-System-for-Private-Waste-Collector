@@ -152,11 +152,11 @@ const ManualGCashPayment = () => {
             [
               {
                 text: 'View Subscription',
-                onPress: () => router.push('/resident/subscription')
+                onPress: () => router.push('/Subscription')
               },
               {
                 text: 'Go to Home',
-                onPress: () => router.push('/resident/home'),
+                onPress: () => router.push('/resident/HomePage'),
                 style: 'default'
               }
             ]
@@ -169,11 +169,11 @@ const ManualGCashPayment = () => {
             [
               {
                 text: 'Check Status',
-                onPress: () => router.push('/resident/subscription')
+                onPress: () => router.push('/Subscription')
               },
               {
                 text: 'Go to Home',
-                onPress: () => router.push('/resident/home'),
+                onPress: () => router.push('/resident/HomePage'),
                 style: 'default'
               }
             ]
@@ -211,11 +211,11 @@ const ManualGCashPayment = () => {
             [
               {
                 text: 'Check Status',
-                onPress: () => router.push('/resident/subscription')
+                onPress: () => router.push('/Subscription')
               },
               {
                 text: 'Go to Home',
-                onPress: () => router.push('/resident/home'),
+                onPress: () => router.push('/resident/HomePage'),
                 style: 'default'
               }
             ]
@@ -254,7 +254,7 @@ const ManualGCashPayment = () => {
             actions = [
               {
                 text: 'Go to Home',
-                onPress: () => router.push('/resident/home')
+                onPress: () => router.push('/resident/HomePage')
               }
             ];
             break;
@@ -264,11 +264,11 @@ const ManualGCashPayment = () => {
             actions = [
               {
                 text: 'Subscribe Now',
-                onPress: () => router.push('/resident/subscription')
+                onPress: () => router.push('/Subscription')
               },
               {
                 text: 'Go to Home',
-                onPress: () => router.push('/resident/home'),
+                onPress: () => router.push('/resident/HomePage'),
                 style: 'cancel'
               }
             ];
@@ -279,7 +279,7 @@ const ManualGCashPayment = () => {
             actions = [
               {
                 text: 'Check Subscription',
-                onPress: () => router.push('/resident/subscription')
+                onPress: () => router.push('/Subscription')
               },
               {
                 text: 'Go Back',

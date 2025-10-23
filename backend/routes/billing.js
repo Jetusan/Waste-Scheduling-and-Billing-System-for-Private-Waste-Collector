@@ -392,6 +392,10 @@ router.get('/subscriptions', billingController.getAllCustomerSubscriptions);
 // Mobile subscription management routes
 router.post('/create-mobile-subscription', authenticateJWT, billingController.createMobileSubscription);
 router.post('/mobile-subscription', authenticateJWT, billingController.createMobileSubscription); // Alternative endpoint for mobile app
+
+// Subscription renewal routes
+router.post('/renew-subscription', authenticateJWT, billingController.renewActiveSubscription);
+router.post('/renewal', authenticateJWT, billingController.renewActiveSubscription); // Alternative endpoint
 // router.get('/subscription-status/:user_id', billingController.getUserSubscriptionStatus); // Commented out - using the one with payment history below
 
 // Payment confirmation routes

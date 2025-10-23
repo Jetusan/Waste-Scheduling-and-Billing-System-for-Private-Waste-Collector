@@ -462,9 +462,21 @@ const createMobileSubscription = async (req, res) => {
     let subscription = null;
     
     if (existingSubscription && existingSubscription.status === 'active') {
-      console.log('⚠️ User already has active subscription, creating new billing cycle');
-      // Use existing active subscription for renewal/new billing cycle
-      subscription = existingSubscription;
+      console.log('⚠️ User already has active subscription - redirecting to renewal flow');
+      
+      // Instead of just returning existing subscription, suggest renewal
+      return res.status(409).json({
+        error: 'Active subscription exists',
+        message: 'You already have an active subscription. Use the renewal endpoint to extend your subscription.',
+        subscription: existingSubscription,
+        suggestion: {
+          action: 'use_renewal_endpoint',
+          endpoint: '/api/billing/renew-subscription',
+          method: 'POST',
+          body: { payment_method: payment_method }
+        },
+        errorCode: 'ACTIVE_SUBSCRIPTION_EXISTS'
+      });
     } else if (existingSubscription && (existingSubscription.status === 'pending_payment' || existingSubscription.status === 'suspended' || existingSubscription.status === 'cancelled')) {
       if (existingSubscription.status === 'pending_payment') {
         console.log('🔄 User has pending payment subscription, reusing it');
@@ -1877,6 +1889,71 @@ const handlePayMongoWebhook = async (req, res) => {
   }
 };
 
+// Renewal controller for active subscriptions
+const renewActiveSubscription = async (req, res) => {
+  try {
+    console.log('📥 Renewal request body:', req.body);
+    
+    const { payment_method } = req.body;
+    const user_id = req.user?.userId || req.user?.user_id;
+    
+    console.log('🔍 Renewal request - user_id:', user_id, 'payment_method:', payment_method);
+    
+    // Validate required fields
+    if (!user_id || !payment_method) {
+      return res.status(400).json({ 
+        error: 'Missing required fields', 
+        details: 'user_id (from token) and payment_method are required',
+        received: { user_id, payment_method }
+      });
+    }
+
+    // Call the renewal function from billingModel
+    const renewalResult = await billingModel.renewActiveSubscription(user_id, payment_method);
+    
+    console.log('✅ Renewal successful:', {
+      subscription_id: renewalResult.subscription.subscription_id,
+      invoice_id: renewalResult.invoice.invoice_id,
+      amount: renewalResult.invoice.amount,
+      isExistingRenewal: renewalResult.isExistingRenewal
+    });
+
+    res.json({
+      success: true,
+      message: renewalResult.isExistingRenewal 
+        ? 'Existing renewal invoice found' 
+        : 'New renewal invoice created successfully',
+      subscription: renewalResult.subscription,
+      invoice: renewalResult.invoice,
+      isExistingRenewal: renewalResult.isExistingRenewal,
+      next_steps: {
+        payment_required: true,
+        amount: renewalResult.invoice.amount,
+        due_date: renewalResult.invoice.due_date,
+        payment_methods: ['manual_gcash', 'gcash', 'cash']
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Renewal error:', error);
+    console.error('Stack:', error.stack);
+    
+    if (error.message === 'No active subscription found for renewal') {
+      return res.status(404).json({ 
+        error: 'No active subscription found',
+        message: 'You must have an active subscription to renew. Please subscribe first.',
+        errorCode: 'NO_ACTIVE_SUBSCRIPTION'
+      });
+    }
+    
+    res.status(500).json({ 
+      error: 'Failed to process renewal', 
+      details: error.message,
+      errorCode: 'RENEWAL_FAILED'
+    });
+  }
+};
+
 module.exports = {
   // Subscription Plans
   getAllSubscriptionPlans,
@@ -1930,6 +2007,9 @@ module.exports = {
 
   // Manual cancellation
   cancelSubscription,
+  
+  // Subscription Renewal
+  renewActiveSubscription,
   
   // Payment Attempt Tracking
   recordPaymentAttempt,

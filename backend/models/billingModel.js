@@ -832,6 +832,124 @@ const getPendingCashSubscriptions = async () => {
   return result.rows;
 };
 
+// Renewal function for active subscriptions
+const renewActiveSubscription = async (userId, paymentMethod) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    
+    // Get active subscription
+    const subscriptionQuery = `
+      SELECT cs.*, sp.price, sp.plan_name 
+      FROM customer_subscriptions cs
+      JOIN subscription_plans sp ON cs.plan_id = sp.plan_id
+      WHERE cs.user_id = $1 AND cs.status = 'active'
+      ORDER BY cs.created_at DESC
+      LIMIT 1
+    `;
+    const subscriptionResult = await client.query(subscriptionQuery, [userId]);
+    
+    if (subscriptionResult.rows.length === 0) {
+      throw new Error('No active subscription found for renewal');
+    }
+    
+    const subscription = subscriptionResult.rows[0];
+    
+    // Check if user already has an unpaid invoice for next billing cycle
+    const existingInvoiceQuery = `
+      SELECT invoice_id 
+      FROM invoices 
+      WHERE subscription_id = $1 
+        AND status IN ('unpaid', 'partially_paid')
+        AND due_date > CURRENT_DATE
+      ORDER BY created_at DESC
+      LIMIT 1
+    `;
+    const existingInvoiceResult = await client.query(existingInvoiceQuery, [subscription.subscription_id]);
+    
+    if (existingInvoiceResult.rows.length > 0) {
+      // Return existing renewal invoice
+      const invoiceQuery = `
+        SELECT * FROM invoices WHERE invoice_id = $1
+      `;
+      const invoiceResult = await client.query(invoiceQuery, [existingInvoiceResult.rows[0].invoice_id]);
+      
+      await client.query('COMMIT');
+      return {
+        subscription,
+        invoice: invoiceResult.rows[0],
+        isExistingRenewal: true
+      };
+    }
+    
+    // Calculate next billing period dates
+    const currentDate = new Date();
+    const nextBillingDate = new Date(subscription.next_billing_date || currentDate);
+    if (nextBillingDate <= currentDate) {
+      nextBillingDate.setDate(currentDate.getDate() + 30);
+    }
+    
+    const dueDate = new Date(nextBillingDate);
+    dueDate.setDate(dueDate.getDate() + 15); // Due 15 days after billing date
+    
+    // Create renewal invoice
+    const invoiceNumber = `REN-${Date.now().toString().slice(-8)}${userId}`;
+    const createInvoiceQuery = `
+      INSERT INTO invoices (
+        invoice_number, 
+        user_id, 
+        subscription_id, 
+        plan_id,
+        amount, 
+        status, 
+        due_date,
+        generated_date,
+        notes
+      )
+      VALUES ($1, $2, $3, $4, $5, 'unpaid', $6, $7, $8)
+      RETURNING *
+    `;
+    
+    const invoiceResult = await client.query(createInvoiceQuery, [
+      invoiceNumber,
+      userId,
+      subscription.subscription_id,
+      subscription.plan_id,
+      subscription.price,
+      dueDate.toISOString().split('T')[0],
+      currentDate.toISOString().split('T')[0],
+      `Renewal invoice for ${subscription.plan_name} - Next billing cycle`
+    ]);
+    
+    // Update subscription with renewal info
+    const updateSubscriptionQuery = `
+      UPDATE customer_subscriptions 
+      SET payment_method = $1,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE subscription_id = $2
+      RETURNING *
+    `;
+    const updatedSubscriptionResult = await client.query(updateSubscriptionQuery, [
+      paymentMethod,
+      subscription.subscription_id
+    ]);
+    
+    await client.query('COMMIT');
+    
+    return {
+      subscription: updatedSubscriptionResult.rows[0],
+      invoice: invoiceResult.rows[0],
+      isExistingRenewal: false
+    };
+    
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
 module.exports = {
   // Subscription Plans
   getAllSubscriptionPlans,
@@ -874,5 +992,8 @@ module.exports = {
   getPaymentSourceById,
   
   // Cash Payment Management
-  getPendingCashSubscriptions
+  getPendingCashSubscriptions,
+  
+  // Subscription Renewal
+  renewActiveSubscription
 };

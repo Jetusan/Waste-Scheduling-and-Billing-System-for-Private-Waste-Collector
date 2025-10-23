@@ -94,10 +94,102 @@ const SubscriptionStatusScreen = () => {
     try {
       // Use simple stub - no heavy imports needed
       const id = await simpleNotificationStub.scheduleNotificationAsync();
-      setScheduledIds([id]);
-      Alert.alert('Reminder Set', 'We\'ll remind you again in 3 days.');
-    } catch (e) {
-      console.log('Schedule notifications error', e);
+      console.log('📅 Snoozed for 3 days, notification ID:', id);
+      Alert.alert('Reminder Set', 'You will be reminded again in 3 days.');
+    } catch (error) {
+      console.error('❌ Snooze error:', error);
+      Alert.alert('Error', 'Failed to set reminder.');
+    }
+  };
+
+  const handleRenewalSubscription = async () => {
+    try {
+      Alert.alert(
+        '🔄 Renew Subscription',
+        'Choose your payment method for renewal:',
+        [
+          {
+            text: 'Manual GCash',
+            onPress: () => processRenewal('manual_gcash')
+          },
+          {
+            text: 'PayMongo GCash',
+            onPress: () => processRenewal('gcash')
+          },
+          {
+            text: 'Cash Payment',
+            onPress: () => processRenewal('cash')
+          },
+          {
+            text: 'Cancel',
+            style: 'cancel'
+          }
+        ]
+      );
+    } catch (error) {
+      console.error('❌ Renewal error:', error);
+      Alert.alert('Error', 'Failed to start renewal process.');
+    }
+  };
+
+  const processRenewal = async (paymentMethod) => {
+    try {
+      const token = await getToken();
+      if (!token) {
+        Alert.alert('Error', 'Please log in again to renew your subscription.');
+        return;
+      }
+
+      console.log('🔄 Processing renewal with payment method:', paymentMethod);
+
+      const response = await fetch(`${API_BASE_URL}/api/billing/renew-subscription`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          payment_method: paymentMethod
+        })
+      });
+
+      const data = await response.json();
+      console.log('🔄 Renewal response:', data);
+
+      if (data.success) {
+        Alert.alert(
+          '✅ Renewal Invoice Created',
+          `Your renewal invoice has been created for ₱${data.invoice.amount}. Please proceed with payment.`,
+          [
+            {
+              text: 'Pay Now',
+              onPress: () => {
+                if (paymentMethod === 'manual_gcash') {
+                  router.push('/ManualGCashPayment');
+                } else if (paymentMethod === 'gcash') {
+                  // Handle PayMongo GCash payment
+                  handleGCashPayment();
+                } else if (paymentMethod === 'cash') {
+                  Alert.alert('Cash Payment', 'Please pay ₱' + data.invoice.amount + ' to your assigned collector.');
+                }
+              }
+            },
+            {
+              text: 'Later',
+              style: 'cancel'
+            }
+          ]
+        );
+        
+        // Refresh subscription status
+        fetchSubscriptionStatus();
+      } else {
+        Alert.alert('Renewal Failed', data.message || 'Failed to create renewal invoice.');
+      }
+
+    } catch (error) {
+      console.error('❌ Renewal processing error:', error);
+      Alert.alert('Error', 'Failed to process renewal. Please try again.');
     }
   };
 
@@ -226,9 +318,9 @@ const SubscriptionStatusScreen = () => {
       case 'payment_history':
         router.push('/PaymentHistory');
         break;
-      case 'renew_placeholder':
-        // Inform user that renewal isn't due yet
-        Alert.alert('Not Due Yet', 'You are not due yet. Please go back and check again closer to your next billing date.');
+      case 'renew_subscription':
+        // Handle actual renewal
+        await handleRenewalSubscription();
         break;
       case 'cancel_subscription':
         await handleCancelSubscription();
@@ -371,7 +463,7 @@ const SubscriptionStatusScreen = () => {
   const actions = uiState === 'active'
     ? [
         ...baseActions,
-        { id: 'renew_placeholder', label: 'Renew Subscription', primary: false }
+        { id: 'renew_subscription', label: 'Renew Subscription', primary: false }
       ]
     : baseActions;
 
