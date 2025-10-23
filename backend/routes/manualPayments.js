@@ -484,8 +484,8 @@ router.post('/submit', authenticateJWT, upload.single('paymentProof'), async (re
 
       // Create invoice record
       await pool.query(`
-        INSERT INTO invoices (user_id, subscription_id, amount, status, payment_method, paid_at)
-        VALUES ($1, $2, $3, 'paid', 'auto_verified_gcash', NOW())
+        INSERT INTO invoices (user_id, subscription_id, amount, status, paid_at)
+        VALUES ($1, $2, $3, 'paid', NOW())
       `, [user_id, subscription_id, parseFloat(amount)]);
 
       // Update verification record
@@ -751,8 +751,8 @@ router.post('/admin/verify/:verification_id', authenticateJWT, authorizeRoles('a
 
       // Create invoice record
       await pool.query(`
-        INSERT INTO invoices (user_id, subscription_id, amount, status, payment_method, paid_at)
-        VALUES ($1, $2, $3, 'paid', 'manual_gcash', NOW())
+        INSERT INTO invoices (user_id, subscription_id, amount, status, paid_at)
+        VALUES ($1, $2, $3, 'paid', NOW())
       `, [verification.user_id, verification.subscription_id, verification.amount]);
 
       // Notify user of approval
