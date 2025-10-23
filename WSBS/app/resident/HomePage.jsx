@@ -88,7 +88,7 @@ export default function HomePage() {
               if (uiState === 'active' || subscriptionStatus === 'active') {
                 setSubscriptionStatus('active');
                 console.log('🔄 Setting subscription status to ACTIVE');
-              } else if (uiState === 'pending_gcash' || uiState === 'pending_cash' || subscriptionStatus === 'pending_payment') {
+              } else if (uiState === 'pending_gcash' || uiState === 'pending_manual_gcash' || uiState === 'pending_cash' || subscriptionStatus === 'pending_payment') {
                 setSubscriptionStatus('pending');
                 console.log('🔄 Setting subscription status to PENDING');
               } else {
@@ -191,7 +191,7 @@ export default function HomePage() {
           if (uiState === 'active' || subscriptionStatus === 'active') {
             setSubscriptionStatus('active');
             console.log('🔄 Quick refresh: Setting to ACTIVE');
-          } else if (uiState === 'pending_gcash' || uiState === 'pending_cash' || subscriptionStatus === 'pending_payment') {
+          } else if (uiState === 'pending_gcash' || uiState === 'pending_manual_gcash' || uiState === 'pending_cash' || subscriptionStatus === 'pending_payment') {
             setSubscriptionStatus('pending');
             console.log('🔄 Quick refresh: Setting to PENDING');
           } else {

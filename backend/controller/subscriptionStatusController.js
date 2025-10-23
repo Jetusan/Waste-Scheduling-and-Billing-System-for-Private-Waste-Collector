@@ -73,6 +73,10 @@ const getSubscriptionStatus = async (req, res) => {
       uiState = 'pending_gcash';
       actionRequired = true;
       primaryAction = 'pay_gcash';
+    } else if (subscription.status === 'pending_payment' && subscription.payment_method === 'manual_gcash') {
+      uiState = 'pending_manual_gcash';
+      actionRequired = true;
+      primaryAction = 'upload_receipt';
     } else if (subscription.status === 'pending_payment' && subscription.payment_method === 'cash') {
       uiState = 'pending_cash';
       actionRequired = true;
@@ -153,6 +157,14 @@ const getAvailableActions = (uiState, subscription, invoice) => {
     case 'pending_gcash':
       actions.push(
         { id: 'pay_gcash', label: 'Pay Now via GCash', type: 'payment', primary: true },
+        { id: 'change_payment_method', label: 'Change to Cash Payment', type: 'form' },
+        { id: 'view_invoice', label: 'View Invoice Details', type: 'navigation' }
+      );
+      break;
+      
+    case 'pending_manual_gcash':
+      actions.push(
+        { id: 'upload_receipt', label: 'Upload GCash Receipt', type: 'payment', primary: true },
         { id: 'change_payment_method', label: 'Change to Cash Payment', type: 'form' },
         { id: 'view_invoice', label: 'View Invoice Details', type: 'navigation' }
       );
