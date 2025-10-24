@@ -169,7 +169,7 @@ const BillingHistory = () => {
   return (
     <section className="billing-history-content">
       <div className="history-header">
-        <h2>Transaction History</h2>
+        <h2>Payment History</h2>
         <div className="header-actions">
           <button className="btn export" onClick={handleExport}>
             <i className="fas fa-file-export"></i> Export to CSV
@@ -287,33 +287,50 @@ const BillingHistory = () => {
             </tr>
           </thead>
           <tbody>
-            {filteredTransactions.map(transaction => (
-              <tr key={transaction.id}>
-                <td>{transaction.id}</td>
-                <td>{transaction.invoiceId}</td>
-                <td>{transaction.subscriber}</td>
-                <td>{transaction.plan}</td>
-                <td>{transaction.amount}</td>
-                <td>{transaction.paymentDate}</td>
-                <td>{transaction.paymentMethod}</td>
-                <td>
-                  <span className={`status-badge ${transaction.status.toLowerCase()}`}>
-                    {transaction.status}
-                  </span>
-                </td>
-                <td>
-                  <button 
-                    className="btn view-details"
-                    onClick={() => {
-                      setSelectedTransaction(transaction);
-                      setIsDetailModalOpen(true);
-                    }}
-                  >
-                    <i className="fas fa-eye"></i> View Details
-                  </button>
+            {filteredTransactions.length === 0 ? (
+              <tr>
+                <td colSpan="9" style={{ textAlign: 'center', padding: '40px', color: '#666' }}>
+                  <div>
+                    <i className="fas fa-receipt" style={{ fontSize: '48px', marginBottom: '16px', color: '#ddd' }}></i>
+                    <h3 style={{ margin: '0 0 8px 0', color: '#999' }}>No Payment Records Found</h3>
+                    <p style={{ margin: 0, fontSize: '14px' }}>
+                      {transactions.length === 0 
+                        ? 'No payment history available. Payments will appear here once invoices are paid.'
+                        : 'No records match your current filters. Try adjusting your search criteria.'
+                      }
+                    </p>
+                  </div>
                 </td>
               </tr>
-            ))}
+            ) : (
+              filteredTransactions.map(transaction => (
+                <tr key={transaction.id}>
+                  <td>{transaction.id}</td>
+                  <td>{transaction.invoiceId}</td>
+                  <td>{transaction.subscriber}</td>
+                  <td>{transaction.plan}</td>
+                  <td>{transaction.amount}</td>
+                  <td>{transaction.paymentDate}</td>
+                  <td>{transaction.paymentMethod}</td>
+                  <td>
+                    <span className={`status-badge ${transaction.status.toLowerCase()}`}>
+                      {transaction.status}
+                    </span>
+                  </td>
+                  <td>
+                    <button 
+                      className="btn view-details"
+                      onClick={() => {
+                        setSelectedTransaction(transaction);
+                        setIsDetailModalOpen(true);
+                      }}
+                    >
+                      <i className="fas fa-eye"></i> View Details
+                    </button>
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>

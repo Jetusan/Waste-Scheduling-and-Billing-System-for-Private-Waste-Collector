@@ -235,25 +235,33 @@ const updateInvoiceStatusBasedOnPayments = async (invoiceId) => {
 const getBillingHistory = async (filters = {}) => {
   let query = `
     SELECT 
-      p.payment_id as transaction_id,
+      i.invoice_id as transaction_id,
       i.invoice_number as invoice_id,
-      u.username as subscriber,
-      sp.plan_name as plan,
-      p.amount,
-      p.payment_date,
-      p.payment_method,
-      'Completed' as status,
-      p.notes,
-      p.reference_number,
-      cu.username as collector_name,
-      u.contact_number as phone
-    FROM payments p
-    JOIN invoices i ON p.invoice_id = i.invoice_id
-    JOIN customer_subscriptions cs ON i.subscription_id = cs.subscription_id
-    JOIN users u ON cs.user_id = u.user_id
-    JOIN subscription_plans sp ON cs.plan_id = sp.plan_id
-    LEFT JOIN collectors c ON p.collector_id = c.collector_id
-    LEFT JOIN users cu ON c.user_id = cu.user_id
+      COALESCE(u.username, 'Unknown User') as subscriber,
+      COALESCE(sp.plan_name, 'Unknown Plan') as plan,
+      i.amount,
+      COALESCE(i.created_at, i.due_date) as payment_date,
+      CASE 
+        WHEN i.status = 'paid' THEN 'GCash'
+        WHEN i.status = 'unpaid' THEN 'Pending'
+        ELSE 'Invoice'
+      END as payment_method,
+      CASE 
+        WHEN i.status = 'paid' THEN 'Completed'
+        WHEN i.status = 'unpaid' THEN 'Pending'
+        WHEN i.status = 'overdue' THEN 'Overdue'
+        ELSE 'Unknown'
+      END as status,
+      COALESCE(i.notes, 'Generated from subscription') as notes,
+      i.invoice_number as reference_number,
+      NULL as collector_name,
+      COALESCE(u.contact_number, 'N/A') as phone,
+      'N/A' as address,
+      'N/A' as email
+    FROM invoices i
+    LEFT JOIN customer_subscriptions cs ON i.subscription_id = cs.subscription_id
+    LEFT JOIN users u ON cs.user_id = u.user_id
+    LEFT JOIN subscription_plans sp ON cs.plan_id = sp.plan_id
   `;
 
   const whereConditions = [];
@@ -262,13 +270,13 @@ const getBillingHistory = async (filters = {}) => {
 
   if (filters.dateFrom) {
     paramCount++;
-    whereConditions.push(`p.payment_date >= $${paramCount}`);
+    whereConditions.push(`DATE(i.created_at) >= $${paramCount}`);
     queryParams.push(filters.dateFrom);
   }
 
   if (filters.dateTo) {
     paramCount++;
-    whereConditions.push(`p.payment_date <= $${paramCount}`);
+    whereConditions.push(`DATE(i.created_at) <= $${paramCount}`);
     queryParams.push(filters.dateTo);
   }
 
@@ -280,21 +288,27 @@ const getBillingHistory = async (filters = {}) => {
 
   if (filters.paymentMethod && filters.paymentMethod !== 'All Methods') {
     paramCount++;
-    whereConditions.push(`p.payment_method = $${paramCount}`);
-    queryParams.push(filters.paymentMethod);
+    if (filters.paymentMethod === 'GCash') {
+      whereConditions.push(`i.status = 'paid'`);
+    } else if (filters.paymentMethod === 'Pending') {
+      whereConditions.push(`i.status = 'unpaid'`);
+    }
   }
 
-  if (filters.collector && filters.collector !== 'All Collectors') {
+  if (filters.status && filters.status !== 'All Status') {
     paramCount++;
-    whereConditions.push(`cu.username = $${paramCount}`);
-    queryParams.push(filters.collector);
+    let statusFilter = filters.status.toLowerCase();
+    if (statusFilter === 'completed') statusFilter = 'paid';
+    if (statusFilter === 'pending') statusFilter = 'unpaid';
+    whereConditions.push(`i.status = $${paramCount}`);
+    queryParams.push(statusFilter);
   }
 
   if (whereConditions.length > 0) {
     query += ' WHERE ' + whereConditions.join(' AND ');
   }
 
-  query += ' ORDER BY p.payment_date DESC';
+  query += ' ORDER BY i.created_at DESC';
 
   const result = await pool.query(query, queryParams);
   return result.rows;

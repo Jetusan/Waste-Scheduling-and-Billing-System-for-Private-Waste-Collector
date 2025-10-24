@@ -151,13 +151,13 @@ const ManualGCashPayment = () => {
             'Your payment has been automatically verified and approved. Your subscription is now active!',
             [
               {
-                text: 'View Subscription',
-                onPress: () => router.push('/Subscription')
-              },
-              {
                 text: 'Go to Home',
                 onPress: () => router.push('/resident/HomePage'),
                 style: 'default'
+              },
+              {
+                text: 'View Subscription',
+                onPress: () => router.push('/SubscriptionStatusScreen')
               }
             ]
           );
@@ -168,13 +168,13 @@ const ManualGCashPayment = () => {
             'Your payment proof has been submitted and is under manual review. You will receive a notification once it\'s processed.',
             [
               {
-                text: 'Check Status',
-                onPress: () => router.push('/Subscription')
-              },
-              {
                 text: 'Go to Home',
                 onPress: () => router.push('/resident/HomePage'),
                 style: 'default'
+              },
+              {
+                text: 'Check Status',
+                onPress: () => router.push('/SubscriptionStatusScreen')
               }
             ]
           );
@@ -210,13 +210,13 @@ const ManualGCashPayment = () => {
             'Your payment proof has been submitted for verification. You will receive a notification once it\'s approved.',
             [
               {
-                text: 'Check Status',
-                onPress: () => router.push('/Subscription')
-              },
-              {
                 text: 'Go to Home',
                 onPress: () => router.push('/resident/HomePage'),
                 style: 'default'
+              },
+              {
+                text: 'Check Status',
+                onPress: () => router.push('/SubscriptionStatusScreen')
               }
             ]
           );
@@ -263,13 +263,13 @@ const ManualGCashPayment = () => {
             errorTitle = '📋 No Subscription Found';
             actions = [
               {
-                text: 'Subscribe Now',
-                onPress: () => router.push('/Subscription')
-              },
-              {
                 text: 'Go to Home',
                 onPress: () => router.push('/resident/HomePage'),
                 style: 'cancel'
+              },
+              {
+                text: 'Subscribe Now',
+                onPress: () => router.push('/Subscription')
               }
             ];
             break;
@@ -278,13 +278,13 @@ const ManualGCashPayment = () => {
             errorTitle = '🔍 Subscription Mismatch';
             actions = [
               {
-                text: 'Check Subscription',
-                onPress: () => router.push('/Subscription')
-              },
-              {
                 text: 'Go Back',
                 onPress: () => router.back(),
                 style: 'cancel'
+              },
+              {
+                text: 'Check Subscription',
+                onPress: () => router.push('/SubscriptionStatusScreen')
               }
             ];
             break;
