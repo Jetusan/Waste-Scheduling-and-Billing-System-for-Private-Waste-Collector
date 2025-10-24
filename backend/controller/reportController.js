@@ -1663,6 +1663,39 @@ class ReportController {
             </div>
           `;
         }
+
+        // Add waste type breakdown for special pickup
+        if (data.summary && data.summary.wasteTypeBreakdown) {
+          detailTablesHTML += `
+            <div class="section">
+              <h3>🗂️ Waste Type Breakdown</h3>
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Waste Type</th>
+                    <th>Total Requests</th>
+                    <th>Completed</th>
+                    <th>Completion Rate</th>
+                    <th>Total Revenue</th>
+                    <th>Avg Price</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${Object.entries(data.summary.wasteTypeBreakdown).map(([type, breakdown]) => `
+                    <tr>
+                      <td>${type}</td>
+                      <td>${breakdown.totalRequests || 0}</td>
+                      <td>${breakdown.completed || 0}</td>
+                      <td>${breakdown.completionRate || 0}%</td>
+                      <td>₱${parseFloat(breakdown.totalRevenue || 0).toLocaleString()}</td>
+                      <td>₱${parseFloat(breakdown.avgPrice || 0).toLocaleString()}</td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+          `;
+        }
       }
     }
 
