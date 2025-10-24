@@ -64,15 +64,14 @@
 }
 
 .filter-group {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr 1fr auto;
   gap: 16px;
   align-items: flex-end;
 }
 
 .filter-item {
-  flex: 1;
-  min-width: 200px;
+  min-width: 150px;
 }
 
 .filter-item label {
@@ -103,9 +102,10 @@
 }
 
 .date-filters {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 16px;
-  flex: 2;
+  grid-column: 1;
 }
 
 .btn {
@@ -348,11 +348,13 @@
   }
 
   .filter-group {
-    flex-direction: column;
+    grid-template-columns: 1fr;
+    gap: 12px;
   }
 
   .date-filters {
-    flex-direction: column;
+    grid-template-columns: 1fr;
+    grid-column: auto;
   }
 
   .filter-item {

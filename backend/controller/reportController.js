@@ -1531,8 +1531,11 @@ class ReportController {
                   </tr>
                 </thead>
                 <tbody>
-                  ${Object.entries(data.wasteTypeBreakdown).map(([type, count]) => {
-                    const percentage = summary.totalSchedules > 0 ? ((count / summary.totalSchedules) * 100).toFixed(1) : 0;
+                  ${Object.entries(data.wasteTypeBreakdown).map(([type, breakdown]) => {
+                    // Handle both old format (number) and new format (object with count/percentage)
+                    const count = typeof breakdown === 'object' ? breakdown.count : breakdown;
+                    const percentage = typeof breakdown === 'object' ? breakdown.percentage : 
+                      (summary.totalSchedules > 0 ? ((count / summary.totalSchedules) * 100).toFixed(1) : 0);
                     return `
                       <tr>
                         <td>${type}</td>
