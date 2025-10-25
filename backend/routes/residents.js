@@ -269,7 +269,7 @@ router.get('/me/home-location', authenticateJWT, async (req, res) => {
     if (!userId) return res.status(401).json({ success: false, message: 'Unauthorized' });
 
     const q = `
-      SELECT latitude, longitude, captured_at as pinned_at
+      SELECT latitude, longitude, captured_at as pinned_at, gate_image_url
       FROM user_locations
       WHERE user_id = $1 AND kind = 'home' AND is_current = true
       ORDER BY captured_at DESC
@@ -286,8 +286,46 @@ router.get('/me/home-location', authenticateJWT, async (req, res) => {
   }
 });
 
-// Set or update the authenticated resident's pinned home location (write to user_locations)
-router.put('/me/home-location', authenticateJWT, async (req, res) => {
+// Set or update the authenticated resident's pinned home location with gate image (write to user_locations)
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+
+// Configure multer for gate image uploads
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    const uploadDir = path.join(__dirname, '../uploads/gate-images');
+    // Create directory if it doesn't exist
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
+  },
+  filename: function (req, file, cb) {
+    // Create unique filename: userId_timestamp.ext
+    const userId = req.user?.userId;
+    const timestamp = Date.now();
+    const ext = path.extname(file.originalname);
+    cb(null, `gate_${userId}_${timestamp}${ext}`);
+  }
+});
+
+const upload = multer({ 
+  storage: storage,
+  limits: {
+    fileSize: 5 * 1024 * 1024 // 5MB limit
+  },
+  fileFilter: function (req, file, cb) {
+    // Check file type
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed!'), false);
+    }
+  }
+});
+
+router.put('/me/home-location', authenticateJWT, upload.single('gateImage'), async (req, res) => {
   try {
     const userId = req.user?.userId;
     if (!userId) return res.status(401).json({ success: false, message: 'Unauthorized' });
@@ -303,6 +341,13 @@ router.put('/me/home-location', authenticateJWT, async (req, res) => {
       return res.status(400).json({ success: false, message: 'Coordinates out of range' });
     }
 
+    // Handle gate image upload
+    let gateImageUrl = null;
+    if (req.file) {
+      // Store relative path from uploads directory
+      gateImageUrl = `/uploads/gate-images/${req.file.filename}`;
+    }
+
     // Mark any previous 'home' locations as not current, then insert a new current row
     await pool.query(
       `UPDATE user_locations
@@ -312,14 +357,26 @@ router.put('/me/home-location', authenticateJWT, async (req, res) => {
     );
 
     await pool.query(
-      `INSERT INTO user_locations (user_id, kind, latitude, longitude, accuracy_m, source, captured_at, is_current)
-       VALUES ($1, 'home', $2, $3, NULL, 'app', NOW(), true)`,
-      [userId, latitude, longitude]
+      `INSERT INTO user_locations (user_id, kind, latitude, longitude, accuracy_m, source, captured_at, is_current, gate_image_url)
+       VALUES ($1, 'home', $2, $3, NULL, 'app', NOW(), true, $4)`,
+      [userId, latitude, longitude, gateImageUrl]
     );
 
-    return res.json({ success: true, message: 'Home location saved' });
+    return res.json({ 
+      success: true, 
+      message: 'Home location and gate image saved successfully',
+      data: {
+        latitude,
+        longitude,
+        gateImageUrl
+      }
+    });
   } catch (error) {
     console.error('Error saving home location:', error);
+    // Clean up uploaded file if database operation fails
+    if (req.file && fs.existsSync(req.file.path)) {
+      fs.unlinkSync(req.file.path);
+    }
     return res.status(500).json({ success: false, message: 'Failed to save home location', details: error.message });
   }
 });
