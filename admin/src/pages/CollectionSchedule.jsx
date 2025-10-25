@@ -32,6 +32,7 @@ const CollectionSchedule = () => {
   ];
   const [barangayToAdd, setBarangayToAdd] = useState('');
   const [editBarangayToAdd, setEditBarangayToAdd] = useState('');
+  const SUBDIVISIONS = ['VSM heights Phase 1'];
   const [viewType, setViewType] = useState('regular'); // Add this state after other useState hooks
 
   // Helper function to format time to 12-hour format
@@ -354,6 +355,19 @@ const CollectionSchedule = () => {
                     </div>
                   </div>
                   <div className="form-group">
+                    <label>Subdivision:</label>
+                    <select
+                      value={newSchedule.subdivision}
+                      onChange={e => setNewSchedule({ ...newSchedule, subdivision: e.target.value })}
+                      required
+                    >
+                      <option value="">Select Subdivision</option>
+                      {SUBDIVISIONS.map(subdivision => (
+                        <option key={subdivision} value={subdivision}>{subdivision}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="form-group">
                     <label>Day:</label>
                     <select
                       value={newSchedule.schedule_date}
@@ -365,16 +379,6 @@ const CollectionSchedule = () => {
                         <option key={day} value={day}>{day}</option>
                       ))}
                     </select>
-                  </div>
-                  <div className="form-group">
-                    <label>Subdivision:</label>
-                    <input
-                      type="text"
-                      value={newSchedule.subdivision}
-                      onChange={e => setNewSchedule({ ...newSchedule, subdivision: e.target.value })}
-                      placeholder="Enter subdivision name"
-                      required
-                    />
                   </div>
                   <div className="form-group">
                     <label>Type of Waste:</label>
@@ -461,13 +465,19 @@ const CollectionSchedule = () => {
                   </div>
                   <div className="form-group">
                     <label>Subdivision:</label>
-                    <input
-                      type="text"
+                    <select
                       value={editSchedule.subdivision || ''}
                       onChange={e => setEditSchedule({ ...editSchedule, subdivision: e.target.value })}
-                      placeholder="Enter subdivision name"
                       required
-                    />
+                    >
+                      <option value="">Select Subdivision</option>
+                      {SUBDIVISIONS.map(subdivision => (
+                        <option key={subdivision} value={subdivision}>{subdivision}</option>
+                      ))}
+                      {editSchedule.subdivision && !SUBDIVISIONS.includes(editSchedule.subdivision) && (
+                        <option value={editSchedule.subdivision}>{editSchedule.subdivision}</option>
+                      )}
+                    </select>
                   </div>
                   <div className="form-group">
                     <label>Type of Waste:</label>
