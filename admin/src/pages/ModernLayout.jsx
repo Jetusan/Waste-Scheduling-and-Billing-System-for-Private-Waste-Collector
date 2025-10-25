@@ -28,11 +28,8 @@ const navConfig = [
   {
     title: 'Billing',
     icon: 'fas fa-file-invoice-dollar',
-    key: 'billing',
-    description: 'Financial Management',
-    items: [
-      { title: 'Billing', icon: 'fas fa-file-invoice', path: '/admin/billing' }
-    ]
+    path: '/admin/billing',
+    description: 'Financial Management'
   },
   {
     title: 'Reports',
