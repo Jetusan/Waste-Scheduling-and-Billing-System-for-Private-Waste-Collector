@@ -22,7 +22,7 @@ const createSpecialPickupRequest = async (data) => {
     RETURNING *
   `;
   const values = [
-    user_id, waste_type, description, pickup_date, pickup_time, 
+    user_id, waste_type, description, pickup_date, pickup_time || null, 
     address, notes, image_url, message, pickup_latitude, pickup_longitude
   ];
   const result = await pool.query(query, values);

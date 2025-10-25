@@ -19,23 +19,17 @@ const singlePlan = {
   bagsPerWeek: '3 bags',
   bagsPerMonth: '12 bags',
   extraBagCost: '₱30/bag',
-  biodegradable: 'Optional at ₱50/bag',
-  bottle: 'Optional at ₱100/bag',
-  binakbak: 'Optional at ₱200/bag',
-  pickup: 'Weekly (Residual only)',
+  // Updated schedule
+  wednesday: 'Nonbio - Plastic Bags, Cellophane, Plastic Bottle, Packaging, Metal Cans, E-waste',
+  thursday: 'Biodegradable - Balat ng gulay, balat ng prutas, damo, dahon, sanga, kahoy',
+  friday: 'Recyclable - Papers, Cardboard, glass bottles',
+  pickup: 'Wed-Thu-Fri Collection',
   addon: '✅ Available',
   contract: '1 Year (Fixed)',
   preTermination: '₱200 if < 1 year',
 };
 
 const paymentMethods = [
-  {
-    id: 'gcash',
-    name: 'GCash (Auto)',
-    icon: 'phone-portrait',
-    description: 'Automated GCash payment via PayMongo',
-    color: '#0066CC'
-  },
   {
     id: 'manual_gcash',
     name: 'GCash (Manual)',
@@ -242,9 +236,7 @@ const Subscription = () => {
               onPress={() => router.push('/resident/HomePage')}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
-              <Text>
-                <Ionicons name="arrow-back" size={24} color="#fff" />
-              </Text>
+              <Ionicons name="arrow-back" size={24} color="#fff" />
           </TouchableOpacity>
           <Text style={styles.logo}>PLANS</Text>
        </View>
@@ -263,21 +255,19 @@ const Subscription = () => {
               {showDetails && (
                 <View style={styles.detailsWrapper}>
                   <View style={styles.sectionDivider} />
-                  <Text style={styles.sectionHeader}>Residual Bags</Text>
-                  <View style={styles.detailRow}><Text style={styles.featureLabel}>Included/week:</Text> <Text style={styles.featureValue}>{singlePlan.bagsPerWeek}</Text></View>
-                  <View style={styles.detailRow}><Text style={styles.featureLabel}>Included/month:</Text> <Text style={styles.featureValue}>{singlePlan.bagsPerMonth}</Text></View>
-                  <View style={styles.detailRow}><Text style={styles.featureLabel}>Extra Bag Cost:</Text> <Text style={styles.featureValue}>{singlePlan.extraBagCost}</Text></View>
-                  <View style={styles.sectionDivider} />
-                  <Text style={styles.sectionHeader}>Optional Pickups</Text>
-                  <View style={styles.detailRow}><Text style={styles.featureLabel}>Biodegradable:</Text> <Text style={styles.featureValue}>{singlePlan.biodegradable}</Text></View>
-                  <View style={styles.detailRow}><Text style={styles.featureLabel}>Bottle:</Text> <Text style={styles.featureValue}>{singlePlan.bottle}</Text></View>
-                  <View style={styles.detailRow}><Text style={styles.featureLabel}>Binakbak:</Text> <Text style={styles.featureValue}>{singlePlan.binakbak}</Text></View>
-                  <View style={styles.sectionDivider} />
-                  <Text style={styles.sectionHeader}>Other Details</Text>
-                  <View style={styles.detailRow}><Text style={styles.featureLabel}>Pickup Frequency:</Text> <Text style={styles.featureValue}>{singlePlan.pickup}</Text></View>
-                  <View style={styles.detailRow}><Text style={styles.featureLabel}>Add-on Support:</Text> <Text style={styles.featureValue}>{singlePlan.addon}</Text></View>
-                  <View style={styles.detailRow}><Text style={styles.featureLabel}>Contract Term:</Text> <Text style={styles.featureValue}>{singlePlan.contract}</Text></View>
-                  <View style={styles.detailRow}><Text style={styles.featureLabel}>Pre-Termination Fee:</Text> <Text style={styles.featureValue}>{singlePlan.preTermination}</Text></View>
+                  <Text style={styles.sectionHeader}>Collection Schedule</Text>
+                  <View style={styles.scheduleItem}>
+                    <Text style={styles.scheduleDay}>Wednesday - Nonbio</Text>
+                    <Text style={styles.scheduleDetails}>Plastic Bags, Cellophane, Plastic Bottle, Packaging, Metal Cans, E-waste</Text>
+                  </View>
+                  <View style={styles.scheduleItem}>
+                    <Text style={styles.scheduleDay}>Thursday - Biodegradable</Text>
+                    <Text style={styles.scheduleDetails}>Balat ng gulay, balat ng prutas, damo, dahon, sanga, kahoy</Text>
+                  </View>
+                  <View style={styles.scheduleItem}>
+                    <Text style={styles.scheduleDay}>Friday - Recyclable</Text>
+                    <Text style={styles.scheduleDetails}>Papers, Cardboard, glass bottles</Text>
+                  </View>
                 </View>
               )}
               <View style={styles.recommendedBadge}>
@@ -487,6 +477,22 @@ const styles = StyleSheet.create({
   detailsWrapper: {
     width: '100%',
     marginTop: 6,
+  },
+  scheduleItem: {
+    marginBottom: 8,
+    paddingVertical: 4,
+  },
+  scheduleDay: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#4CAF50',
+    marginBottom: 2,
+  },
+  scheduleDetails: {
+    fontSize: 12,
+    color: '#666',
+    lineHeight: 16,
+    paddingLeft: 8,
   },
 
   // Modal Styles

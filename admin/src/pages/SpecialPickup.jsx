@@ -187,20 +187,25 @@ const SpecialPickup = () => {
           <table className="special-pickup-table" style={{ width: '100%', borderCollapse: 'collapse', backgroundColor: 'white', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
             <thead>
               <tr style={{ backgroundColor: '#f5f5f5' }}>
-                <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #ddd' }}>ID</th>
-                <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #ddd' }}>User</th>
-                <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #ddd' }}>Waste Type</th>
-                <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #ddd' }}>Location</th>
-                <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #ddd' }}>Date/Time</th>
-                <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #ddd' }}>Status</th>
-                <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #ddd' }}>Actions</th>
+                <th style={{ padding: '12px', textAlign: 'left', fontWeight: 'bold' }}>Requested By</th>
+                <th style={{ padding: '12px', textAlign: 'left', fontWeight: 'bold' }}>Waste Type</th>
+                <th style={{ padding: '12px', textAlign: 'left', fontWeight: 'bold' }}>Location</th>
+                <th style={{ padding: '12px', textAlign: 'left', fontWeight: 'bold' }}>Pickup Date</th>
+                <th style={{ padding: '12px', textAlign: 'left', fontWeight: 'bold' }}>Status</th>
+                <th style={{ padding: '12px', textAlign: 'left', fontWeight: 'bold' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
               {filteredRequests.map(req => (
                 <tr key={req.request_id} style={{ borderBottom: '1px solid #eee' }}>
-                  <td style={{ padding: '12px' }}>#{req.request_id}</td>
-                  <td style={{ padding: '12px' }}>{req.user_name || req.username || `User ${req.user_id}`}</td>
+                  <td style={{ padding: '12px' }}>
+                    <div style={{ fontWeight: 'bold', color: '#333' }}>
+                      {req.user_name || req.username || `User ${req.user_id}`}
+                    </div>
+                    <div style={{ fontSize: '12px', color: '#666' }}>
+                      Request #{req.request_id}
+                    </div>
+                  </td>
                   <td style={{ padding: '12px' }}>
                     <span style={{ 
                       backgroundColor: '#e3f2fd', 
@@ -217,8 +222,7 @@ const SpecialPickup = () => {
                     {req.address}
                   </td>
                   <td style={{ padding: '12px' }}>
-                    <div>{req.pickup_date}</div>
-                    <div style={{ fontSize: '12px', color: '#666' }}>{req.pickup_time}</div>
+                    <div style={{ fontWeight: 'bold', color: '#333' }}>{req.pickup_date}</div>
                   </td>
                   <td style={{ padding: '12px' }}>
                     <span style={{
@@ -384,10 +388,7 @@ const SpecialPickup = () => {
               <div>{selected.description}</div>
               
               <div style={{ fontWeight: 600, color: '#555' }}>Pickup Date:</div>
-              <div>{selected.pickup_date}</div>
-              
-              <div style={{ fontWeight: 600, color: '#555' }}>Pickup Time:</div>
-              <div>{selected.pickup_time}</div>
+              <div style={{ fontWeight: 'bold', color: '#333' }}>{selected.pickup_date}</div>
               
               <div style={{ fontWeight: 600, color: '#555' }}>Address:</div>
               <div>{selected.address}</div>

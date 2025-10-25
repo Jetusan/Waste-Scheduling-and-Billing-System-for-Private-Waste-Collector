@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -12,11 +12,13 @@ import {
   Image,
   Platform,
   Linking,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as Location from 'expo-location';
+import { WebView } from 'react-native-webview';
 import { useRouter } from 'expo-router';
 import { getToken, getUserId, logout } from './auth';
 import { API_BASE_URL } from './config';
@@ -49,6 +51,10 @@ const SPickup = () => {
   const [expandedChat, setExpandedChat] = useState(null);
   const [unreadMessages, setUnreadMessages] = useState({});
   const [requestsLoading, setRequestsLoading] = useState(true);
+  
+  // Map states
+  const [mapRef, setMapRef] = useState(null);
+  const [mapLoaded, setMapLoaded] = useState(false);
 
   // Handle authentication errors
   const handleAuthError = async () => {
@@ -370,7 +376,7 @@ const SPickup = () => {
 
   const handleSubmit = async () => {
     // Basic validation
-    if (!wasteType || !description || !date || !time || !address) {
+    if (!wasteType || !description || !date || !address) {
       Alert.alert('Error', 'Please fill in all required fields');
       return;
     }
@@ -424,7 +430,6 @@ const SPickup = () => {
       formData.append('waste_type', wasteType);
       formData.append('description', description);
       formData.append('pickup_date', date ? date.toISOString().split('T')[0] : '');
-      formData.append('pickup_time', time ? time.toTimeString().split(' ')[0].substring(0, 5) : '');
       formData.append('address', address);
       formData.append('notes', notes);
       formData.append('message', message);
@@ -474,11 +479,11 @@ const SPickup = () => {
                 setWasteType('');
                 setDescription('');
                 setDate('');
-                setTime('');
                 setAddress('');
                 setNotes('');
                 setMessage('');
                 setImage(null);
+                setPickupLocation(null);
                 
                 // Go back to requests list and refresh
                 setShowForm(false);
@@ -693,10 +698,9 @@ const SPickup = () => {
           </View>
           <View style={styles.buttonGroup}>
             {[
-              { type: 'Bulky', icon: 'cube-outline' },
-              { type: 'Electronics', icon: 'laptop-outline' },
-              { type: 'Hazardous', icon: 'warning-outline' },
-              { type: 'Other', icon: 'ellipsis-horizontal-outline' }
+              { type: 'Non-Biodegradable', icon: 'cube-outline' },
+              { type: 'Biodegradable', icon: 'leaf-outline' },
+              { type: 'Recyclable', icon: 'refresh-outline' }
             ].map((item) => (
               <TouchableOpacity
                 key={item.type}
@@ -761,22 +765,6 @@ const SPickup = () => {
             <Ionicons name="chevron-forward" size={20} color="#ccc" />
           </TouchableOpacity>
 
-          <TouchableOpacity
-            style={styles.dateTimeButton}
-            onPress={() => setShowTimePicker(true)}
-            activeOpacity={0.7}
-          >
-            <View style={styles.dateTimeIconContainer}>
-              <Ionicons name="time" size={22} color="#4CAF50" />
-            </View>
-            <View style={styles.dateTimeTextContainer}>
-              <Text style={styles.dateTimeLabel}>Pickup Time</Text>
-              <Text style={styles.dateTimeValue}>
-                {time ? time.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : 'Select a time'}
-              </Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color="#ccc" />
-          </TouchableOpacity>
         </View>
 
         {showDatePicker && (
@@ -787,6 +775,16 @@ const SPickup = () => {
             onChange={(event, selectedDate) => {
               setShowDatePicker(false);
               if (selectedDate) {
+                const dayOfWeek = selectedDate.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+                // Restrict Wednesday (3), Thursday (4), Friday (5)
+                if (dayOfWeek === 3 || dayOfWeek === 4 || dayOfWeek === 5) {
+                  Alert.alert(
+                    'Date Not Available',
+                    'Wednesday, Thursday, and Friday are reserved for regular collection schedules. Please select Monday, Tuesday, or Saturday.',
+                    [{ text: 'OK' }]
+                  );
+                  return;
+                }
                 setDate(selectedDate);
               }
             }}
@@ -794,19 +792,6 @@ const SPickup = () => {
           />
         )}
 
-        {showTimePicker && (
-          <DateTimePicker
-            value={time || new Date()}
-            mode="time"
-            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-            onChange={(event, selectedTime) => {
-              setShowTimePicker(false);
-              if (selectedTime) {
-                setTime(selectedTime);
-              }
-            }}
-          />
-        )}
 
         {/* Address Section with Location Picker */}
         <View style={styles.section}>
@@ -831,7 +816,22 @@ const SPickup = () => {
             </View>
           )}
           
-          {/* Location Action Buttons */}
+          {/* Simple Map Display */}
+          {pickupLocation && (
+            <View style={styles.mapContainer}>
+              <Text style={styles.mapLabel}>📍 Pickup Location on Map</Text>
+              <SpecialPickupMapSection 
+                selectedLocation={pickupLocation}
+                onLocationSelect={(location) => {
+                  setPickupLocation(location);
+                  setAddress(location.address || '');
+                }}
+                onMapLoaded={setMapLoaded}
+              />
+            </View>
+          )}
+          
+          {/* Enhanced Location Action Buttons */}
           <View style={styles.locationButtonsContainer}>
             <TouchableOpacity
               style={[styles.locationButton, isGettingLocation && styles.locationButtonDisabled]}
@@ -846,11 +846,19 @@ const SPickup = () => {
                 </>
               ) : (
                 <>
-                  <Ionicons name="locate" size={20} color="#fff" />
-                  <Text style={styles.locationButtonText}>Use Current Location</Text>
+                  <Ionicons name="pin" size={20} color="#fff" />
+                  <Text style={styles.locationButtonText}>Pin Your Location</Text>
                 </>
               )}
             </TouchableOpacity>
+          </View>
+          
+          {/* Enhanced Map Instructions */}
+          <View style={styles.mapInstructions}>
+            <Ionicons name="information-circle" size={16} color="#4CAF50" />
+            <Text style={styles.mapInstructionsText}>
+              Tap "Pin Your Location" to auto-detect, or simply tap the map to place your pickup pin manually
+            </Text>
           </View>
           
           {/* Address Input */}
@@ -1379,6 +1387,414 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontStyle: 'italic',
   },
+  // Map styles
+  mapContainer: {
+    marginTop: 15,
+    marginBottom: 15,
+  },
+  mapLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 8,
+  },
+  mapWrapper: {
+    height: 200,
+    borderRadius: 12,
+    overflow: 'hidden',
+    backgroundColor: '#e6f0ff',
+    position: 'relative',
+  },
+  map: {
+    flex: 1,
+  },
+  mapError: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  mapErrorText: {
+    color: '#FF6B35',
+    textAlign: 'center',
+    marginTop: 8,
+    fontSize: 12,
+  },
+  mapLoading: {
+    position: 'absolute',
+    inset: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(230, 240, 255, 0.8)',
+  },
+  mapLoadingText: {
+    marginTop: 8,
+    color: '#666',
+    fontSize: 12,
+  },
+  // Map instructions styles
+  mapInstructions: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#f0f8f0',
+    padding: 12,
+    borderRadius: 8,
+    marginTop: 10,
+    marginBottom: 15,
+  },
+  mapInstructionsText: {
+    flex: 1,
+    fontSize: 13,
+    color: '#4CAF50',
+    marginLeft: 8,
+    lineHeight: 18,
+  },
 });
+
+// Special Pickup Map Component
+const SpecialPickupMapSection = ({ selectedLocation, onLocationSelect, onMapLoaded }) => {
+  const [wvError, setWvError] = useState(null);
+  const [loaded, setLoaded] = useState(false);
+
+  const html = useMemo(() => `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <script src="https://unpkg.com/maplibre-gl@2.4.0/dist/maplibre-gl.js"></script>
+        <link href="https://unpkg.com/maplibre-gl@2.4.0/dist/maplibre-gl.css" rel="stylesheet" />
+        <style>
+          html, body, #map { height: 100%; margin: 0; padding: 0; }
+          html, body { background: #e6f0ff; }
+          #map { background: #e6f0ff; position: absolute; inset: 0; }
+          canvas { background: #e6f0ff !important; display: block; }
+          .maplibregl-ctrl-bottom-left, .maplibregl-ctrl-bottom-right { display: none; }
+          
+          /* My Location Button */
+          .my-location-btn {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            width: 44px;
+            height: 44px;
+            background: #4CAF50;
+            border: none;
+            border-radius: 22px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            color: white;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            z-index: 1000;
+            transition: all 0.2s ease;
+          }
+          
+          .my-location-btn:hover {
+            background: #45a049;
+            transform: scale(1.05);
+          }
+          
+          .my-location-btn:active {
+            transform: scale(0.95);
+          }
+          
+          .my-location-btn.loading {
+            background: #ffa726;
+          }
+        </style>
+      </head>
+      <body>
+        <div id="map"></div>
+        
+        <script>
+          let map;
+          let pickupMarker;
+          
+          // Initialize map
+          function initMap() {
+            try {
+              map = new maplibregl.Map({
+                container: 'map',
+                style: {
+                  version: 8,
+                  sources: {
+                    'osm': {
+                      type: 'raster',
+                      tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+                      tileSize: 256,
+                      attribution: '© OpenStreetMap contributors'
+                    }
+                  },
+                  layers: [{
+                    id: 'osm',
+                    type: 'raster',
+                    source: 'osm'
+                  }]
+                },
+                center: [125.1651827, 6.1547981], // General Santos City
+                zoom: 13,
+                attributionControl: false,
+                scrollZoom: true,
+                boxZoom: true,
+                dragRotate: false,
+                dragPan: true,
+                keyboard: true,
+                doubleClickZoom: true,
+                touchZoomRotate: true
+              });
+              
+              map.on('load', () => {
+                console.log('🗺️ Special pickup map loaded');
+                
+                // Add zoom controls
+                map.addControl(new maplibregl.NavigationControl({
+                  showCompass: false,
+                  showZoom: true
+                }), 'top-left');
+                
+                // Add My Location button
+                addMyLocationButton();
+                
+                window.ReactNativeWebView?.postMessage(JSON.stringify({ type: 'map_loaded' }));
+              });
+              
+              // Handle map clicks for pin placement (keep for backward compatibility)
+              map.on('click', (e) => {
+                const { lng, lat } = e.lngLat;
+                setPickupLocation({ latitude: lat, longitude: lng });
+                
+                // Send location back to React Native
+                window.ReactNativeWebView?.postMessage(JSON.stringify({
+                  type: 'location_selected',
+                  location: { latitude: lat, longitude: lng }
+                }));
+              });
+              
+            } catch (error) {
+              console.error('Map initialization error:', error);
+              window.ReactNativeWebView?.postMessage(JSON.stringify({ type: 'map_error', error: error.message }));
+            }
+          }
+          
+          // Set pickup location marker
+          function setPickupLocation(location) {
+            if (!map || !location) return;
+            
+            try {
+              // Remove existing marker
+              if (pickupMarker) {
+                pickupMarker.remove();
+              }
+              
+              // Create pickup marker with truck icon
+              const el = document.createElement('div');
+              el.innerHTML = '🚛';
+              el.style.fontSize = '24px';
+              el.style.cursor = 'pointer';
+              
+              pickupMarker = new maplibregl.Marker({ element: el })
+                .setLngLat([location.longitude, location.latitude])
+                .addTo(map);
+              
+              // Center map on location
+              map.flyTo({
+                center: [location.longitude, location.latitude],
+                zoom: 16,
+                duration: 1000
+              });
+              
+            } catch (error) {
+              console.error('Error setting pickup location:', error);
+            }
+          }
+          
+          // Add My Location button
+          function addMyLocationButton() {
+            const button = document.createElement('button');
+            button.className = 'my-location-btn';
+            button.innerHTML = '📍';
+            button.title = 'Go to my current location';
+            
+            button.addEventListener('click', getCurrentLocation);
+            document.body.appendChild(button);
+          }
+          
+          // Get user's current location
+          function getCurrentLocation() {
+            const button = document.querySelector('.my-location-btn');
+            if (!button) return;
+            
+            button.classList.add('loading');
+            button.innerHTML = '⏳';
+            
+            if (navigator.geolocation) {
+              navigator.geolocation.getCurrentPosition(
+                (position) => {
+                  const { latitude, longitude } = position.coords;
+                  
+                  // Fly to user's current location
+                  map.flyTo({
+                    center: [longitude, latitude],
+                    zoom: 16,
+                    duration: 2000
+                  });
+                  
+                  // Auto-set pin at current location
+                  setTimeout(() => {
+                    const location = { latitude, longitude, accuracy: position.coords.accuracy };
+                    setPickupLocation(location);
+                    
+                    // Send current location to React Native
+                    window.ReactNativeWebView?.postMessage(JSON.stringify({
+                      type: 'current_location_found',
+                      location: location
+                    }));
+                  }, 2000); // Wait for fly animation to complete
+                  
+                  button.classList.remove('loading');
+                  button.innerHTML = '📍';
+                },
+                (error) => {
+                  console.error('Geolocation error:', error);
+                  window.ReactNativeWebView?.postMessage(JSON.stringify({
+                    type: 'location_error',
+                    error: 'Could not get current location'
+                  }));
+                  
+                  button.classList.remove('loading');
+                  button.innerHTML = '❌';
+                  setTimeout(() => {
+                    button.innerHTML = '📍';
+                  }, 2000);
+                },
+                {
+                  enableHighAccuracy: true,
+                  timeout: 10000,
+                  maximumAge: 60000
+                }
+              );
+            } else {
+              window.ReactNativeWebView?.postMessage(JSON.stringify({
+                type: 'location_error',
+                error: 'Geolocation not supported'
+              }));
+              
+              button.classList.remove('loading');
+              button.innerHTML = '❌';
+              setTimeout(() => {
+                button.innerHTML = '📍';
+              }, 2000);
+            }
+          }
+          
+          // Listen for messages from React Native
+          window.addEventListener('message', (event) => {
+            try {
+              const data = JSON.parse(event.data);
+              
+              switch (data.type) {
+                case 'set_pickup_location':
+                  if (data.location) {
+                    setPickupLocation(data.location);
+                  }
+                  break;
+              }
+            } catch (error) {
+              console.error('Message handling error:', error);
+            }
+          });
+          
+          // Initialize when DOM is ready
+          if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initMap);
+          } else {
+            initMap();
+          }
+        </script>
+      </body>
+    </html>
+  `, []);
+
+  const onMessage = useCallback((event) => {
+    try {
+      const data = JSON.parse(event.nativeEvent.data);
+      
+      switch (data.type) {
+        case 'map_loaded':
+          setLoaded(true);
+          onMapLoaded?.(true);
+          break;
+        case 'location_selected':
+          if (data.location && onLocationSelect) {
+            onLocationSelect(data.location);
+          }
+          break;
+        case 'map_error':
+          setWvError(data.error);
+          break;
+      }
+    } catch (error) {
+      console.error('Map message parsing error:', error);
+    }
+  }, [onLocationSelect, onMapLoaded]);
+
+  // Send location to map when it becomes available
+  useEffect(() => {
+    if (loaded && selectedLocation) {
+      const message = JSON.stringify({
+        type: 'set_pickup_location',
+        location: selectedLocation
+      });
+      
+      // Send message to WebView
+      if (mapRef?.current) {
+        mapRef.current.postMessage(message);
+      }
+    }
+  }, [loaded, selectedLocation]);
+
+  const onError = useCallback((syntheticEvent) => {
+    const { nativeEvent } = syntheticEvent;
+    console.error('Special Pickup Map WebView error:', nativeEvent);
+    setWvError(nativeEvent?.description || 'Map failed to load');
+  }, []);
+
+  const mapRef = React.useRef(null);
+
+  return (
+    <View style={styles.mapWrapper}>
+      {wvError ? (
+        <View style={styles.mapError}>
+          <Ionicons name="warning" size={32} color="#FF6B35" />
+          <Text style={styles.mapErrorText}>Map Error: {wvError}</Text>
+        </View>
+      ) : (
+        <WebView
+          ref={mapRef}
+          source={{ html }}
+          style={styles.map}
+          javaScriptEnabled
+          domStorageEnabled
+          allowFileAccess
+          allowUniversalAccessFromFileURLs
+          onShouldStartLoadWithRequest={() => true}
+          onMessage={onMessage}
+          onError={onError}
+          onLoadEnd={() => console.log('🗺️ Special pickup map WebView loaded')}
+        />
+      )}
+      
+      {!loaded && !wvError && (
+        <View style={styles.mapLoading}>
+          <ActivityIndicator size="small" color="#4CAF50" />
+          <Text style={styles.mapLoadingText}>Loading Map...</Text>
+        </View>
+      )}
+    </View>
+  );
+};
 
 export default SPickup;

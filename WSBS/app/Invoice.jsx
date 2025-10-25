@@ -66,10 +66,13 @@ const Invoice = ({ selectedPlanData, userProfile, profileLoading, profileError, 
                 Monthly subscription for waste collection services
               </Text>
               <View style={styles.serviceDetails}>
-                <Text style={styles.serviceDetail}>• {selectedPlanData.bagsPerWeek} included per week</Text>
-                <Text style={styles.serviceDetail}>• {selectedPlanData.bagsPerMonth} included per month</Text>
-                <Text style={styles.serviceDetail}>• {selectedPlanData.pickup}</Text>
-                <Text style={styles.serviceDetail}>• {selectedPlanData.contract}</Text>
+                <Text style={styles.serviceDetail}>• Wednesday: Nonbio waste collection</Text>
+                <Text style={styles.serviceDetailSub}>  Plastic bags, bottles, packaging, metal cans, e-waste</Text>
+                <Text style={styles.serviceDetail}>• Thursday: Biodegradable waste collection</Text>
+                <Text style={styles.serviceDetailSub}>  Food scraps, garden waste, organic materials</Text>
+                <Text style={styles.serviceDetail}>• Friday: Recyclable waste collection</Text>
+                <Text style={styles.serviceDetailSub}>  Papers, cardboard, glass bottles</Text>
+                <Text style={styles.serviceDetail}>• Monthly subscription with automatic renewal</Text>
               </View>
             </View>
           </View>
@@ -226,6 +229,12 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#666',
     marginBottom: 3,
+  },
+  serviceDetailSub: {
+    fontSize: 12,
+    color: '#888',
+    marginBottom: 6,
+    fontStyle: 'italic',
   },
   paymentSection: {
     marginBottom: 20,
