@@ -90,7 +90,7 @@ router.get('/my-assignments', authenticateJWT, async (req, res) => {
         }
 
         const barangayQuery = `
-          SELECT cba.assignment_id, cba.collector_id, cba.barangay_id,
+          SELECT cba.assignment_id, cba.collector_id, cba.barangay_id, cba.subdivision,
                  cba.effective_start_date, cba.effective_end_date, cba.shift_label,
                  cba.created_by, cba.created_at, cba.updated_by, cba.updated_at,
                  b.barangay_name,
@@ -173,7 +173,7 @@ router.get('/', authenticateJWT, authorizeRoles('admin'), async (req, res) => {
         }
 
         const barangayQuery = `
-          SELECT cba.assignment_id, cba.collector_id, cba.barangay_id,
+          SELECT cba.assignment_id, cba.collector_id, cba.barangay_id, cba.subdivision,
                  cba.effective_start_date, cba.effective_end_date, cba.shift_label,
                  cba.created_by, cba.created_at, cba.updated_by, cba.updated_at,
                  b.barangay_name,
@@ -202,10 +202,10 @@ router.get('/', authenticateJWT, authorizeRoles('admin'), async (req, res) => {
 });
 
 // Admin-only: create barangay-based assignment
-// Body: { collector_id: int, barangay_id: int, effective_start_date?: 'YYYY-MM-DD', effective_end_date?: 'YYYY-MM-DD', shift_label?: string }
+// Body: { collector_id: int, barangay_id: int, subdivision?: string, effective_start_date?: 'YYYY-MM-DD', effective_end_date?: 'YYYY-MM-DD', shift_label?: string }
 router.post('/barangay', authenticateJWT, authorizeRoles('admin'), async (req, res) => {
   try {
-    const { collector_id, barangay_id, effective_start_date, effective_end_date, shift_label } = req.body || {};
+    const { collector_id, barangay_id, subdivision, effective_start_date, effective_end_date, shift_label } = req.body || {};
     if (!collector_id || !barangay_id) {
       return res.status(400).json({ success: false, message: 'collector_id and barangay_id are required' });
     }
@@ -231,6 +231,7 @@ router.post('/barangay', authenticateJWT, authorizeRoles('admin'), async (req, r
         assignment_id SERIAL PRIMARY KEY,
         collector_id INTEGER NOT NULL,
         barangay_id INTEGER NOT NULL,
+        subdivision VARCHAR(255),
         effective_start_date DATE,
         effective_end_date DATE,
         shift_label VARCHAR(100),
@@ -243,8 +244,8 @@ router.post('/barangay', authenticateJWT, authorizeRoles('admin'), async (req, r
 
     const q = `
       INSERT INTO collector_barangay_assignments 
-       (collector_id, barangay_id, effective_start_date, effective_end_date, shift_label, created_by) 
-       VALUES ($1, $2, $3, $4, $5, $6) 
+       (collector_id, barangay_id, subdivision, effective_start_date, effective_end_date, shift_label, created_by) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7) 
        RETURNING *
     `;
 
@@ -252,6 +253,7 @@ router.post('/barangay', authenticateJWT, authorizeRoles('admin'), async (req, r
     const result = await pool.queryWithRetry(q, [
       parseInt(collector_id, 10),
       parseInt(barangay_id, 10),
+      subdivision || null,
       effective_start_date || null,
       effective_end_date || null,
       shift_label || null,

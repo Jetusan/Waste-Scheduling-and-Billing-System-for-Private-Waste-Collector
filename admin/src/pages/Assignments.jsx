@@ -14,12 +14,14 @@ export default function Assignments() {
 
   const [form, setForm] = useState({
     collector_id: '',
-    barangay_id: '',
-    barangay_ids: [],
-    effective_start_date: new Date().toISOString().split('T')[0],
-    effective_end_date: '',
-    shift_label: 'Morning Shift'
+    subdivision: ''
   });
+
+  // Fixed data for San Isidro and VSM Heights Phase 1
+  const fixedBarangay = { barangay_id: 6, barangay_name: 'San Isidro' };
+  const subdivisions = [
+    { id: 'vsm-heights-phase1', name: 'VSM Heights Phase 1' }
+  ];
 
   const token = useMemo(() => sessionStorage.getItem('adminToken'), []);
   const authHeaders = useMemo(() => ({ Authorization: `Bearer ${token}` }), [token]);
@@ -28,13 +30,11 @@ export default function Assignments() {
     try {
       setLoading(true);
       setError('');
-      const [colRes, barRes, asgRes] = await Promise.all([
+      const [colRes, asgRes] = await Promise.all([
         axios.get(`${API_BASE_URL}/collectors`, { headers: authHeaders }),
-        axios.get(`${API_BASE_URL}/barangays`, { headers: authHeaders }),
         axios.get(`${API_BASE_URL}/assignments?active_only=true&type=barangay`, { headers: authHeaders }),
       ]);
       setCollectors(colRes.data || []);
-      setBarangays(barRes.data || []);
       setAssignments((asgRes.data?.assignments) || asgRes.data || []);
     } catch (e) {
       console.error('Failed to load assignments data:', e);
@@ -59,37 +59,28 @@ export default function Assignments() {
         setError('Please select a collector.');
         return;
       }
-      if (!form.barangay_ids || form.barangay_ids.length === 0) {
-        setError('Please select at least one barangay.');
+      if (!form.subdivision) {
+        setError('Please select a subdivision.');
         return;
       }
 
-      // Create multiple barangay assignments
-      const base = {
+      // Create assignment for San Isidro with subdivision
+      const assignmentData = {
         collector_id: parseInt(form.collector_id, 10),
-        effective_start_date: form.effective_start_date || undefined,
-        effective_end_date: form.effective_end_date || undefined,
-        shift_label: form.shift_label || undefined,
+        barangay_id: fixedBarangay.barangay_id,
+        subdivision: form.subdivision
       };
 
-      await Promise.all(
-        form.barangay_ids.map(id =>
-          axios.post(
-            `${API_BASE_URL}/assignments/barangay`,
-            { ...base, barangay_id: parseInt(id, 10) },
-            { headers: { ...authHeaders, 'Content-Type': 'application/json' } }
-          )
-        )
+      await axios.post(
+        `${API_BASE_URL}/assignments/barangay`,
+        assignmentData,
+        { headers: { ...authHeaders, 'Content-Type': 'application/json' } }
       );
       
       await loadAll();
       setForm({ 
         collector_id: '', 
-        barangay_id: '',
-        barangay_ids: [],
-        effective_start_date: new Date().toISOString().split('T')[0], 
-        effective_end_date: '', 
-        shift_label: 'Morning Shift' 
+        subdivision: ''
       });
     } catch (e) {
       console.error('Failed to save assignment:', e);
@@ -192,7 +183,7 @@ export default function Assignments() {
               </select>
             </div>
 
-            {/* Barangay Selection */}
+            {/* Barangay Display */}
             <div>
               <label style={{ 
                 display: 'block', 
@@ -202,145 +193,22 @@ export default function Assignments() {
                 fontWeight: '500' 
               }}>
                 <i className="fas fa-map-marker-alt" style={{ marginRight: 8, color: '#6b7280' }}></i>
-                Select Barangays
+                Barangay
               </label>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8, alignItems: 'center', marginBottom: 8 }}>
-                <select
-                  value={form.barangay_id}
-                  onChange={(e) => setForm(f => ({ ...f, barangay_id: e.target.value }))}
-                  style={{ 
-                    width: '100%', 
-                    padding: '12px', 
-                    border: '1px solid #d1d5db',
-                    borderRadius: '6px',
-                    fontSize: '14px',
-                    backgroundColor: '#ffffff'
-                  }}
-                >
-                  <option value="">Choose a barangay...</option>
-                  {barangays.map(b => (
-                    <option key={b.barangay_id} value={b.barangay_id}>
-                      {b.barangay_name}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (!form.barangay_id) return;
-                    setForm(f => {
-                      const id = String(f.barangay_id);
-                      if (f.barangay_ids.includes(id)) return f; // avoid duplicates
-                      return { ...f, barangay_ids: [...f.barangay_ids, id], barangay_id: '' };
-                    });
-                  }}
-                  style={{ 
-                    padding: '12px 16px', 
-                    background: '#10b981', 
-                    color: '#fff', 
-                    border: 'none', 
-                    borderRadius: 6, 
-                    cursor: 'pointer',
-                    fontSize: '14px',
-                    fontWeight: '500'
-                  }}
-                >
-                  <i className="fas fa-plus"></i>
-                </button>
-              </div>
-              {form.barangay_ids.length > 0 && (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
-                  {form.barangay_ids.map(id => {
-                    const b = barangays.find(x => String(x.barangay_id) === String(id));
-                    const label = b ? b.barangay_name : `Barangay #${id}`;
-                    return (
-                      <div key={id} style={{ 
-                        display: 'inline-flex', 
-                        alignItems: 'center', 
-                        gap: 6, 
-                        background: '#dbeafe', 
-                        color: '#1e40af', 
-                        border: '1px solid #93c5fd', 
-                        borderRadius: 16, 
-                        padding: '6px 12px',
-                        fontSize: '14px'
-                      }}>
-                        <span>{label}</span>
-                        <button
-                          type="button"
-                          onClick={() => setForm(f => ({ ...f, barangay_ids: f.barangay_ids.filter(x => String(x) !== String(id)) }))}
-                          title="Remove"
-                          style={{ 
-                            background: 'transparent', 
-                            color: '#1e40af', 
-                            border: 'none', 
-                            cursor: 'pointer', 
-                            fontWeight: 700,
-                            fontSize: '16px'
-                          }}
-                        >
-                          ×
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
-            {/* Date Range */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-              <div>
-                <label style={{ 
-                  display: 'block', 
-                  marginBottom: 8, 
-                  color: '#374151', 
-                  fontSize: '14px', 
-                  fontWeight: '500' 
-                }}>
-                  <i className="fas fa-calendar-alt" style={{ marginRight: 8, color: '#6b7280' }}></i>
-                  Start Date
-                </label>
-                <input 
-                  type="date" 
-                  value={form.effective_start_date} 
-                  onChange={(e) => setForm(f => ({ ...f, effective_start_date: e.target.value }))} 
-                  style={{ 
-                    width: '100%', 
-                    padding: '12px', 
-                    border: '1px solid #d1d5db',
-                    borderRadius: '6px',
-                    fontSize: '14px'
-                  }} 
-                />
-              </div>
-              <div>
-                <label style={{ 
-                  display: 'block', 
-                  marginBottom: 8, 
-                  color: '#374151', 
-                  fontSize: '14px', 
-                  fontWeight: '500' 
-                }}>
-                  <i className="fas fa-calendar-times" style={{ marginRight: 8, color: '#6b7280' }}></i>
-                  End Date (Optional)
-                </label>
-                <input 
-                  type="date" 
-                  value={form.effective_end_date} 
-                  onChange={(e) => setForm(f => ({ ...f, effective_end_date: e.target.value }))} 
-                  style={{ 
-                    width: '100%', 
-                    padding: '12px', 
-                    border: '1px solid #d1d5db',
-                    borderRadius: '6px',
-                    fontSize: '14px'
-                  }} 
-                />
+              <div style={{ 
+                width: '100%', 
+                padding: '12px', 
+                border: '1px solid #d1d5db',
+                borderRadius: '6px',
+                fontSize: '14px',
+                backgroundColor: '#f9fafb',
+                color: '#374151'
+              }}>
+                {fixedBarangay.barangay_name}
               </div>
             </div>
 
-            {/* Shift Selection */}
+            {/* Subdivision Selection */}
             <div>
               <label style={{ 
                 display: 'block', 
@@ -349,12 +217,13 @@ export default function Assignments() {
                 fontSize: '14px', 
                 fontWeight: '500' 
               }}>
-                <i className="fas fa-clock" style={{ marginRight: 8, color: '#6b7280' }}></i>
-                Work Shift
+                <i className="fas fa-building" style={{ marginRight: 8, color: '#6b7280' }}></i>
+                Select Subdivision
               </label>
-              <select 
-                value={form.shift_label} 
-                onChange={(e) => setForm(f => ({ ...f, shift_label: e.target.value }))} 
+              <select
+                value={form.subdivision}
+                onChange={(e) => setForm(f => ({ ...f, subdivision: e.target.value }))}
+                required
                 style={{ 
                   width: '100%', 
                   padding: '12px', 
@@ -364,11 +233,15 @@ export default function Assignments() {
                   backgroundColor: '#ffffff'
                 }}
               >
-                <option value="Morning Shift">🌅 Morning Shift (6AM - 12PM)</option>
-                <option value="Afternoon Shift">🌇 Afternoon Shift (12PM - 6PM)</option>
-                <option value="Full Day">🌞 Full Day (6AM - 6PM)</option>
+                <option value="">Choose a subdivision...</option>
+                {subdivisions.map(s => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
               </select>
             </div>
+
 
             {/* Submit Button */}
             <button 
@@ -500,31 +373,31 @@ export default function Assignments() {
                               Barangay
                             </p>
                             <p style={{ margin: 0, fontSize: '14px', color: '#1f2937', fontWeight: '500' }}>
-                              {a.barangay_name || `Barangay #${a.barangay_id}`}
+                              {a.barangay_name || 'San Isidro'}
                             </p>
                           </div>
                         </div>
 
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <i className="fas fa-clock" style={{ color: '#f59e0b', fontSize: '14px' }}></i>
+                          <i className="fas fa-building" style={{ color: '#f59e0b', fontSize: '14px' }}></i>
                           <div>
                             <p style={{ margin: 0, fontSize: '12px', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                              Shift
+                              Subdivision
                             </p>
                             <p style={{ margin: 0, fontSize: '14px', color: '#1f2937', fontWeight: '500' }}>
-                              {a.shift_label || 'Not specified'}
+                              {a.subdivision ? subdivisions.find(s => s.id === a.subdivision)?.name || a.subdivision : 'VSM Heights Phase 1'}
                             </p>
                           </div>
                         </div>
 
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <i className="fas fa-calendar-alt" style={{ color: '#8b5cf6', fontSize: '14px' }}></i>
+                          <i className="fas fa-calendar-check" style={{ color: '#8b5cf6', fontSize: '14px' }}></i>
                           <div>
                             <p style={{ margin: 0, fontSize: '12px', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                              Period
+                              Status
                             </p>
                             <p style={{ margin: 0, fontSize: '14px', color: '#1f2937', fontWeight: '500' }}>
-                              {a.effective_start_date ? new Date(a.effective_start_date).toLocaleDateString() : 'Started'} → {a.effective_end_date ? new Date(a.effective_end_date).toLocaleDateString() : 'Ongoing'}
+                              Active
                             </p>
                           </div>
                         </div>
