@@ -6,13 +6,11 @@ import Dashboard from './pages/MDashboard';
 import CollectionSchedule from './pages/CollectionSchedule';
 import ModernLayout from './pages/ModernLayout';
 import Assignments from './pages/Assignments';
-import RouteIssues from './pages/RouteIssues';
 import UsersCollectors from './pages/UserCollector';
 import Reports from './pages/Reports';
 import Notifications from './pages/Notifications';
 import About from './pages/About';
 import Billing from './pages/Billing';
-import BillingHistory from './pages/BillingHistory';
 import Profile from './pages/Profile';
 import SpecialPickup from './pages/SpecialPickup';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -49,13 +47,11 @@ const App = () => {
             <Route path="schedule" element={<CollectionSchedule />} />
             <Route path="subscribers" element={<UsersCollectors />} />
             <Route path="assignments" element={<Assignments />} />
-            <Route path="route-issues" element={<RouteIssues />} />
             <Route path="special-pickup" element={<SpecialPickup />} />
           </Route>
           
           {/* Billing Routes */}
           <Route path="billing" element={<Billing />} />
-          <Route path="billing-history" element={<BillingHistory />} />
           
           {/* Insights Routes */}
           <Route path="insights">

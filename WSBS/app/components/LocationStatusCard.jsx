@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { getToken } from '../auth';
@@ -174,6 +174,24 @@ const LocationStatusCard = () => {
             </>
           )}
           
+          {/* Gate Image Display */}
+          {locationData.gate_image_url && (
+            <>
+              <View style={styles.detailRow}>
+                <Ionicons name="camera" size={14} color="#666" />
+                <Text style={styles.detailLabel}>Gate Image:</Text>
+              </View>
+              <View style={styles.gateImageContainer}>
+                <Image 
+                  source={{ uri: `${API_BASE_URL}${locationData.gate_image_url}` }}
+                  style={styles.gateImage}
+                  resizeMode="cover"
+                />
+                <Text style={styles.gateImageCaption}>Your uploaded gate image</Text>
+              </View>
+            </>
+          )}
+          
           <TouchableOpacity 
             style={styles.updateButton} 
             onPress={(e) => {
@@ -294,6 +312,22 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
     marginLeft: 4,
+  },
+  gateImageContainer: {
+    marginLeft: 20,
+    marginBottom: 8,
+  },
+  gateImage: {
+    width: 120,
+    height: 80,
+    borderRadius: 8,
+    backgroundColor: '#f0f0f0',
+  },
+  gateImageCaption: {
+    fontSize: 10,
+    color: '#666',
+    marginTop: 4,
+    fontStyle: 'italic',
   },
 });
 

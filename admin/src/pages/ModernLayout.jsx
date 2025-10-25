@@ -22,8 +22,7 @@ const navConfig = [
     items: [
       { title: 'Collection Schedule', icon: 'fas fa-calendar-alt', path: '/admin/operations/schedule' },
       { title: 'Users & Residents', icon: 'fas fa-users', path: '/admin/operations/subscribers' },
-      { title: 'Assignments', icon: 'fas fa-user-check', path: '/admin/operations/assignments' },
-      { title: 'Route Issues', icon: 'fas fa-exclamation-triangle', path: '/admin/operations/route-issues' }
+      { title: 'Assignments', icon: 'fas fa-user-check', path: '/admin/operations/assignments' }
     ]
   },
   {
@@ -32,8 +31,7 @@ const navConfig = [
     key: 'billing',
     description: 'Financial Management',
     items: [
-      { title: 'Invoice Management', icon: 'fas fa-file-invoice', path: '/admin/billing' },
-      { title: 'Payment History', icon: 'fas fa-history', path: '/admin/billing-history' }
+      { title: 'Billing', icon: 'fas fa-file-invoice', path: '/admin/billing' }
     ]
   },
   {
@@ -63,9 +61,7 @@ const pageTitles = {
   '/admin/operations/schedule': 'Collection Schedule',
   '/admin/operations/subscribers': 'Users & Residents',
   '/admin/operations/assignments': 'Collector Assignments',
-  '/admin/operations/route-issues': 'Route Issues',
-  '/admin/billing': 'Invoice Management',
-  '/admin/billing-history': 'Payment History',
+  '/admin/billing': 'Billing',
   '/admin/insights/reports': 'System Reports',
   '/admin/settings/notifications': 'Notifications',
   '/admin/settings/about': 'About',
