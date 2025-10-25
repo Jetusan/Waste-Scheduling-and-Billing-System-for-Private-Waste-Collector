@@ -12,6 +12,7 @@ router.get('/', async (req, res) => {
         cs.created_at,
         cs.waste_type,
         cs.time_range,
+        cs.subdivision,
         array_agg(
           json_build_object(
             'barangay_id', b.barangay_id,
@@ -21,7 +22,7 @@ router.get('/', async (req, res) => {
       FROM collection_schedules cs
       LEFT JOIN schedule_barangays sb ON cs.schedule_id = sb.schedule_id
       LEFT JOIN barangays b ON sb.barangay_id = b.barangay_id
-      GROUP BY cs.schedule_id, cs.schedule_date, cs.created_at, cs.waste_type, cs.time_range
+      GROUP BY cs.schedule_id, cs.schedule_date, cs.created_at, cs.waste_type, cs.time_range, cs.subdivision
       ORDER BY cs.schedule_date
     `;
     
@@ -40,13 +41,13 @@ router.get('/', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     console.log('Creating new collection schedule:', req.body);
-    const { schedule_date, waste_type, time_range, barangay_ids } = req.body;
+    const { schedule_date, waste_type, time_range, subdivision, barangay_ids } = req.body;
 
     // Validation
-    if (!schedule_date || !waste_type || !time_range || !barangay_ids || barangay_ids.length === 0) {
+    if (!schedule_date || !waste_type || !subdivision || !barangay_ids || barangay_ids.length === 0) {
       return res.status(400).json({ 
         error: 'Missing required fields',
-        message: 'schedule_date, waste_type, time_range, and barangay_ids are required'
+        message: 'schedule_date, waste_type, subdivision, and barangay_ids are required'
       });
     }
 
@@ -57,11 +58,11 @@ router.post('/', async (req, res) => {
 
       // Insert into collection_schedules
       const scheduleQuery = `
-        INSERT INTO collection_schedules (schedule_date, waste_type, time_range, created_at)
-        VALUES ($1, $2, $3, NOW())
+        INSERT INTO collection_schedules (schedule_date, waste_type, time_range, subdivision, created_at)
+        VALUES ($1, $2, $3, $4, NOW())
         RETURNING schedule_id
       `;
-      const scheduleResult = await client.query(scheduleQuery, [schedule_date, waste_type, time_range]);
+      const scheduleResult = await client.query(scheduleQuery, [schedule_date, waste_type, time_range, subdivision]);
       const scheduleId = scheduleResult.rows[0].schedule_id;
 
       // Insert into schedule_barangays for each selected barangay
@@ -83,6 +84,7 @@ router.post('/', async (req, res) => {
           cs.created_at,
           cs.waste_type,
           cs.time_range,
+          cs.subdivision,
           array_agg(
             json_build_object(
               'barangay_id', b.barangay_id,
@@ -93,7 +95,7 @@ router.post('/', async (req, res) => {
         LEFT JOIN schedule_barangays sb ON cs.schedule_id = sb.schedule_id
         LEFT JOIN barangays b ON sb.barangay_id = b.barangay_id
         WHERE cs.schedule_id = $1
-        GROUP BY cs.schedule_id, cs.schedule_date, cs.created_at, cs.waste_type, cs.time_range
+        GROUP BY cs.schedule_id, cs.schedule_date, cs.created_at, cs.waste_type, cs.time_range, cs.subdivision
       `;
       
       const newSchedule = await client.query(getScheduleQuery, [scheduleId]);
@@ -123,15 +125,15 @@ router.post('/', async (req, res) => {
 router.put('/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { schedule_date, waste_type, time_range, barangay_ids } = req.body;
+    const { schedule_date, waste_type, time_range, subdivision, barangay_ids } = req.body;
     
     console.log('Updating collection schedule:', id, req.body);
 
     // Validation
-    if (!schedule_date || !waste_type || !time_range || !barangay_ids || barangay_ids.length === 0) {
+    if (!schedule_date || !waste_type || !subdivision || !barangay_ids || barangay_ids.length === 0) {
       return res.status(400).json({ 
         error: 'Missing required fields',
-        message: 'schedule_date, waste_type, time_range, and barangay_ids are required'
+        message: 'schedule_date, waste_type, subdivision, and barangay_ids are required'
       });
     }
 
@@ -142,11 +144,11 @@ router.put('/:id', async (req, res) => {
       // Update collection_schedules table
       const updateQuery = `
         UPDATE collection_schedules 
-        SET schedule_date = $1, waste_type = $2, time_range = $3
-        WHERE schedule_id = $4
+        SET schedule_date = $1, waste_type = $2, time_range = $3, subdivision = $4
+        WHERE schedule_id = $5
         RETURNING schedule_id
       `;
-      const result = await client.query(updateQuery, [schedule_date, waste_type, time_range, id]);
+      const result = await client.query(updateQuery, [schedule_date, waste_type, time_range, subdivision, id]);
 
       if (result.rowCount === 0) {
         await client.query('ROLLBACK');
@@ -174,6 +176,7 @@ router.put('/:id', async (req, res) => {
           cs.created_at,
           cs.waste_type,
           cs.time_range,
+          cs.subdivision,
           array_agg(
             json_build_object(
               'barangay_id', b.barangay_id,
@@ -184,7 +187,7 @@ router.put('/:id', async (req, res) => {
         LEFT JOIN schedule_barangays sb ON cs.schedule_id = sb.schedule_id
         LEFT JOIN barangays b ON sb.barangay_id = b.barangay_id
         WHERE cs.schedule_id = $1
-        GROUP BY cs.schedule_id, cs.schedule_date, cs.created_at, cs.waste_type, cs.time_range
+        GROUP BY cs.schedule_id, cs.schedule_date, cs.created_at, cs.waste_type, cs.time_range, cs.subdivision
       `;
       
       const updatedSchedule = await client.query(getScheduleQuery, [id]);

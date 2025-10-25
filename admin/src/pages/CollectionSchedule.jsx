@@ -15,25 +15,20 @@ const CollectionSchedule = () => {
     barangay_ids: [],
     schedule_date: '',
     created_at: '',
-    waste_type: 'Residual', // Add default waste type
-    time_range: '', // Single time range field
-    start_time: '', // Helper field for UI
-    end_time: '', // Helper field for UI
+    waste_type: 'Non-bio', // Add default waste type
+    subdivision: '', // Add subdivision field
   });
   const [newSchedule, setNewSchedule] = useState({
     barangay_ids: [],
     schedule_date: '',
     created_at: '',
-    waste_type: 'Residual', // Add default waste type
-    time_range: '', // Single time range field
-    start_time: '', // Helper field for UI
-    end_time: '', // Helper field for UI
+    waste_type: 'Non-bio', // Add default waste type
+    subdivision: '', // Add subdivision field
   });
   const wasteTypes = [
-    'Residual',
-    'Biodegradable',
-    'Bottle',
-    'Binakbak',
+    'Non-bio',
+    'Bio',
+    'Recyclable',
   ];
   const [barangayToAdd, setBarangayToAdd] = useState('');
   const [editBarangayToAdd, setEditBarangayToAdd] = useState('');
@@ -102,8 +97,9 @@ const CollectionSchedule = () => {
       const response = await axios.post(buildApiUrl('/api/collection-schedules'), {
         barangay_ids: newSchedule.barangay_ids.map(id => parseInt(id, 10)),
         schedule_date: newSchedule.schedule_date,
-        waste_type: newSchedule.waste_type, // Include waste type
-        time_range: newSchedule.time_range, // Include time range
+        waste_type: newSchedule.waste_type,
+        subdivision: newSchedule.subdivision,
+        time_range: '', // Empty time range as requested
       });
       if (response.data) {
         fetchSchedules();
@@ -112,10 +108,8 @@ const CollectionSchedule = () => {
           barangay_ids: [],
           schedule_date: '',
           created_at: '',
-          waste_type: 'Residual', // Reset to default
-          time_range: '', // Reset time range
-          start_time: '', // Reset helper fields
-          end_time: '',
+          waste_type: 'Non-bio', // Reset to default
+          subdivision: '', // Reset subdivision
         });
       }
     } catch (err) {
@@ -145,8 +139,9 @@ const CollectionSchedule = () => {
         {
           barangay_ids: editSchedule.barangay_ids.map(id => parseInt(id, 10)),
           schedule_date: editSchedule.schedule_date,
-          waste_type: editSchedule.waste_type, // Include waste type
-          time_range: editSchedule.time_range, // Include time range
+          waste_type: editSchedule.waste_type,
+          subdivision: editSchedule.subdivision,
+          time_range: '', // Empty time range as requested
         }
       );
       if (response.data) {
@@ -157,10 +152,8 @@ const CollectionSchedule = () => {
           barangay_ids: [],
           schedule_date: '',
           created_at: '',
-          waste_type: 'Residual',
-          time_range: '', // Reset time range
-          start_time: '', // Reset helper fields
-          end_time: '',
+          waste_type: 'Non-bio',
+          subdivision: '', // Reset subdivision
         });
       }
     } catch (err) {
@@ -171,32 +164,13 @@ const CollectionSchedule = () => {
   };
 
   const openEditModal = (schedule) => {
-    // Parse existing time_range back to start_time and end_time
-    let startTime = '';
-    let endTime = '';
-    
-    if (schedule.time_range) {
-      const timeRange = schedule.time_range.toLowerCase();
-      
-      // Parse formats like "9am to 10am" or just "9am"
-      if (timeRange.includes(' to ')) {
-        const [start, end] = timeRange.split(' to ');
-        startTime = convertTo24Hour(start.trim());
-        endTime = convertTo24Hour(end.trim());
-      } else {
-        startTime = convertTo24Hour(timeRange.trim());
-      }
-    }
-
     setEditSchedule({
       schedule_id: schedule.schedule_id,
       barangay_ids: schedule.barangays ? schedule.barangays.map(b => String(b.barangay_id)) : [],
       schedule_date: schedule.schedule_date,
       created_at: schedule.created_at,
-      waste_type: schedule.waste_type || 'Residual', // Prefill waste type
-      time_range: schedule.time_range || '', // Prefill time range
-      start_time: startTime,
-      end_time: endTime,
+      waste_type: schedule.waste_type || 'Non-bio', // Prefill waste type
+      subdivision: schedule.subdivision || '', // Prefill subdivision
     });
     setIsEditModalOpen(true);
   };
@@ -231,7 +205,7 @@ const CollectionSchedule = () => {
     : schedules;
 
   const DAYS_OF_WEEK = [
-    'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'
+    'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'
   ];
 
   return (
@@ -300,10 +274,10 @@ const CollectionSchedule = () => {
             <table className="schedule-table">
               <thead>
                 <tr>
-                  <th>Barangays</th>
-                  <th>Collection Date</th>
-                  <th>Pickup Time</th>
-                  <th>Type of Waste</th> {/* New column */}
+                  <th>Barangay</th>
+                  <th>Subdivision</th>
+                  <th>Collection Day</th>
+                  <th>Type of Waste</th>
                   <th>Action</th>
                 </tr>
               </thead>
@@ -311,9 +285,9 @@ const CollectionSchedule = () => {
                 {filteredSchedules.map(s => (
                   <tr key={s.schedule_id}>
                     <td>{s.barangays && s.barangays.length > 0 ? s.barangays.map(b => b.barangay_name).join(', ') : ''}</td>
+                    <td>{s.subdivision || ''}</td>
                     <td>{s.schedule_date}</td>
-                    <td>{s.time_range || 'Not set'}</td>
-                    <td>{s.waste_type || ''}</td> {/* Show waste type */}
+                    <td>{s.waste_type || ''}</td>
                     <td>
                       <button
                         className="action-btn"
@@ -353,7 +327,7 @@ const CollectionSchedule = () => {
                         onChange={e => setBarangayToAdd(e.target.value)}
                       >
                         <option value="">Select Barangay</option>
-                        {barangays.filter(b => !newSchedule.barangay_ids.includes(String(b.barangay_id))).map(b => (
+                        {barangays.filter(b => b.barangay_name === 'San Isidro' && !newSchedule.barangay_ids.includes(String(b.barangay_id))).map(b => (
                           <option key={b.barangay_id} value={b.barangay_id}>{b.barangay_name}</option>
                         ))}
                       </select>
@@ -393,6 +367,16 @@ const CollectionSchedule = () => {
                     </select>
                   </div>
                   <div className="form-group">
+                    <label>Subdivision:</label>
+                    <input
+                      type="text"
+                      value={newSchedule.subdivision}
+                      onChange={e => setNewSchedule({ ...newSchedule, subdivision: e.target.value })}
+                      placeholder="Enter subdivision name"
+                      required
+                    />
+                  </div>
+                  <div className="form-group">
                     <label>Type of Waste:</label>
                     <select
                       value={newSchedule.waste_type}
@@ -403,47 +387,6 @@ const CollectionSchedule = () => {
                         <option key={type} value={type}>{type}</option>
                       ))}
                     </select>
-                  </div>
-                  <div className="form-group">
-                    <label>Collection Time:</label>
-                    <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                      <div>
-                        <label style={{ fontSize: '12px', display: 'block' }}>Start Time:</label>
-                        <input
-                          type="time"
-                          value={newSchedule.start_time}
-                          onChange={e => {
-                            const startTime = e.target.value;
-                            const timeRange = buildTimeRange(startTime, newSchedule.end_time);
-                            setNewSchedule({ 
-                              ...newSchedule, 
-                              start_time: startTime,
-                              time_range: timeRange
-                            });
-                          }}
-                          required
-                        />
-                      </div>
-                      <div>
-                        <label style={{ fontSize: '12px', display: 'block' }}>End Time (Optional):</label>
-                        <input
-                          type="time"
-                          value={newSchedule.end_time}
-                          onChange={e => {
-                            const endTime = e.target.value;
-                            const timeRange = buildTimeRange(newSchedule.start_time, endTime);
-                            setNewSchedule({ 
-                              ...newSchedule, 
-                              end_time: endTime,
-                              time_range: timeRange
-                            });
-                          }}
-                        />
-                      </div>
-                    </div>
-                    <div style={{ marginTop: '8px', fontSize: '14px', color: '#666' }}>
-                      Preview: {newSchedule.time_range || 'Select start time'}
-                    </div>
                   </div>
                   <div className="modal-footer">
                     <button type="button" className="cancel-btn" onClick={() => setIsModalOpen(false)}>
@@ -477,7 +420,7 @@ const CollectionSchedule = () => {
                         onChange={e => setEditBarangayToAdd(e.target.value)}
                       >
                         <option value="">Select Barangay</option>
-                        {barangays.filter(b => !editSchedule.barangay_ids.includes(String(b.barangay_id))).map(b => (
+                        {barangays.filter(b => b.barangay_name === 'San Isidro' && !editSchedule.barangay_ids.includes(String(b.barangay_id))).map(b => (
                           <option key={b.barangay_id} value={b.barangay_id}>{b.barangay_name}</option>
                         ))}
                       </select>
@@ -517,9 +460,19 @@ const CollectionSchedule = () => {
                     </select>
                   </div>
                   <div className="form-group">
+                    <label>Subdivision:</label>
+                    <input
+                      type="text"
+                      value={editSchedule.subdivision || ''}
+                      onChange={e => setEditSchedule({ ...editSchedule, subdivision: e.target.value })}
+                      placeholder="Enter subdivision name"
+                      required
+                    />
+                  </div>
+                  <div className="form-group">
                     <label>Type of Waste:</label>
                     <select
-                      value={editSchedule.waste_type || 'Residual'}
+                      value={editSchedule.waste_type || 'Non-bio'}
                       onChange={e => setEditSchedule({ ...editSchedule, waste_type: e.target.value })}
                       required
                     >
@@ -527,47 +480,6 @@ const CollectionSchedule = () => {
                         <option key={type} value={type}>{type}</option>
                       ))}
                     </select>
-                  </div>
-                  <div className="form-group">
-                    <label>Collection Time:</label>
-                    <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                      <div>
-                        <label style={{ fontSize: '12px', display: 'block' }}>Start Time:</label>
-                        <input
-                          type="time"
-                          value={editSchedule.start_time}
-                          onChange={e => {
-                            const startTime = e.target.value;
-                            const timeRange = buildTimeRange(startTime, editSchedule.end_time);
-                            setEditSchedule({ 
-                              ...editSchedule, 
-                              start_time: startTime,
-                              time_range: timeRange
-                            });
-                          }}
-                          required
-                        />
-                      </div>
-                      <div>
-                        <label style={{ fontSize: '12px', display: 'block' }}>End Time (Optional):</label>
-                        <input
-                          type="time"
-                          value={editSchedule.end_time}
-                          onChange={e => {
-                            const endTime = e.target.value;
-                            const timeRange = buildTimeRange(editSchedule.start_time, endTime);
-                            setEditSchedule({ 
-                              ...editSchedule, 
-                              end_time: endTime,
-                              time_range: timeRange
-                            });
-                          }}
-                        />
-                      </div>
-                    </div>
-                    <div style={{ marginTop: '8px', fontSize: '14px', color: '#666' }}>
-                      Preview: {editSchedule.time_range || 'Select start time'}
-                    </div>
                   </div>
                   <div className="modal-footer">
                     <button type="button" className="cancel-btn" onClick={() => setIsEditModalOpen(false)}>

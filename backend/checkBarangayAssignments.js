@@ -2,7 +2,19 @@
  * Check the collector_barangay_assignments table structure and data
  */
 
-const pool = require('./config/dbAdmin');
+const { Client } = require('pg');
+require('dotenv').config();
+
+const client = new Client({
+  user: process.env.DB_USER || 'postgres',
+  host: process.env.DB_HOST || 'localhost',
+  database: process.env.DB_NAME || 'waste_collection_db',
+  password: process.env.DB_PASSWORD || 'root',
+  port: process.env.DB_PORT ? Number(process.env.DB_PORT) : 5432,
+  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+});
+
+const query = (text, params) => client.query(text, params);
 
 async function checkBarangayAssignments() {
   console.log('🔍 Checking collector_barangay_assignments table...\n');
@@ -10,7 +22,7 @@ async function checkBarangayAssignments() {
   try {
     // Check table structure
     console.log('📋 Table structure:');
-    const schema = await pool.queryWithRetry(`
+    const schema = await query(`
       SELECT column_name, data_type, is_nullable 
       FROM information_schema.columns 
       WHERE table_name = 'collector_barangay_assignments' 
@@ -22,7 +34,7 @@ async function checkBarangayAssignments() {
 
     // Check current data
     console.log('\n📊 Current assignments:');
-    const data = await pool.queryWithRetry(`
+    const data = await query(`
       SELECT cba.*, c.user_id, u.email, b.barangay_name
       FROM collector_barangay_assignments cba
       JOIN collectors c ON cba.collector_id = c.collector_id
@@ -44,7 +56,7 @@ async function checkBarangayAssignments() {
     });
     
     console.log(`\n📅 Collection schedules for ${today}:`);
-    const schedules = await pool.queryWithRetry(`
+    const schedules = await query(`
       SELECT cs.*, b.barangay_name
       FROM collection_schedules cs
       JOIN schedule_barangays sb ON cs.schedule_id = sb.schedule_id
@@ -97,10 +109,12 @@ async function checkBarangayAssignments() {
 }
 
 // Run the check
-checkBarangayAssignments().then(() => {
-  console.log('\n✅ Check completed!');
-  process.exit(0);
-}).catch(error => {
-  console.error('❌ Check failed:', error);
-  process.exit(1);
-});
+checkBarangayAssignments()
+  .then(() => {
+    console.log('\n✅ Check completed!');
+    return client.end();
+  })
+  .catch(error => {
+    console.error('❌ Check failed:', error);
+    return client.end().finally(() => process.exit(1));
+  });
