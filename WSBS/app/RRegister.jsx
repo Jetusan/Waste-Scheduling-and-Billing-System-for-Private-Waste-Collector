@@ -75,56 +75,16 @@ const RegisterScreen = () => {
   const [subdivisionItems, setSubdivisionItems] = useState([]);
   const [showDatePicker, setShowDatePicker] = useState(false);
 
-  // Subdivision directory mapping
+  // Subdivision directory mapping - Only San Isidro with VSM Heights Phase 1
   const subdivisionDirectory = {
-    "City Heights": [
-      "L. Dacera Subdivision", "T. Dacera Subdivision", "Dadiangas Heights Subdivision", "Daricom Subdivision", "De Castro Subdivision", "Del Carmen Subdivision", "Dela Cuadra Subdivision", "Divina Lim Subdivision", "Elma Subdivision", "Ferraren Subdivision", "Hermosa Subdivision", "Las Villas de Dadiangas", "Leyva Subdivision", "Lim Subdivision", "Lualhati Village", "Marin Village", "Morales Subdivision", "Munda Subdivision", "Paradise / Paralejas Subdivision", "Paparon Subdivision", "Provido Subdivision", "Pineda Subdivision", "Queenie’s Love Village", "Rogan Subdivision", "Royeca Subdivision", "Salvani Subdivision", "Santa Teresita Village"
-    ],
-    "Lagao": [
-      "Anas Subdivision", "Ascue Subdivision", "Artates Subdivision", "Balite Subdivision", "Bugarin Subdivision", "Carcon Subdivision", "Country Homes Subdivision", "Countryside Subdivision", "Cyrilang Subdivision", "DBP Subdivision", "Diaz Subdivision", "Falgui Subdivision", "Guinoo Subdivision", "Hicban Subdivision", "Lagman Subdivision", "Mateo Subdivision", "Pag-Asa Subdivision", "Paulino Llido Subdivision", "Leon Llido Subdivision", "Pioneer Village", "Rosario Village", "Camella Cerritos GenSan", "Lessandra General Santos"
-    ],
     "San Isidro": [
-      "Anas Subdivision", "Ascue Subdivision", "Artates Subdivision", "Balite Subdivision", "Bugarin Subdivision", "Carcon Subdivision", "Country Homes Subdivision", "Countryside Subdivision", "Cyrilang Subdivision", "DBP Subdivision", "Diaz Subdivision", "Falgui Subdivision", "Guinoo Subdivision", "Hicban Subdivision", "Lagman Subdivision", "Mateo Subdivision", "Pag-Asa Subdivision", "Paulino Llido Subdivision", "Leon Llido Subdivision", "Pioneer Village", "Rosario Village", "Camella Cerritos GenSan", "Lessandra General Santos"
-    ],
-    "Katangawan": ["Camella Trails"],
-    "Fatima": ["Natad Subdivision", "Pioneer Village Ext.", "VSM Estate / Meadows / Premier Estates"],
-    "Calumpang": ["Santa Monica Subdivision", "Superville Subdivision"],
-    "Buayan": ["Santiago Subdivision", "Shrineville Subdivision"],
-    "Apopong": ["Rosewood Subdivision", "Yanson Village", "Loveland Subdivision"]
+      "VSM Heights Phase 1"
+    ]
   };
   
   // Date picker configuration
 
-  // Add new state variables for the address fields
-  const [blockOpen, setBlockOpen] = useState(false);
-  const [blockValue, setBlockValue] = useState(null);
-  const [blockItems, setBlockItems] = useState([
-    { label: 'Block 1', value: 'Block 1' },
-    { label: 'Block 2', value: 'Block 2' },
-    { label: 'Block 3', value: 'Block 3' },
-    { label: 'Block 4', value: 'Block 4' },
-    { label: 'Block 5', value: 'Block 5' },
-    { label: 'Block 6', value: 'Block 6' },
-    { label: 'Block 7', value: 'Block 7' },
-    { label: 'Block 8', value: 'Block 8' },
-    { label: 'Block 9', value: 'Block 9' },
-    { label: 'Block 10', value: 'Block 10' },
-  ]);
-
-  const [lotOpen, setLotOpen] = useState(false);
-  const [lotValue, setLotValue] = useState(null);
-  const [lotItems, setLotItems] = useState([
-    { label: 'Lot 1', value: 'Lot 1' },
-    { label: 'Lot 2', value: 'Lot 2' },
-    { label: 'Lot 3', value: 'Lot 3' },
-    { label: 'Lot 4', value: 'Lot 4' },
-    { label: 'Lot 5', value: 'Lot 5' },
-    { label: 'Lot 6', value: 'Lot 6' },
-    { label: 'Lot 7', value: 'Lot 7' },
-    { label: 'Lot 8', value: 'Lot 8' },
-    { label: 'Lot 9', value: 'Lot 9' },
-    { label: 'Lot 10', value: 'Lot 10' },
-  ]);
+  // Remove dropdown states for block and lot since they'll be text inputs now
   
   const currentYear = new Date().getFullYear();
   const maxYear = currentYear - 18;
@@ -158,29 +118,13 @@ const RegisterScreen = () => {
     setShowDatePicker(false);
   }, []);
   
-  // Fetch barangays from backend
+  // Set only San Isidro as available barangay
   useEffect(() => {
-    const fetchBarangays = async () => {
-      try {
-        const response = await fetch(`${API_BASE_URL}/api/auth/barangays`);
-        if (response.ok) {
-          const barangays = await response.json();
-          const formattedBarangays = barangays.map(barangay => ({
-            label: barangay.barangay_name,
-            value: barangay.barangay_name
-          }));
-          setBarangayItems(formattedBarangays);
-        } else {
-          console.error('Failed to fetch barangays');
-        }
-      } catch (error) {
-        console.error('Error fetching barangays:', error);
-      } finally {
-        setBarangayLoading(false);
-      }
-    };
-    
-    fetchBarangays();
+    setBarangayItems([{
+      label: 'San Isidro',
+      value: 'San Isidro'
+    }]);
+    setBarangayLoading(false);
   }, []);
 
 
@@ -207,37 +151,7 @@ const RegisterScreen = () => {
     setFormData(prev => ({ ...prev, subdivision: '' }));
   }, [formData.barangay]);
 
-  // Sync blockValue with formData
-  useEffect(() => {
-    setBlockValue(formData.block || null);
-  }, [formData.block]);
-
-  // Sync lotValue with formData
-  useEffect(() => {
-    setLotValue(formData.lot || null);
-  }, [formData.lot]);
-
-  // Add this useEffect to handle zIndex issues
-  useEffect(() => {
-    if (open) {
-      setBlockOpen(false);
-      setLotOpen(false);
-    }
-  }, [open]);
-
-  useEffect(() => {
-    if (blockOpen) {
-      setOpen(false);
-      setLotOpen(false);
-    }
-  }, [blockOpen]);
-
-  useEffect(() => {
-    if (lotOpen) {
-      setOpen(false);
-      setBlockOpen(false);
-    }
-  }, [lotOpen]);
+  // Remove block and lot dropdown sync effects since they're now text inputs
 
   const [loading, setLoading] = useState(false);
   const [fadeAnim] = useState(new Animated.Value(0));
@@ -973,63 +887,43 @@ const RegisterScreen = () => {
       />
     </View>
 
-    {/* 4. Street - Optional */}
+    {/* 4. Block - Required Text Input */}
     <View style={styles.inputContainer}>
-      <Text style={styles.label}>Street (Optional)</Text>
+      <Text style={styles.label}>Block *</Text>
       <TextInput
         style={styles.input}
-        placeholder="Enter your street name"
-        value={formData.street}
-        onChangeText={(value) => handleChange('street', value)}
+        placeholder="Enter your block number (1-99)"
+        value={formData.block}
+        onChangeText={(value) => {
+          // Only allow numbers and limit to 99
+          const numericValue = value.replace(/[^0-9]/g, '');
+          if (numericValue === '' || (parseInt(numericValue) >= 1 && parseInt(numericValue) <= 99)) {
+            handleChange('block', numericValue);
+          }
+        }}
+        keyboardType="numeric"
+        maxLength={2}
         placeholderTextColor="#888"
       />
     </View>
 
-    {/* 5. Block - Required Dropdown */}
-    <View style={[styles.inputContainer, { zIndex: 3000 }]}>
-      <Text style={styles.label}>Block *</Text>
-      <DropDownPicker
-        open={blockOpen}
-        value={blockValue}
-        items={blockItems}
-        setOpen={setBlockOpen}
-        setValue={setBlockValue}
-        setItems={setBlockItems}
-        placeholder="Select your Block"
-        style={styles.dropdown}
-        textStyle={styles.dropdownText}
-        dropDownContainerStyle={styles.dropdownContainer}
-        listMode="MODAL"
-        searchable={true}
-        zIndex={3000}
-        zIndexInverse={2000}
-        onSelectItem={(item) => {
-          handleChange('block', item.value);
-        }}
-      />
-    </View>
-
-    {/* 6. Lot - Required Dropdown */}
-    <View style={[styles.inputContainer, { zIndex: 2000 }]}>
+    {/* 5. Lot - Required Text Input */}
+    <View style={styles.inputContainer}>
       <Text style={styles.label}>Lot *</Text>
-      <DropDownPicker
-        open={lotOpen}
-        value={lotValue}
-        items={lotItems}
-        setOpen={setLotOpen}
-        setValue={setLotValue}
-        setItems={setLotItems}
-        placeholder="Select your Lot"
-        style={styles.dropdown}
-        textStyle={styles.dropdownText}
-        dropDownContainerStyle={styles.dropdownContainer}
-        listMode="MODAL"
-        searchable={true}
-        zIndex={2000}
-        zIndexInverse={3000}
-        onSelectItem={(item) => {
-          handleChange('lot', item.value);
+      <TextInput
+        style={styles.input}
+        placeholder="Enter your lot number (1-99)"
+        value={formData.lot}
+        onChangeText={(value) => {
+          // Only allow numbers and limit to 99
+          const numericValue = value.replace(/[^0-9]/g, '');
+          if (numericValue === '' || (parseInt(numericValue) >= 1 && parseInt(numericValue) <= 99)) {
+            handleChange('lot', numericValue);
+          }
         }}
+        keyboardType="numeric"
+        maxLength={2}
+        placeholderTextColor="#888"
       />
     </View>
   </>

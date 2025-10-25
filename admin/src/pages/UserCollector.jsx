@@ -170,6 +170,7 @@ const UsersCollectors = () => {
             email: u.email || '',
             contact_number: u.contact_number || '',
             street: u.street || '',
+            subdivision: u.subdivision || '',
             barangay: u.barangay_name || u.barangay || '',
             city: u.city_name || u.city || 'General Santos City',
             subscription_status: u.subscription_status || 'inactive',
@@ -629,30 +630,24 @@ const UsersCollectors = () => {
                         <tr>
                           <th>Name</th>
                           <th>Contact #</th>
-                          <th>Street</th>
+                          <th>Subdivision</th>
                           <th>Barangay</th>
                           <th>City</th>
-                          <th>Status</th>
                         </tr>
                       </thead>
                       <tbody>
                         {filteredUsers.length === 0 ? (
                           <tr>
-                            <td colSpan={6} className="no-data">No residents found</td>
+                            <td colSpan={5} className="no-data">No residents found</td>
                           </tr>
                         ) : (
                           filteredUsers.map(u => (
                             <tr key={u.user_id}>
                               <td>{u.full_name}</td>
                               <td>{u.contact_number}</td>
-                              <td>{u.street}</td>
+                              <td>{u.subdivision}</td>
                               <td>{u.barangay}</td>
                               <td>{u.city}</td>
-                              <td>
-                                <span className={`status ${(u.subscription_status || 'inactive').toLowerCase()}`}>
-                                  {u.subscription_status || 'Inactive'}
-                                </span>
-                              </td>
                             </tr>
                           ))
                         )}
