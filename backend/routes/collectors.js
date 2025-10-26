@@ -126,11 +126,24 @@ router.post('/register-optimized', async (req, res) => {
 
     // Check if username already exists
     const existingUser = await pool.query(
-      'SELECT username FROM users WHERE username = $1',
+      'SELECT user_id, username FROM users WHERE username = $1',
       [username.trim()]
     );
 
     if (existingUser.rows.length > 0) {
+      // Also check if this user already has a collector record
+      const existingCollector = await pool.query(
+        'SELECT collector_id FROM collectors WHERE user_id = $1',
+        [existingUser.rows[0].user_id]
+      );
+
+      if (existingCollector.rows.length > 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'This user already has a collector account'
+        });
+      }
+
       return res.status(400).json({
         success: false,
         message: 'Username already exists'
