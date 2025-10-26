@@ -132,17 +132,30 @@ const CSelectSubdivision = () => {
           message = checkData.message;
         }
         
-        Alert.alert(
-          'No Collections Available',
-          message,
-          [
-            { text: 'OK' },
-            { 
-              text: 'Proceed with General Collection', 
-              onPress: () => handleGeneralCollection()
-            }
-          ]
-        );
+        // Check if this is VSM Heights Phase 1 and not collection day
+        const isVSM = subdivision.subdivision_name?.toLowerCase().includes('vsm');
+        const isMondayTest = subdivision.subdivision_name?.toLowerCase().includes('monday test');
+        const isCollectionDay = ['Wednesday', 'Thursday', 'Friday'].includes(today);
+        
+        if (isVSM && !isCollectionDay) {
+          Alert.alert(
+            'Collection Day Notice',
+            `VSM Heights Phase 1 collection is scheduled for Wednesday, Thursday, and Friday only.\n\nToday is ${today}. Please return on a collection day.`,
+            [{ text: 'OK' }]
+          );
+        } else if (isMondayTest) {
+          Alert.alert(
+            'Test Area Notice',
+            `Monday Test Area is available for collection testing on any day.\n\nToday is ${today}. This area is used for demonstration purposes.`,
+            [{ text: 'OK' }]
+          );
+        } else {
+          Alert.alert(
+            'No Collections Available',
+            message,
+            [{ text: 'OK' }]
+          );
+        }
       }
     } catch (err) {
       console.error('Error checking subdivision collections:', err);
@@ -166,28 +179,44 @@ const CSelectSubdivision = () => {
   const renderSubdivisionCard = (subdivision) => {
     const collectionCount = collectionCounts[subdivision.subdivision_id] || 0;
     const isVSM = subdivision.subdivision_name?.toLowerCase().includes('vsm');
+    const isMondayTest = subdivision.subdivision_name?.toLowerCase().includes('monday test');
+    const today = new Date().toLocaleDateString('en-US', { weekday: 'long', timeZone: 'Asia/Manila' });
+    const isCollectionDay = ['Wednesday', 'Thursday', 'Friday'].includes(today);
+    
+    // Determine availability
+    const isAvailable = isMondayTest || (isVSM && isCollectionDay) || (!isVSM && !isMondayTest);
     
     return (
       <TouchableOpacity
         key={subdivision.subdivision_id}
         style={[
           styles.subdivisionCard,
-          isVSM && styles.vsmCard
+          isVSM && styles.vsmCard,
+          isMondayTest && styles.testCard,
+          !isAvailable && styles.unavailableCard
         ]}
         onPress={() => handleSubdivisionSelect(subdivision)}
         activeOpacity={0.7}
       >
         <View style={styles.cardContent}>
-          <View style={[styles.iconContainer, isVSM && styles.vsmIconContainer]}>
+          <View style={[
+            styles.iconContainer, 
+            isVSM && styles.vsmIconContainer,
+            isMondayTest && styles.testIconContainer
+          ]}>
             <Ionicons 
-              name={isVSM ? "home" : "location"} 
+              name={isVSM ? "home" : isMondayTest ? "flask" : "location"} 
               size={28} 
-              color={isVSM ? "#4CAF50" : "#2196F3"} 
+              color={isVSM ? "#4CAF50" : isMondayTest ? "#FF9800" : "#2196F3"} 
             />
           </View>
           
           <View style={styles.subdivisionInfo}>
-            <Text style={[styles.subdivisionName, isVSM && styles.vsmName]}>
+            <Text style={[
+              styles.subdivisionName, 
+              isVSM && styles.vsmName,
+              isMondayTest && styles.testName
+            ]}>
               {subdivision.subdivision_name}
             </Text>
             {isVSM && (
@@ -195,9 +224,19 @@ const CSelectSubdivision = () => {
                 <Text style={styles.priorityText}>PRIORITY AREA</Text>
               </View>
             )}
+            {isMondayTest && (
+              <View style={styles.testBadge}>
+                <Text style={styles.testText}>TEST AREA</Text>
+              </View>
+            )}
             <Text style={styles.collectionCount}>
               {collectionCount} residents to collect
             </Text>
+            {!isAvailable && isVSM && (
+              <Text style={styles.scheduleNote}>
+                📅 Available: Wed, Thu, Fri only
+              </Text>
+            )}
             {subdivision.description && (
               <Text style={styles.description} numberOfLines={2}>
                 {subdivision.description}
@@ -279,14 +318,6 @@ const CSelectSubdivision = () => {
           <View style={styles.errorContainer}>
             <MaterialIcons name="info" size={24} color="#FF9800" />
             <Text style={styles.errorText}>{error}</Text>
-            <TouchableOpacity 
-              style={styles.generalCollectionButton}
-              onPress={handleGeneralCollection}
-            >
-              <Text style={styles.generalCollectionButtonText}>
-                Proceed with General Collection
-              </Text>
-            </TouchableOpacity>
           </View>
         ) : subdivisions.length > 0 ? (
           <View style={styles.subdivisionList}>
@@ -294,27 +325,6 @@ const CSelectSubdivision = () => {
               Available Subdivisions ({subdivisions.length})
             </Text>
             {subdivisions.map(renderSubdivisionCard)}
-            
-            {/* General collection option */}
-            <TouchableOpacity 
-              style={styles.generalCard}
-              onPress={handleGeneralCollection}
-            >
-              <View style={styles.cardContent}>
-                <View style={styles.generalIconContainer}>
-                  <Ionicons name="map" size={28} color="#666" />
-                </View>
-                <View style={styles.subdivisionInfo}>
-                  <Text style={styles.generalName}>General Collection</Text>
-                  <Text style={styles.generalDescription}>
-                    Collect from all areas in {selectedBarangayName}
-                  </Text>
-                </View>
-                <View style={styles.arrowContainer}>
-                  <Ionicons name="chevron-forward" size={24} color="#666" />
-                </View>
-              </View>
-            </TouchableOpacity>
           </View>
         ) : (
           <View style={styles.emptyContainer}>
@@ -323,14 +333,6 @@ const CSelectSubdivision = () => {
             <Text style={styles.emptyText}>
               No subdivisions are configured for {selectedBarangayName}.
             </Text>
-            <TouchableOpacity 
-              style={styles.generalCollectionButton}
-              onPress={handleGeneralCollection}
-            >
-              <Text style={styles.generalCollectionButtonText}>
-                Proceed with General Collection
-              </Text>
-            </TouchableOpacity>
           </View>
         )}
       </ScrollView>
@@ -573,6 +575,41 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 24,
     marginBottom: 20,
+  },
+  testCard: {
+    borderColor: '#FF9800',
+    borderWidth: 2,
+    backgroundColor: '#FFF8E1',
+  },
+  testIconContainer: {
+    backgroundColor: '#FFE0B2',
+  },
+  testName: {
+    color: '#F57C00',
+    fontWeight: 'bold',
+  },
+  testBadge: {
+    backgroundColor: '#FF9800',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 12,
+    alignSelf: 'flex-start',
+    marginTop: 4,
+  },
+  testText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: 'bold',
+  },
+  unavailableCard: {
+    opacity: 0.6,
+    backgroundColor: '#f5f5f5',
+  },
+  scheduleNote: {
+    fontSize: 12,
+    color: '#666',
+    fontStyle: 'italic',
+    marginTop: 4,
   },
 });
 
