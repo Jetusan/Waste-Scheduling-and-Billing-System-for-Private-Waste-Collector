@@ -719,17 +719,24 @@ const SPickup = () => {
                 }}
                 activeOpacity={0.7}
               >
-                <Ionicons 
+                <Ionicons
                   name={wasteTypes.includes(item.type) ? 'checkbox' : 'square-outline'}
-                  size={20} 
-                  color={wasteTypes.includes(item.type) ? '#fff' : '#4CAF50'} 
-                  style={{ marginRight: 6 }}
+                  size={22}
+                  color={wasteTypes.includes(item.type) ? '#fff' : '#4CAF50'}
+                  style={[styles.selectionIcon, wasteTypes.includes(item.type) && styles.selectionIconActive]}
                 />
-                <Ionicons 
-                  name={item.icon} 
-                  size={20} 
-                  color={wasteTypes.includes(item.type) ? '#fff' : '#4CAF50'} 
-                />
+                <View
+                  style={[
+                    styles.typeIconWrapper,
+                    wasteTypes.includes(item.type) && styles.typeIconWrapperActive
+                  ]}
+                >
+                  <Ionicons
+                    name={item.icon}
+                    size={18}
+                    color={wasteTypes.includes(item.type) ? '#fff' : '#2e7d32'}
+                  />
+                </View>
                 <Text style={[styles.buttonText, wasteTypes.includes(item.type) && styles.activeButtonText]}>
                   {item.type}
                 </Text>
@@ -1047,33 +1054,49 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   buttonGroup: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
+    flexDirection: 'column',
+    gap: 10,
     marginTop: 8,
   },
   typeButton: {
-    width: '48%',
+    width: '100%',
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 8,
+    justifyContent: 'flex-start',
+    paddingVertical: 12,
+    paddingHorizontal: 14,
     backgroundColor: '#f8f9fa',
-    borderRadius: 8,
+    borderRadius: 10,
     borderWidth: 1.5,
     borderColor: '#e9ecef',
-    marginBottom: 8,
   },
   activeButton: {
     backgroundColor: '#4CAF50',
     borderColor: '#4CAF50',
   },
+  selectionIcon: {
+    marginRight: 12,
+  },
+  selectionIconActive: {},
+  typeIconWrapper: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: '#e8f5e9',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  typeIconWrapperActive: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.5)',
+  },
   buttonText: {
     color: '#666',
     fontSize: 13,
     fontWeight: '600',
-    marginLeft: 6,
+    marginLeft: 4,
   },
   activeButtonText: {
     color: '#fff',
