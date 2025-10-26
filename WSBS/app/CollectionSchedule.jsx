@@ -68,7 +68,24 @@ export default function CollectionSchedule() {
   const upcoming = useMemo(() => {
     const daysOrder = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const todayIdx = new Date().getDay();
-    return [...filtered]
+    
+    // For San Isidro, VSM Heights Phase 1 - prioritize Wed, Thu, Fri
+    const sanIsidroScheduleDays = ['Wednesday', 'Thursday', 'Friday'];
+    const isSanIsidroVSM = userBarangay === 'San Isidro' && 
+      filtered.some(evt => evt.subdivision && evt.subdivision.toLowerCase().includes('vsm'));
+    
+    let sortedSchedules = [...filtered];
+    
+    if (isSanIsidroVSM) {
+      // For San Isidro VSM, show only Wed-Fri and sort them properly
+      sortedSchedules = sortedSchedules.filter(evt => 
+        sanIsidroScheduleDays.some(day => 
+          day.toLowerCase() === (evt.schedule_date || '').trim().toLowerCase()
+        )
+      );
+    }
+    
+    return sortedSchedules
       .sort((a, b) => {
         const ai = daysOrder.findIndex(d => d.toLowerCase() === (a.schedule_date || '').trim().toLowerCase());
         const bi = daysOrder.findIndex(d => d.toLowerCase() === (b.schedule_date || '').trim().toLowerCase());
@@ -77,7 +94,7 @@ export default function CollectionSchedule() {
         return ad - bd;
       })
       .slice(0, 6);
-  }, [filtered]);
+  }, [filtered, userBarangay]);
 
   return (
     <ScrollView style={styles.container}
@@ -96,6 +113,16 @@ export default function CollectionSchedule() {
         <Text style={styles.empty}>No collection schedule found for your barangay.</Text>
       ) : (
         <View style={{ padding: 16 }}>
+          {/* Show schedule info for San Isidro VSM Heights Phase 1 */}
+          {userBarangay === 'San Isidro' && filtered.some(evt => evt.subdivision && evt.subdivision.toLowerCase().includes('vsm')) && (
+            <View style={styles.infoCard}>
+              <Ionicons name="information-circle" size={20} color="#2196F3" />
+              <Text style={styles.infoText}>
+                Collection Schedule for VSM Heights Phase 1: Wednesday, Thursday, Friday
+              </Text>
+            </View>
+          )}
+          
           <Text style={styles.sectionTitle}>Today</Text>
           {todayList.length === 0 ? (
             <Text style={styles.dim}>No collection today.</Text>
@@ -134,4 +161,21 @@ const styles = StyleSheet.create({
   error: { color: 'red', textAlign: 'center', marginTop: 20 },
   empty: { color: '#888', textAlign: 'center', marginTop: 20 },
   dim: { color: '#777', fontStyle: 'italic' },
+  infoCard: { 
+    backgroundColor: '#E3F2FD', 
+    borderRadius: 8, 
+    padding: 12, 
+    marginBottom: 16, 
+    flexDirection: 'row', 
+    alignItems: 'center',
+    borderLeftWidth: 4,
+    borderLeftColor: '#2196F3'
+  },
+  infoText: { 
+    color: '#1976D2', 
+    fontSize: 14, 
+    fontWeight: '600', 
+    marginLeft: 8, 
+    flex: 1 
+  },
 });

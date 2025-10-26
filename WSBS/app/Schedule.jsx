@@ -51,10 +51,23 @@ export default function Schedule() {
   }, []);
 
   // Filter schedules for this resident's barangay
-  const filteredSchedules = schedules.filter(evt =>
+  let filteredSchedules = schedules.filter(evt =>
     evt.barangays &&
     evt.barangays.some(b => b.barangay_name === userBarangay)
   );
+
+  // For San Isidro, VSM Heights Phase 1 - show only Wed, Thu, Fri
+  const sanIsidroScheduleDays = ['Wednesday', 'Thursday', 'Friday'];
+  const isSanIsidroVSM = userBarangay === 'San Isidro' && 
+    filteredSchedules.some(evt => evt.subdivision && evt.subdivision.toLowerCase().includes('vsm'));
+  
+  if (isSanIsidroVSM) {
+    filteredSchedules = filteredSchedules.filter(evt => 
+      sanIsidroScheduleDays.some(day => 
+        day.toLowerCase() === (evt.schedule_date || '').trim().toLowerCase()
+      )
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -76,6 +89,16 @@ export default function Schedule() {
         <View style={styles.centered}><Text style={{ color: 'red' }}>{error}</Text></View>
       ) : (
         <ScrollView contentContainerStyle={styles.eventsList}>
+          {/* Show schedule info for San Isidro VSM Heights Phase 1 */}
+          {isSanIsidroVSM && (
+            <View style={styles.infoCard}>
+              <Ionicons name="information-circle" size={20} color="#4CAF50" />
+              <Text style={styles.infoText}>
+                Collection Schedule for VSM Heights Phase 1: Wednesday, Thursday, Friday
+              </Text>
+            </View>
+          )}
+          
           {filteredSchedules.length === 0 ? (
             <Text style={styles.noData}>No schedules found.</Text>
           ) : (
@@ -126,4 +149,21 @@ const styles = StyleSheet.create({
   eventLocation: { marginTop: 4, color: '#666' },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center', marginTop: 40 },
   noData: { textAlign: 'center', color: '#888', marginTop: 30 },
+  infoCard: { 
+    backgroundColor: '#E8F5E8', 
+    borderRadius: 8, 
+    padding: 12, 
+    marginBottom: 16, 
+    flexDirection: 'row', 
+    alignItems: 'center',
+    borderLeftWidth: 4,
+    borderLeftColor: '#4CAF50'
+  },
+  infoText: { 
+    color: '#2E7D32', 
+    fontSize: 14, 
+    fontWeight: '600', 
+    marginLeft: 8, 
+    flex: 1 
+  },
 });

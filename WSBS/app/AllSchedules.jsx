@@ -63,11 +63,24 @@ const AllSchedules = () => {
         const schedulesData = await schedulesResponse.json();
         
         // Filter schedules by user's barangay if available
-        const filteredSchedules = userBarangayName 
+        let filteredSchedules = userBarangayName 
           ? schedulesData.filter(schedule => 
               schedule.barangays && schedule.barangays.some(b => b.barangay_name === userBarangayName)
             )
           : schedulesData;
+
+        // For San Isidro, VSM Heights Phase 1 - show only Wed, Thu, Fri
+        const sanIsidroScheduleDays = ['Wednesday', 'Thursday', 'Friday'];
+        const isSanIsidroVSM = userBarangayName === 'San Isidro' && 
+          filteredSchedules.some(schedule => schedule.subdivision && schedule.subdivision.toLowerCase().includes('vsm'));
+        
+        if (isSanIsidroVSM) {
+          filteredSchedules = filteredSchedules.filter(schedule => 
+            sanIsidroScheduleDays.some(day => 
+              day.toLowerCase() === (schedule.schedule_date || '').trim().toLowerCase()
+            )
+          );
+        }
 
         setSchedules(filteredSchedules);
       } else {
@@ -153,6 +166,16 @@ const AllSchedules = () => {
           <View style={styles.barangayInfo}>
             <Ionicons name="location" size={16} color="#4CD964" />
             <Text style={styles.barangayText}>Showing schedules for {userBarangay}</Text>
+          </View>
+        )}
+
+        {/* Show schedule info for San Isidro VSM Heights Phase 1 */}
+        {userBarangay === 'San Isidro' && schedules.some(schedule => schedule.subdivision && schedule.subdivision.toLowerCase().includes('vsm')) && (
+          <View style={styles.vsmInfoCard}>
+            <Ionicons name="information-circle" size={20} color="#4CD964" />
+            <Text style={styles.vsmInfoText}>
+              Collection Schedule for VSM Heights Phase 1: Wednesday, Thursday, Friday
+            </Text>
           </View>
         )}
 
@@ -607,6 +630,23 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#4CD964',
     marginRight: 8,
+  },
+  vsmInfoCard: { 
+    backgroundColor: '#E8F5E8', 
+    borderRadius: 8, 
+    padding: 12, 
+    marginBottom: 16, 
+    flexDirection: 'row', 
+    alignItems: 'center',
+    borderLeftWidth: 4,
+    borderLeftColor: '#4CD964'
+  },
+  vsmInfoText: { 
+    color: '#2E7D32', 
+    fontSize: 14, 
+    fontWeight: '600', 
+    marginLeft: 8, 
+    flex: 1 
   },
 });
 
