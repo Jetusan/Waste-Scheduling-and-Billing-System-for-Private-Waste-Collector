@@ -1829,31 +1829,38 @@ const uploadGCashReceipt = async (req, res) => {
 
       const activatedSubscription = await billingModel.activateSubscription(subscriptionId, paymentData);
 
-      // Generate receipt
+      // Generate receipt - Enhanced version
       let receiptGenerated = false;
       try {
+        // Wait a moment for payment to be committed
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        // Try to find the payment record
         const paymentQuery = `
           SELECT p.payment_id, p.invoice_id, p.amount, p.payment_method, p.payment_date, p.reference_number
           FROM payments p
           JOIN invoices i ON p.invoice_id = i.invoice_id
-          WHERE i.subscription_id = $1 AND p.payment_method = 'Manual GCash'
+          WHERE i.subscription_id = $1
           ORDER BY p.created_at DESC
           LIMIT 1
         `;
         const paymentResult = await pool.query(paymentQuery, [subscriptionId]);
         
-        if (paymentResult.rows.length > 0) {
+        // Get invoice info for receipt
+        const invoiceQuery = `
+          SELECT invoice_id, amount
+          FROM invoices
+          WHERE subscription_id = $1
+          ORDER BY created_at DESC
+          LIMIT 1
+        `;
+        const invoiceResult = await pool.query(invoiceQuery, [subscriptionId]);
+        
+        if (paymentResult.rows.length > 0 && invoiceResult.rows.length > 0) {
           const payment = paymentResult.rows[0];
+          const invoice = invoiceResult.rows[0];
           
           const receiptNumber = `RCP-${new Date().toISOString().split('T')[0].replace(/-/g, '')}-${String(Date.now()).slice(-6)}`;
-          
-          const receiptQuery = `
-            INSERT INTO receipts (
-              receipt_number, payment_id, invoice_id, user_id, subscription_id,
-              amount, payment_method, payment_date, receipt_data, status
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-            RETURNING receipt_id, receipt_number
-          `;
           
           const receiptData = {
             payment_id: payment.payment_id,
@@ -1862,8 +1869,18 @@ const uploadGCashReceipt = async (req, res) => {
             payment_method: 'Manual GCash (OCR Verified)',
             reference_number: gcash_reference,
             payment_date: payment.payment_date,
-            ocr_verification: verificationResult
+            ocr_verification: verificationResult,
+            subscription_id: subscriptionId,
+            user_id: userId
           };
+          
+          const receiptQuery = `
+            INSERT INTO receipts (
+              receipt_number, payment_id, invoice_id, user_id, subscription_id,
+              amount, payment_method, payment_date, receipt_data, status
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+            RETURNING receipt_id, receipt_number
+          `;
           
           const receiptResult = await pool.query(receiptQuery, [
             receiptNumber,
@@ -1880,9 +1897,50 @@ const uploadGCashReceipt = async (req, res) => {
           
           receiptGenerated = true;
           console.log('✅ Manual GCash Receipt generated:', receiptResult.rows[0].receipt_number);
+          console.log('📄 Receipt data:', receiptData);
+          
+        } else if (invoiceResult.rows.length > 0) {
+          // Create receipt even without payment record
+          const invoice = invoiceResult.rows[0];
+          const receiptNumber = `RCP-${new Date().toISOString().split('T')[0].replace(/-/g, '')}-${String(Date.now()).slice(-6)}`;
+          
+          const receiptData = {
+            amount: expectedAmount,
+            payment_method: 'Manual GCash (OCR Verified)',
+            reference_number: gcash_reference,
+            payment_date: new Date(),
+            ocr_verification: verificationResult,
+            subscription_id: subscriptionId,
+            user_id: userId,
+            note: 'Receipt generated from OCR verification'
+          };
+          
+          const receiptQuery = `
+            INSERT INTO receipts (
+              receipt_number, invoice_id, user_id, subscription_id,
+              amount, payment_method, payment_date, receipt_data, status
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            RETURNING receipt_id, receipt_number
+          `;
+          
+          const receiptResult = await pool.query(receiptQuery, [
+            receiptNumber,
+            invoice.invoice_id,
+            userId,
+            subscriptionId,
+            expectedAmount,
+            'Manual GCash',
+            new Date(),
+            JSON.stringify(receiptData),
+            'generated'
+          ]);
+          
+          receiptGenerated = true;
+          console.log('✅ Manual GCash Receipt generated (fallback):', receiptResult.rows[0].receipt_number);
         }
       } catch (receiptError) {
         console.error('⚠️ Failed to generate receipt:', receiptError);
+        console.error('Receipt error details:', receiptError.message);
       }
 
       res.json({

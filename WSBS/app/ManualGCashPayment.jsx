@@ -151,17 +151,8 @@ const ManualGCashPayment = () => {
             'Your payment has been automatically verified and approved. Your subscription is now active!',
             [
               {
-                text: 'Go to Home',
-                onPress: () => router.push('/resident/HomePage'),
-                style: 'default'
-              },
-              {
-                text: 'View Receipt',
+                text: 'OK',
                 onPress: () => router.push('/ReceiptPage')
-              },
-              {
-                text: 'View Subscription',
-                onPress: () => router.push('/SubscriptionStatusScreen')
               }
             ]
           );
