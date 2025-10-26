@@ -12,4 +12,7 @@ router.get('/user/:userId', authenticateJWT, receiptController.getUserReceipts);
 // Get specific receipt by ID
 router.get('/:receiptId', receiptController.getReceiptById);
 
+// Download receipt as text/JSON
+router.get('/download/:receiptId', authenticateJWT, receiptController.downloadReceipt);
+
 module.exports = router;

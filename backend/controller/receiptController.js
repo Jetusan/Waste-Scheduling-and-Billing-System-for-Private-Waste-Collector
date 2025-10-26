@@ -610,8 +610,87 @@ const getReceiptById = async (req, res) => {
   }
 };
 
+// Download receipt as formatted text
+const downloadReceipt = async (req, res) => {
+  try {
+    const { receiptId } = req.params;
+    const userId = req.user?.userId;
+
+    const receiptQuery = `
+      SELECT 
+        r.receipt_id,
+        r.receipt_number,
+        r.amount,
+        r.payment_method,
+        r.payment_date,
+        r.status,
+        r.receipt_data,
+        r.user_id,
+        cs.plan_id,
+        sp.plan_name
+      FROM receipts r
+      LEFT JOIN customer_subscriptions cs ON r.subscription_id = cs.subscription_id
+      LEFT JOIN subscription_plans sp ON cs.plan_id = sp.plan_id
+      WHERE r.receipt_id = $1
+    `;
+
+    const result = await pool.query(receiptQuery, [receiptId]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Receipt not found' });
+    }
+
+    const receipt = result.rows[0];
+
+    // Check if user owns this receipt
+    if (userId && receipt.user_id !== userId) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    // Format receipt as downloadable text
+    const receiptText = `
+WSBS - Waste Management Service
+Official Payment Receipt
+================================
+
+Receipt #: ${receipt.receipt_number}
+Date: ${new Date(receipt.payment_date).toLocaleDateString('en-US', {
+  year: 'numeric',
+  month: 'long', 
+  day: 'numeric'
+})} at ${new Date(receipt.payment_date).toLocaleTimeString('en-US', {
+  hour: '2-digit',
+  minute: '2-digit'
+})}
+Amount: ₱${parseFloat(receipt.amount).toFixed(2)}
+Payment Method: ${receipt.payment_method}
+Plan: ${receipt.plan_name || 'Standard Plan'}
+Status: ${receipt.status.toUpperCase()}
+
+================================
+Thank you for your payment!
+Your subscription is now active and 
+waste collection services will continue 
+as scheduled.
+
+Generated on: ${new Date().toLocaleDateString()}
+    `.trim();
+
+    // Set headers for download
+    res.setHeader('Content-Type', 'text/plain');
+    res.setHeader('Content-Disposition', `attachment; filename="WSBS_Receipt_${receipt.receipt_number}.txt"`);
+    
+    res.send(receiptText);
+
+  } catch (error) {
+    console.error('Error downloading receipt:', error);
+    res.status(500).json({ error: 'Failed to download receipt' });
+  }
+};
+
 module.exports = {
   generateReceipt,
   getUserReceipts,
-  getReceiptById
+  getReceiptById,
+  downloadReceipt
 };
