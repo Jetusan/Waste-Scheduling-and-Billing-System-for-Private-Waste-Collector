@@ -488,7 +488,7 @@ router.post('/submit', authenticateJWT, upload.single('paymentProof'), async (re
       const invoiceNumber = `INV-${timestamp}${user_id}`;
       const currentDate = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
       
-      await pool.query(`
+      const invoiceResult = await pool.query(`
         INSERT INTO invoices (
           invoice_number, 
           user_id, 
@@ -501,6 +501,7 @@ router.post('/submit', authenticateJWT, upload.single('paymentProof'), async (re
           notes
         )
         VALUES ($1, $2, $3, (SELECT plan_id FROM customer_subscriptions WHERE subscription_id = $3), $4, 'paid', $5, $5, $6)
+        RETURNING invoice_id
       `, [
         invoiceNumber,
         user_id, 
@@ -509,6 +510,70 @@ router.post('/submit', authenticateJWT, upload.single('paymentProof'), async (re
         currentDate,
         `Manual GCash payment verification - Auto-verified with ${verificationResult?.confidence || 100}% confidence`
       ]);
+
+      // Create payment record
+      const paymentResult = await pool.query(`
+        INSERT INTO payments (
+          invoice_id, 
+          amount, 
+          payment_method, 
+          payment_date, 
+          reference_number, 
+          notes
+        )
+        VALUES ($1, $2, $3, NOW(), $4, $5)
+        RETURNING payment_id
+      `, [
+        invoiceResult.rows[0].invoice_id,
+        parseFloat(amount),
+        'Manual GCash',
+        reference_number || `AUTO-${Date.now()}`,
+        `Auto-verified OCR payment with ${verificationResult?.confidence || 100}% confidence`
+      ]);
+
+      // Generate receipt
+      const receiptNumber = `RCP-${new Date().toISOString().split('T')[0].replace(/-/g, '')}-${String(Date.now()).slice(-6)}`;
+      
+      const receiptData = {
+        payment_id: paymentResult.rows[0].payment_id,
+        invoice_id: invoiceResult.rows[0].invoice_id,
+        amount: parseFloat(amount),
+        payment_method: 'Manual GCash (OCR Verified)',
+        reference_number: reference_number || `AUTO-${Date.now()}`,
+        payment_date: new Date(),
+        ocr_verification: verificationResult,
+        subscription_id: subscription_id,
+        user_id: user_id,
+        auto_verified: true
+      };
+      
+      await pool.query(`
+        INSERT INTO receipts (
+          receipt_number, 
+          payment_id, 
+          invoice_id, 
+          user_id, 
+          subscription_id,
+          amount, 
+          payment_method, 
+          payment_date, 
+          receipt_data, 
+          status
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), $8, $9)
+      `, [
+        receiptNumber,
+        paymentResult.rows[0].payment_id,
+        invoiceResult.rows[0].invoice_id,
+        user_id,
+        subscription_id,
+        parseFloat(amount),
+        'Manual GCash',
+        JSON.stringify(receiptData),
+        'generated'
+      ]);
+
+      console.log(`✅ Payment record created: ${paymentResult.rows[0].payment_id}`);
+      console.log(`✅ Receipt generated: ${receiptNumber}`);
 
       // Update verification record
       await pool.query(`
