@@ -120,16 +120,40 @@ const UploadReceiptPage = () => {
       const data = await response.json();
 
       if (data.success) {
-        Alert.alert(
-          'Receipt Uploaded!',
-          'Your receipt has been submitted for verification. You will be notified once your payment is confirmed.',
-          [
-            { 
-              text: 'OK', 
-              onPress: () => router.replace('/resident/dashboard')
-            }
-          ]
-        );
+        if (data.verification_result && data.verification_result.isValid) {
+          // OCR verification successful - payment verified and receipt generated
+          Alert.alert(
+            'Payment Verified! ✅',
+            'Your GCash payment has been automatically verified and your subscription is now active. Your official receipt is ready to view.',
+            [
+              { 
+                text: 'View Receipt', 
+                onPress: () => {
+                  // Navigate directly to receipt page
+                  router.replace('/ReceiptPage');
+                }
+              },
+              { 
+                text: 'Go to Dashboard', 
+                onPress: () => router.replace('/resident/dashboard')
+              }
+            ]
+          );
+        } else {
+          // OCR verification failed or pending
+          Alert.alert(
+            'Receipt Uploaded',
+            data.verification_result ? 
+              'Payment verification failed. Please ensure your GCash receipt is clear and shows the correct amount and recipient.' :
+              'Your receipt has been uploaded and is being verified. You will be notified once verification is complete.',
+            [
+              { 
+                text: 'OK', 
+                onPress: () => router.replace('/resident/dashboard')
+              }
+            ]
+          );
+        }
       } else {
         Alert.alert('Error', data.error || 'Failed to upload receipt. Please try again.');
       }

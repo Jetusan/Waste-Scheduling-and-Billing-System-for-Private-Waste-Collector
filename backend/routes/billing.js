@@ -8,9 +8,11 @@ const { pool } = require('../config/db');
 // GCash payment integration routes
 router.post('/create-gcash-source', billingController.createGcashSource);
 
+// GCash manual payment routes
+router.post('/upload-gcash-receipt', billingController.uploadGCashReceipt);
+
 // GCash QR payment routes - DISABLED (QR functionality removed)
 // router.post('/create-gcash-qr', billingController.createGCashQRPayment);
-// router.post('/upload-gcash-receipt', billingController.uploadGCashReceipt);
 // router.post('/verify-gcash-qr', billingController.verifyGCashQRPayment);
 // router.get('/gcash-qr-status/:payment_reference', billingController.getGCashQRPaymentStatus);
 // router.get('/pending-gcash-qr', billingController.getPendingGCashQRPayments);

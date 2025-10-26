@@ -292,10 +292,55 @@ const SubscriptionStatusScreen = () => {
     fetchSubscriptionStatus();
   };
 
+  const handleViewReceipt = async () => {
+    try {
+      const token = await getToken();
+      const userId = await getUserId();
+      
+      if (!token || !userId) {
+        Alert.alert('Error', 'Please login again');
+        return;
+      }
+
+      // Get user's latest receipt
+      const response = await fetch(`${API_BASE_URL}/api/receipt/user/${userId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.receipts && data.receipts.length > 0) {
+          const latestReceipt = data.receipts[0];
+          // Open receipt in browser or show receipt details
+          const receiptUrl = `${API_BASE_URL}/api/receipt/${latestReceipt.receipt_id}`;
+          
+          if (Platform.OS === 'web') {
+            window.open(receiptUrl, '_blank');
+          } else {
+            await Linking.openURL(receiptUrl);
+          }
+        } else {
+          Alert.alert('No Receipt', 'No payment receipt found. Receipt will be available after payment confirmation.');
+        }
+      } else {
+        Alert.alert('Error', 'Failed to fetch receipt. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error viewing receipt:', error);
+      Alert.alert('Error', 'Failed to open receipt. Please try again.');
+    }
+  };
+
   const handleAction = async (action) => {
     switch (action.id) {
       case 'pay_gcash':
         await handleGCashPayment();
+        break;
+      case 'view_receipt':
+        await handleViewReceipt();
         break;
       case 'upload_receipt':
         // Navigate to Manual GCash Payment page
@@ -460,12 +505,21 @@ const SubscriptionStatusScreen = () => {
         { id: 'contact_support', label: 'Contact Support', primary: false }
       ]
   );
-  const actions = uiState === 'active'
+  
+  // Add receipt action for paid subscriptions
+  const actionsWithReceipt = transformedSubscription.paymentConfirmedAt 
     ? [
-        ...baseActions,
-        { id: 'renew_subscription', label: 'Renew Subscription', primary: false }
+        { id: 'view_receipt', label: '📄 View Payment Receipt', primary: false },
+        ...baseActions
       ]
     : baseActions;
+    
+  const actions = uiState === 'active'
+    ? [
+        ...actionsWithReceipt,
+        { id: 'renew_subscription', label: 'Renew Subscription', primary: false }
+      ]
+    : actionsWithReceipt;
 
   // Add Cancel Subscription action for both active and pending states (placeholder)
   const actionsWithCancel = [

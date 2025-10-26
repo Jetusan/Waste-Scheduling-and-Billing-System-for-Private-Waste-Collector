@@ -345,29 +345,10 @@ const Billing = () => {
         <h2>Billing Management</h2>
         <div className="view-controls">
           <button 
-            className={`btn ${activeView === 'invoices' ? 'active' : ''}`}
-            onClick={() => setActiveView('invoices')}
+            className="btn active"
+            disabled
           >
             <i className="fas fa-file-invoice"></i> Invoices
-          </button>
-          <button 
-            className={`btn ${activeView === 'aging' ? 'active' : ''}`}
-            onClick={() => setActiveView('aging')}
-          >
-            <i className="fas fa-clock"></i> Aging Report
-          </button>
-          <button 
-            className="btn export"
-            onClick={() => setIsExportModalOpen(true)}
-          >
-            <i className="fas fa-file-export"></i> Export Data
-          </button>
-          <button 
-            className="btn generate"
-            onClick={handleGenerateInvoices}
-            style={{ backgroundColor: '#FF9800', color: 'white' }}
-          >
-            <i className="fas fa-calendar-plus"></i> Generate Recurring Invoices
           </button>
         </div>
       </div>
@@ -405,19 +386,6 @@ const Billing = () => {
           onChange={handleFilterChange} 
         />
 
-        {activeView === 'aging' && (
-          <select
-            name="aging"
-            value={filters.aging}
-            onChange={handleFilterChange}
-          >
-            <option value="all">All Aging</option>
-            <option value="30">1-30 Days</option>
-            <option value="60">31-60 Days</option>
-            <option value="90">61-90 Days</option>
-            <option value="91">90+ Days</option>
-          </select>
-        )}
       </div>
 
       {/* Info Banner */}
@@ -426,8 +394,8 @@ const Billing = () => {
           <h4><i className="fas fa-info-circle"></i> How Billing Works</h4>
           <p>
             <strong>Automatic Invoice Creation:</strong> When users subscribe via mobile app, invoices are automatically generated. 
-            <strong>Your Role:</strong> Monitor payments, manage overdue accounts, and generate recurring monthly invoices for active subscriptions.
-            <strong>Aging Report:</strong> Shows how long invoices have been unpaid (1-30 days, 31-60 days, etc.) to help prioritize collection efforts.
+            <strong>Your Role:</strong> Monitor subscriber billing information and track payment status.
+            <strong>Days Overdue:</strong> Shows how many days invoices are past their due date to help prioritize collection efforts.
           </p>
         </div>
       </div>
@@ -462,20 +430,18 @@ const Billing = () => {
       <table className="billing-table">
         <thead>
           <tr>
-            <th>Invoice ID</th>
             <th>Subscriber</th>
             <th>Plan</th>
             <th>Amount</th>
             <th>Due Date</th>
             <th>Status</th>
-            {activeView === 'aging' && <th>Days Overdue</th>}
-            <th>Actions</th>
+            <th>Days Overdue</th>
           </tr>
         </thead>
         <tbody>
           {filteredInvoices.length === 0 ? (
             <tr>
-              <td colSpan={activeView === 'aging' ? '8' : '7'} style={{ textAlign: 'center', padding: '40px' }}>
+              <td colSpan="6" style={{ textAlign: 'center', padding: '40px' }}>
                 <div style={{ color: '#666' }}>
                   <h4>No Invoices Found</h4>
                   <p>No invoices match your current filters. Try adjusting your search criteria.</p>
@@ -508,7 +474,6 @@ const Billing = () => {
               
               return (
                 <tr key={invoice.id}>
-                  <td>{invoice.id}</td>
                   <td>{invoice.subscriber || 'Unknown User'}</td>
                   <td>{invoice.plan || 'Unknown Plan'}</td>
                   <td>
@@ -530,53 +495,10 @@ const Billing = () => {
                       {displayStatus}
                     </span>
                   </td>
-                  {activeView === 'aging' && (
-                    <td>
-                      <span className={agingDays > 0 ? 'aging-overdue' : 'aging-current'}>
-                        {agingDays > 0 ? `${agingDays} days` : 'Current'}
-                      </span>
-                    </td>
-                  )}
-                  <td className="actions">
-                <div className="action-buttons-group">
-                  <button 
-                    className="action-btn"
-                    onClick={() => {
-                      setSelectedInvoice(invoice);
-                      setIsPaymentModalOpen(true);
-                    }}
-                    title="Record Payment"
-                  >
-                    <i className="fas fa-money-bill-wave"></i>
-                    <span>Record Payment</span>
-                  </button>
-                  <button 
-                    className="action-btn"
-                    onClick={() => handleDownload(invoice)}
-                    title="Download Invoice"
-                  >
-                    <i className="fas fa-download"></i>
-                    <span>Download</span>
-                  </button>
-                  <button 
-                    className="action-btn"
-                    onClick={() => handlePrint(invoice)}
-                    title="Print Invoice"
-                  >
-                    <i className="fas fa-print"></i>
-                    <span>Print</span>
-                  </button>
-                  {invoice.status !== 'Paid' && (
-                    <button 
-                      className="action-btn"
-                      onClick={() => calculateLateFees(invoice.id)}
-                      title="Add Late Fee"
-                    >
-                      <i className="fas fa-exclamation-circle"></i>
-                      <span>Add Late Fee</span>
-                    </button>
-                  )}
-                </div>
+                  <td>
+                    <span className={agingDays > 0 ? 'aging-overdue' : 'aging-current'}>
+                      {agingDays > 0 ? `${agingDays} days` : 'Current'}
+                    </span>
                   </td>
                 </tr>
               );
@@ -585,175 +507,6 @@ const Billing = () => {
         </tbody>
       </table>
 
-      {/* Payment Modal */}
-      {isPaymentModalOpen && selectedInvoice && (
-        <div className="modal-overlay">
-          <div className="payment-modal">
-            <h3>Record Payment for Invoice {selectedInvoice.id}</h3>
-            <div className="invoice-summary">
-              <p>Subscriber: {selectedInvoice.subscriber}</p>
-              <p>Amount Due: {selectedInvoice.amount}</p>
-              <p>Due Date: {selectedInvoice.dueDate}</p>
-            </div>
-            
-            <h4>Payment History</h4>
-            {selectedInvoice.paymentHistory && selectedInvoice.paymentHistory.length > 0 ? (
-              <table className="payment-history">
-                <thead>
-                  <tr>
-                    <th>Date</th>
-                    <th>Amount</th>
-                    <th>Method</th>
-                    <th>Reference</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {selectedInvoice.paymentHistory.map((payment, idx) => (
-                    <tr key={idx}>
-                      <td>{payment.date}</td>
-                      <td>{payment.amount}</td>
-                      <td>{payment.method}</td>
-                      <td>{payment.reference}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            ) : (
-              <p>No payment history</p>
-            )}
-
-            <form onSubmit={handlePayment}>
-              <div className="form-group">
-                <label>Payment Date</label>
-                <input
-                  type="date"
-                  value={paymentForm.date}
-                  onChange={e => setPaymentForm(prev => ({ ...prev, date: e.target.value }))}
-                  required
-                />
-              </div>
-              <div className="form-group">
-                <label>Amount</label>
-                <input
-                  type="number"
-                  value={paymentForm.amount}
-                  onChange={e => setPaymentForm(prev => ({ ...prev, amount: e.target.value }))}
-                  required
-                />
-              </div>
-              <div className="form-group">
-                <label>Payment Method</label>
-                <select
-                  value={paymentForm.method}
-                  onChange={e => setPaymentForm(prev => ({ ...prev, method: e.target.value }))}
-                >
-                  <option>Cash</option>
-                  <option>Bank Transfer</option>
-                  <option>Check</option>
-                  <option>Online Payment</option>
-                </select>
-              </div>
-              <div className="form-group">
-                <label>Reference Number</label>
-                <input
-                  type="text"
-                  value={paymentForm.reference}
-                  onChange={e => setPaymentForm(prev => ({ ...prev, reference: e.target.value }))}
-                  placeholder="Optional"
-                />
-              </div>
-              <div className="modal-actions">
-                <button type="button" onClick={() => setIsPaymentModalOpen(false)}>
-                  Cancel
-                </button>
-                <button type="submit">
-                  Record Payment
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Export Modal */}
-      {isExportModalOpen && (
-        <div className="modal-overlay">
-          <div className="export-modal">
-            <h3>Export Invoices</h3>
-            <div className="export-options">
-              <div className="export-type-buttons">
-                <button 
-                  className={`export-type-btn ${exportRange.type === 'all' ? 'active' : ''}`}
-                  onClick={() => handleExportRangeChange('all')}
-                >
-                  All Invoices
-                </button>
-                <button 
-                  className={`export-type-btn ${exportRange.type === 'monthly' ? 'active' : ''}`}
-                  onClick={() => handleExportRangeChange('monthly')}
-                >
-                  Current Month
-                </button>
-                <button 
-                  className={`export-type-btn ${exportRange.type === 'yearly' ? 'active' : ''}`}
-                  onClick={() => handleExportRangeChange('yearly')}
-                >
-                  Current Year
-                </button>
-                <button 
-                  className={`export-type-btn ${exportRange.type === 'custom' ? 'active' : ''}`}
-                  onClick={() => handleExportRangeChange('custom')}
-                >
-                  Custom Range
-                </button>
-              </div>
-
-              {exportRange.type === 'custom' && (
-                <div className="date-range-picker">
-                  <div className="form-group">
-                    <label>Start Date</label>
-                    <input
-                      type="date"
-                      value={exportRange.startDate}
-                      onChange={(e) => setExportRange(prev => ({
-                        ...prev,
-                        startDate: e.target.value
-                      }))}
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label>End Date</label>
-                    <input
-                      type="date"
-                      value={exportRange.endDate}
-                      onChange={(e) => setExportRange(prev => ({
-                        ...prev,
-                        endDate: e.target.value
-                      }))}
-                    />
-                  </div>
-                </div>
-              )}
-            </div>
-            <div className="modal-actions">
-              <button 
-                type="button" 
-                className="cancel-btn"
-                onClick={() => setIsExportModalOpen(false)}
-              >
-                Cancel
-              </button>
-              <button 
-                type="button" 
-                className="export-btn"
-                onClick={handleExportToCSV}
-              >
-                Export to CSV
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
       {error && <p style={{ color: 'red' }}>{error}</p>}
     </section>
   );

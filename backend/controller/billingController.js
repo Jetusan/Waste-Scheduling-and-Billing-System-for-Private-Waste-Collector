@@ -977,6 +977,67 @@ const confirmGcashPayment = async (req, res) => {
     // Update payment source status
     await billingModel.updatePaymentStatus(source_id, 'completed');
 
+    // Generate receipt for GCash payment
+    let receiptGenerated = false;
+    try {
+      // Get the payment record that was just created
+      const paymentQuery = `
+        SELECT p.payment_id, p.invoice_id, p.amount, p.payment_method, p.payment_date, p.reference_number
+        FROM payments p
+        JOIN invoices i ON p.invoice_id = i.invoice_id
+        WHERE i.subscription_id = $1 AND p.payment_method = 'GCash'
+        ORDER BY p.created_at DESC
+        LIMIT 1
+      `;
+      const paymentResult = await pool.query(paymentQuery, [subscription_id]);
+      
+      if (paymentResult.rows.length > 0) {
+        const payment = paymentResult.rows[0];
+        
+        // Generate receipt number
+        const receiptNumber = `RCP-${new Date().toISOString().split('T')[0].replace(/-/g, '')}-${String(Date.now()).slice(-6)}`;
+        
+        // Create receipt record
+        const receiptQuery = `
+          INSERT INTO receipts (
+            receipt_number, payment_source_id, payment_id, invoice_id, user_id, subscription_id,
+            amount, payment_method, payment_date, receipt_data, status
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+          RETURNING receipt_id, receipt_number
+        `;
+        
+        const receiptData = {
+          payment_id: payment.payment_id,
+          invoice_id: payment.invoice_id,
+          amount: payment.amount,
+          payment_method: 'GCash',
+          reference_number: source_id,
+          payment_date: payment.payment_date,
+          source_id: source_id
+        };
+        
+        const receiptResult = await pool.query(receiptQuery, [
+          receiptNumber,
+          source_id, // payment_source_id for GCash
+          payment.payment_id,
+          payment.invoice_id,
+          activatedSubscription.user_id,
+          subscription_id,
+          payment.amount,
+          'GCash',
+          payment.payment_date,
+          JSON.stringify(receiptData),
+          'generated'
+        ]);
+        
+        receiptGenerated = true;
+        console.log('✅ GCash Receipt generated:', receiptResult.rows[0].receipt_number);
+      }
+    } catch (receiptError) {
+      console.error('⚠️ Failed to generate GCash receipt:', receiptError);
+      // Continue anyway - payment confirmation is more important
+    }
+
     // Send notifications
     try {
       await notifyPaymentConfirmed(activatedSubscription.user_id, {
@@ -997,7 +1058,8 @@ const confirmGcashPayment = async (req, res) => {
     res.json({
       success: true,
       message: 'Subscription activated successfully',
-      subscription: activatedSubscription
+      subscription: activatedSubscription,
+      receipt_generated: receiptGenerated
     });
     
   } catch (error) {
@@ -1060,6 +1122,66 @@ const confirmCashPayment = async (req, res) => {
 
     const activatedSubscription = await billingModel.activateSubscription(subscription_id, paymentData);
 
+    // Generate receipt for cash payment
+    let receiptGenerated = false;
+    try {
+      // Get the payment record that was just created
+      const paymentQuery = `
+        SELECT p.payment_id, p.invoice_id, p.amount, p.payment_method, p.payment_date, p.reference_number
+        FROM payments p
+        JOIN invoices i ON p.invoice_id = i.invoice_id
+        WHERE i.subscription_id = $1 AND p.payment_method = 'Cash'
+        ORDER BY p.created_at DESC
+        LIMIT 1
+      `;
+      const paymentResult = await pool.query(paymentQuery, [subscription_id]);
+      
+      if (paymentResult.rows.length > 0) {
+        const payment = paymentResult.rows[0];
+        
+        // Generate receipt number
+        const receiptNumber = `RCP-${new Date().toISOString().split('T')[0].replace(/-/g, '')}-${String(Date.now()).slice(-6)}`;
+        
+        // Create receipt record
+        const receiptQuery = `
+          INSERT INTO receipts (
+            receipt_number, payment_id, invoice_id, user_id, subscription_id,
+            amount, payment_method, payment_date, receipt_data, status
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+          RETURNING receipt_id, receipt_number
+        `;
+        
+        const receiptData = {
+          payment_id: payment.payment_id,
+          invoice_id: payment.invoice_id,
+          amount: payment.amount,
+          payment_method: 'Cash on Collection',
+          reference_number: payment.reference_number,
+          collector_id: collector_id,
+          payment_date: payment.payment_date
+        };
+        
+        const receiptResult = await pool.query(receiptQuery, [
+          receiptNumber,
+          payment.payment_id,
+          payment.invoice_id,
+          activatedSubscription.user_id,
+          subscription_id,
+          payment.amount,
+          'Cash on Collection',
+          payment.payment_date,
+          JSON.stringify(receiptData),
+          'generated'
+        ]);
+        
+        receiptGenerated = true;
+        console.log('✅ Receipt generated:', receiptResult.rows[0].receipt_number);
+      }
+    } catch (receiptError) {
+      console.error('⚠️ Failed to generate receipt:', receiptError);
+      // Continue anyway - payment confirmation is more important
+    }
+
     // Send notifications
     try {
       await notifyPaymentConfirmed(activatedSubscription.user_id, {
@@ -1081,7 +1203,8 @@ const confirmCashPayment = async (req, res) => {
       success: true,
       message: 'Cash payment confirmed and subscription activated',
       subscription: activatedSubscription,
-      payment_attempt_recorded: true
+      payment_attempt_recorded: true,
+      receipt_generated: receiptGenerated
     });
     
   } catch (error) {
@@ -1633,46 +1756,153 @@ const createGCashQRPayment = async (req, res) => {
   }
 };
 
-// Upload receipt for verification
+// Upload receipt for verification with OCR
 const uploadGCashReceipt = async (req, res) => {
   try {
     const { payment_reference, gcash_reference, receipt_image } = req.body;
     
-    if (!payment_reference || !gcash_reference) {
+    if (!payment_reference || !gcash_reference || !receipt_image) {
       return res.status(400).json({
-        error: 'Payment reference and GCash reference are required'
+        error: 'Payment reference, GCash reference, and receipt image are required'
       });
     }
 
-    // Update payment with receipt
-    const updateQuery = `
-      UPDATE gcash_qr_payments 
-      SET 
-        gcash_reference = $1,
-        receipt_image = $2,
-        status = 'pending_verification',
-        verified_at = NOW()
-      WHERE payment_reference = $3
-      RETURNING *
-    `;
-    
-    const result = await pool.query(updateQuery, [
-      gcash_reference,
-      receipt_image,
-      payment_reference
-    ]);
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({
-        error: 'Payment reference not found'
-      });
+    // Get subscription details first
+    let subscriptionId, userId, expectedAmount;
+    try {
+      const subscriptionQuery = `
+        SELECT cs.subscription_id, cs.user_id, sp.price 
+        FROM customer_subscriptions cs
+        JOIN subscription_plans sp ON cs.plan_id = sp.plan_id
+        WHERE cs.subscription_id = $1
+      `;
+      const subResult = await pool.query(subscriptionQuery, [payment_reference]);
+      
+      if (subResult.rows.length === 0) {
+        return res.status(404).json({ error: 'Subscription not found' });
+      }
+      
+      subscriptionId = subResult.rows[0].subscription_id;
+      userId = subResult.rows[0].user_id;
+      expectedAmount = subResult.rows[0].price;
+    } catch (error) {
+      return res.status(404).json({ error: 'Invalid payment reference' });
     }
 
-    res.json({
-      success: true,
-      message: 'Receipt uploaded successfully. Payment is being verified.',
-      status: 'pending_verification'
-    });
+    // Perform OCR verification
+    let verificationResult = null;
+    try {
+      const PaymentOCR = require('../utils/paymentOCR');
+      const ocr = new PaymentOCR();
+      
+      // Convert base64 to temporary file for OCR processing
+      const fs = require('fs');
+      const path = require('path');
+      const tempDir = path.join(__dirname, '../temp');
+      if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir);
+      
+      const tempImagePath = path.join(tempDir, `receipt_${Date.now()}.jpg`);
+      const base64Data = receipt_image.replace(/^data:image\/[a-z]+;base64,/, '');
+      fs.writeFileSync(tempImagePath, base64Data, 'base64');
+      
+      // Verify payment with OCR
+      verificationResult = await ocr.verifyPaymentProof(tempImagePath, expectedAmount);
+      
+      // Clean up temp file
+      fs.unlinkSync(tempImagePath);
+      
+    } catch (ocrError) {
+      console.error('OCR verification error:', ocrError);
+      verificationResult = { success: false, isValid: false, error: ocrError.message };
+    }
+
+    if (verificationResult && verificationResult.isValid) {
+      // OCR verification successful - activate subscription and generate receipt
+      
+      // Activate subscription
+      const paymentData = {
+        amount: expectedAmount,
+        payment_method: 'Manual GCash',
+        reference_number: gcash_reference,
+        notes: 'Manual GCash payment verified via OCR'
+      };
+
+      const activatedSubscription = await billingModel.activateSubscription(subscriptionId, paymentData);
+
+      // Generate receipt
+      let receiptGenerated = false;
+      try {
+        const paymentQuery = `
+          SELECT p.payment_id, p.invoice_id, p.amount, p.payment_method, p.payment_date, p.reference_number
+          FROM payments p
+          JOIN invoices i ON p.invoice_id = i.invoice_id
+          WHERE i.subscription_id = $1 AND p.payment_method = 'Manual GCash'
+          ORDER BY p.created_at DESC
+          LIMIT 1
+        `;
+        const paymentResult = await pool.query(paymentQuery, [subscriptionId]);
+        
+        if (paymentResult.rows.length > 0) {
+          const payment = paymentResult.rows[0];
+          
+          const receiptNumber = `RCP-${new Date().toISOString().split('T')[0].replace(/-/g, '')}-${String(Date.now()).slice(-6)}`;
+          
+          const receiptQuery = `
+            INSERT INTO receipts (
+              receipt_number, payment_id, invoice_id, user_id, subscription_id,
+              amount, payment_method, payment_date, receipt_data, status
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+            RETURNING receipt_id, receipt_number
+          `;
+          
+          const receiptData = {
+            payment_id: payment.payment_id,
+            invoice_id: payment.invoice_id,
+            amount: payment.amount,
+            payment_method: 'Manual GCash (OCR Verified)',
+            reference_number: gcash_reference,
+            payment_date: payment.payment_date,
+            ocr_verification: verificationResult
+          };
+          
+          const receiptResult = await pool.query(receiptQuery, [
+            receiptNumber,
+            payment.payment_id,
+            payment.invoice_id,
+            userId,
+            subscriptionId,
+            payment.amount,
+            'Manual GCash',
+            payment.payment_date,
+            JSON.stringify(receiptData),
+            'generated'
+          ]);
+          
+          receiptGenerated = true;
+          console.log('✅ Manual GCash Receipt generated:', receiptResult.rows[0].receipt_number);
+        }
+      } catch (receiptError) {
+        console.error('⚠️ Failed to generate receipt:', receiptError);
+      }
+
+      res.json({
+        success: true,
+        message: 'Payment verified and subscription activated!',
+        verification_result: verificationResult,
+        receipt_generated: receiptGenerated,
+        subscription_activated: true
+      });
+
+    } else {
+      // OCR verification failed
+      res.json({
+        success: true,
+        message: 'Receipt uploaded but verification failed. Please ensure the receipt is clear and shows the correct details.',
+        verification_result: verificationResult,
+        receipt_generated: false,
+        subscription_activated: false
+      });
+    }
 
   } catch (error) {
     console.error('Error uploading receipt:', error);
