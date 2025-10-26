@@ -3,7 +3,7 @@ const router = express.Router();
 const billingController = require('../controller/billingController');
 const subscriptionStatusController = require('../controller/subscriptionStatusController');
 const { authenticateJWT } = require('../middleware/auth');
-const { pool } = require('../config/db');
+const pool = require('../config/dbAdmin');
 
 // GCash payment integration routes
 router.post('/create-gcash-source', billingController.createGcashSource);
@@ -30,9 +30,9 @@ router.get('/payments/user/:userId', authenticateJWT, async (req, res) => {
         p.payment_method,
         p.payment_date,
         p.reference_number,
-        p.status,
         i.invoice_id,
         i.subscription_id,
+        i.status as invoice_status,
         cs.plan_id,
         sp.plan_name
       FROM payments p

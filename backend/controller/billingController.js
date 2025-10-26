@@ -1,7 +1,7 @@
 const billingModel = require('../models/billingModel');
 const config = require('../config/config');
 const express = require('express');
-const { pool } = require('../config/db');
+const pool = require('../config/dbAdmin');
 const QRCode = require('qrcode');
 const { 
   validatePaymentConfiguration, 
