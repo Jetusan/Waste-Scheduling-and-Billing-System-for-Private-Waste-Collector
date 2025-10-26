@@ -18,6 +18,47 @@ router.post('/upload-gcash-receipt', billingController.uploadGCashReceipt);
 // router.get('/pending-gcash-qr', billingController.getPendingGCashQRPayments);
 router.post('/paymongo-webhook', billingController.handlePayMongoWebhook);
 
+// Get user payment history
+router.get('/payments/user/:userId', authenticateJWT, async (req, res) => {
+  try {
+    const { userId } = req.params;
+    
+    const query = `
+      SELECT 
+        p.payment_id,
+        p.amount,
+        p.payment_method,
+        p.payment_date,
+        p.reference_number,
+        p.status,
+        i.invoice_id,
+        i.subscription_id,
+        cs.plan_id,
+        sp.plan_name
+      FROM payments p
+      JOIN invoices i ON p.invoice_id = i.invoice_id
+      JOIN customer_subscriptions cs ON i.subscription_id = cs.subscription_id
+      LEFT JOIN subscription_plans sp ON cs.plan_id = sp.plan_id
+      WHERE cs.user_id = $1
+      ORDER BY p.payment_date DESC
+    `;
+    
+    const result = await pool.query(query, [userId]);
+    
+    res.json({
+      success: true,
+      payments: result.rows
+    });
+    
+  } catch (error) {
+    console.error('Error fetching user payments:', error);
+    res.status(500).json({
+      error: 'Failed to fetch payment history',
+      details: error.message
+    });
+  }
+});
+
 // Mobile payment redirect routes (for PayMongo callbacks to mobile app)
 router.get('/mobile-payment-success', async (req, res) => {
   console.log('📱 Mobile payment success redirect:', req.query);

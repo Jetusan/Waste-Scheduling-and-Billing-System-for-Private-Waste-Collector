@@ -302,8 +302,26 @@ const SubscriptionStatusScreen = () => {
         return;
       }
 
-      // Get user's latest receipt
-      const response = await fetch(`${API_BASE_URL}/api/receipt/user/${userId}`, {
+      // Navigate directly to ReceiptPage
+      router.push('/ReceiptPage');
+    } catch (error) {
+      console.error('Error viewing receipt:', error);
+      Alert.alert('Error', 'Failed to open receipt. Please try again.');
+    }
+  };
+
+  const handlePaymentHistory = async () => {
+    try {
+      const token = await getToken();
+      const userId = await getUserId();
+      
+      if (!token || !userId) {
+        Alert.alert('Error', 'Please login again');
+        return;
+      }
+
+      // Get user's payment history
+      const response = await fetch(`${API_BASE_URL}/api/payments/user/${userId}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -312,25 +330,21 @@ const SubscriptionStatusScreen = () => {
 
       if (response.ok) {
         const data = await response.json();
-        if (data.receipts && data.receipts.length > 0) {
-          const latestReceipt = data.receipts[0];
-          // Open receipt in browser or show receipt details
-          const receiptUrl = `${API_BASE_URL}/api/receipt/${latestReceipt.receipt_id}`;
-          
-          if (Platform.OS === 'web') {
-            window.open(receiptUrl, '_blank');
-          } else {
-            await Linking.openURL(receiptUrl);
-          }
+        if (data.payments && data.payments.length > 0) {
+          // Navigate to payment history page with data
+          router.push({
+            pathname: '/PaymentHistory',
+            params: { payments: JSON.stringify(data.payments) }
+          });
         } else {
-          Alert.alert('No Receipt', 'No payment receipt found. Receipt will be available after payment confirmation.');
+          Alert.alert('No Payment History', 'No payment records found. Payment history will appear after successful payments.');
         }
       } else {
-        Alert.alert('Error', 'Failed to fetch receipt. Please try again.');
+        Alert.alert('Error', 'Failed to fetch payment history. Please try again.');
       }
     } catch (error) {
-      console.error('Error viewing receipt:', error);
-      Alert.alert('Error', 'Failed to open receipt. Please try again.');
+      console.error('Error fetching payment history:', error);
+      Alert.alert('Error', 'Failed to load payment history. Please try again.');
     }
   };
 
@@ -361,7 +375,7 @@ const SubscriptionStatusScreen = () => {
         router.push('/CollectionSchedule');
         break;
       case 'payment_history':
-        router.push('/PaymentHistory');
+        await handlePaymentHistory();
         break;
       case 'renew_subscription':
         // Handle actual renewal
@@ -375,6 +389,10 @@ const SubscriptionStatusScreen = () => {
         break;
       case 'collector_contact':
         Linking.openURL('tel:+639123456789'); // Replace with actual collector number
+        break;
+      case 'update_address':
+        // Remove this functionality - not needed
+        Alert.alert('Feature Removed', 'Address updates are handled during registration.');
         break;
       default:
         Alert.alert('Coming Soon', 'This feature will be available soon.');
@@ -685,9 +703,9 @@ const SubscriptionStatusScreen = () => {
       <View style={styles.paymentCard}>
         <Text style={styles.cardTitle}>💳 Payment Method</Text>
         <Text style={styles.paymentMethod}>
-          {transformedSubscription.payment_method === 'gcash' ? 'GCash' : 'Cash (Pay on Collection)'}
+          {transformedSubscription.payment_method === 'gcash' || transformedSubscription.payment_method === 'manual_gcash' || transformedSubscription.payment_method === 'Manual GCash' ? 'Manual GCash' : 'Cash (Pay on Collection)'}
         </Text>
-        {transformedSubscription.payment_method === 'cash' && uiState === 'pending_cash' && (
+        {(transformedSubscription.payment_method === 'cash' || transformedSubscription.payment_method === 'Cash') && uiState === 'pending_cash' && (
           <Text style={styles.cashInstructions}>
             💵 Pay the collector during waste pickup
           </Text>
