@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -13,12 +13,18 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { getToken, getUserId } from './auth';
 import { API_BASE_URL } from './config';
+import * as MediaLibrary from 'expo-media-library';
+import { captureRef } from 'react-native-view-shot';
+import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
 
 const ReceiptPage = () => {
   const router = useRouter();
   const params = useLocalSearchParams();
   const [receiptData, setReceiptData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [downloading, setDownloading] = useState(false);
+  const receiptRef = useRef();
 
   useEffect(() => {
     fetchReceiptData();
@@ -79,6 +85,47 @@ const ReceiptPage = () => {
     });
   };
 
+  const downloadReceipt = async () => {
+    try {
+      setDownloading(true);
+      
+      // Request media library permissions
+      const { status } = await MediaLibrary.requestPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Required', 'Please grant permission to save images to your device.');
+        return;
+      }
+
+      // Capture the receipt as image
+      const uri = await captureRef(receiptRef, {
+        format: 'png',
+        quality: 1.0,
+        result: 'tmpfile',
+      });
+
+      // Generate filename with receipt number and date
+      const receiptNumber = receiptData.receipt_number || 'receipt';
+      const date = new Date().toISOString().split('T')[0];
+      const filename = `WSBS_Receipt_${receiptNumber}_${date}.png`;
+
+      // Save to device
+      const asset = await MediaLibrary.createAssetAsync(uri);
+      await MediaLibrary.createAlbumAsync('WSBS Receipts', asset, false);
+      
+      Alert.alert(
+        'Receipt Downloaded!', 
+        `Receipt saved to your Photos as ${filename}`,
+        [{ text: 'OK' }]
+      );
+      
+    } catch (error) {
+      console.error('Download error:', error);
+      Alert.alert('Download Failed', 'Unable to save receipt. Please try again.');
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
@@ -115,7 +162,7 @@ const ReceiptPage = () => {
       <View style={styles.header}>
         <TouchableOpacity
           style={styles.headerBackButton}
-          onPress={() => router.replace('/resident/dashboard')}
+          onPress={() => router.replace('/resident/HomePage')}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
           <Ionicons name="arrow-back" size={24} color="#fff" />
@@ -126,7 +173,7 @@ const ReceiptPage = () => {
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* Receipt Card */}
-        <View style={styles.receiptCard}>
+        <View ref={receiptRef} style={styles.receiptCard}>
           {/* Company Header */}
           <View style={styles.companyHeader}>
             <Ionicons name="trash-bin" size={32} color="#0066CC" />
@@ -196,11 +243,26 @@ const ReceiptPage = () => {
         {/* Action Buttons */}
         <View style={styles.actionButtons}>
           <TouchableOpacity 
+            style={styles.downloadButton}
+            onPress={downloadReceipt}
+            disabled={downloading}
+          >
+            {downloading ? (
+              <ActivityIndicator size="small" color="#28A745" />
+            ) : (
+              <Ionicons name="download" size={20} color="#28A745" />
+            )}
+            <Text style={styles.downloadButtonText}>
+              {downloading ? 'Downloading...' : 'Download Receipt'}
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
             style={styles.primaryButton}
-            onPress={() => router.replace('/resident/dashboard')}
+            onPress={() => router.replace('/resident/HomePage')}
           >
             <Ionicons name="home" size={20} color="#fff" />
-            <Text style={styles.primaryButtonText}>Back to Dashboard</Text>
+            <Text style={styles.primaryButtonText}>Back to Home</Text>
           </TouchableOpacity>
 
           <TouchableOpacity 
@@ -425,6 +487,23 @@ const styles = StyleSheet.create({
   },
   backButtonText: {
     color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  downloadButton: {
+    backgroundColor: '#fff',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: '#28A745',
+    gap: 8,
+    marginBottom: 8,
+  },
+  downloadButtonText: {
+    color: '#28A745',
     fontSize: 16,
     fontWeight: 'bold',
   },
