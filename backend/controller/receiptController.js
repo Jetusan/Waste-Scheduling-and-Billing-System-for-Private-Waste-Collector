@@ -1,4 +1,4 @@
-const { pool } = require('../config/db');
+const pool = require('../config/dbAdmin');
 
 // Generate receipt for completed payment
 const generateReceipt = async (req, res) => {

@@ -156,6 +156,10 @@ const ManualGCashPayment = () => {
                 style: 'default'
               },
               {
+                text: 'View Receipt',
+                onPress: () => router.push('/ReceiptPage')
+              },
+              {
                 text: 'View Subscription',
                 onPress: () => router.push('/SubscriptionStatusScreen')
               }
