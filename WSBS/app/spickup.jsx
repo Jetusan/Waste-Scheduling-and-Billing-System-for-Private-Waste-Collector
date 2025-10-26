@@ -26,7 +26,7 @@ import RequestChatSection from './components/RequestChatSection';
 
 const SPickup = () => {
   const router = useRouter();
-  const [wasteType, setWasteType] = useState('');
+  const [wasteTypes, setWasteTypes] = useState([]); // Changed to array for multiple selection
   const [description, setDescription] = useState('');
   const [date, setDate] = useState(null);
   const [time, setTime] = useState(null);
@@ -376,8 +376,8 @@ const SPickup = () => {
 
   const handleSubmit = async () => {
     // Basic validation
-    if (!wasteType || !description || !date || !address) {
-      Alert.alert('Error', 'Please fill in all required fields');
+    if (wasteTypes.length === 0 || !description || !date || !address) {
+      Alert.alert('Error', 'Please select at least one waste type and fill in all required fields');
       return;
     }
 
@@ -427,7 +427,7 @@ const SPickup = () => {
       // Create FormData for file upload
       const formData = new FormData();
       formData.append('user_id', currentUserId);
-      formData.append('waste_type', wasteType);
+      formData.append('waste_type', wasteTypes.join(', ')); // Join multiple waste types with comma
       formData.append('description', description);
       formData.append('pickup_date', date ? date.toISOString().split('T')[0] : '');
       formData.append('address', address);
@@ -690,11 +690,11 @@ const SPickup = () => {
             <Ionicons name="arrow-back" size={16} color="#4CAF50" />
             <Text style={styles.backToRequestsText}>Back to My Requests</Text>
           </TouchableOpacity>
-        {/* Waste Type Section */}
+        {/* Waste Type Section - Multi-Select */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Ionicons name="trash-outline" size={20} color="#4CAF50" />
-            <Text style={styles.sectionTitle}>Waste Type</Text>
+            <Text style={styles.sectionTitle}>Waste Type (Select One or More)</Text>
           </View>
           <View style={styles.buttonGroup}>
             {[
@@ -706,17 +706,31 @@ const SPickup = () => {
                 key={item.type}
                 style={[
                   styles.typeButton,
-                  wasteType === item.type && styles.activeButton
+                  wasteTypes.includes(item.type) && styles.activeButton
                 ]}
-                onPress={() => setWasteType(item.type)}
+                onPress={() => {
+                  if (wasteTypes.includes(item.type)) {
+                    // Remove if already selected
+                    setWasteTypes(wasteTypes.filter(t => t !== item.type));
+                  } else {
+                    // Add if not selected
+                    setWasteTypes([...wasteTypes, item.type]);
+                  }
+                }}
                 activeOpacity={0.7}
               >
                 <Ionicons 
+                  name={wasteTypes.includes(item.type) ? 'checkbox' : 'square-outline'}
+                  size={20} 
+                  color={wasteTypes.includes(item.type) ? '#fff' : '#4CAF50'} 
+                  style={{ marginRight: 6 }}
+                />
+                <Ionicons 
                   name={item.icon} 
                   size={20} 
-                  color={wasteType === item.type ? '#fff' : '#4CAF50'} 
+                  color={wasteTypes.includes(item.type) ? '#fff' : '#4CAF50'} 
                 />
-                <Text style={[styles.buttonText, wasteType === item.type && styles.activeButtonText]}>
+                <Text style={[styles.buttonText, wasteTypes.includes(item.type) && styles.activeButtonText]}>
                   {item.type}
                 </Text>
               </TouchableOpacity>
