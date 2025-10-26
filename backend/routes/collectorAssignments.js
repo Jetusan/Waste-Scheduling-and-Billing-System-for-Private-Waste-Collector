@@ -12,12 +12,12 @@ const { emitCollectionUpdate, emitStatsUpdate, emitAdminUpdate, emitResidentNoti
 // SIMPLIFIED VERSION to avoid 500 errors
 router.get('/today', async (req, res) => {
   try {
-    const { collector_id, user_id, barangay_id } = req.query;
+    const { collector_id, barangay_id, subdivision } = req.query;
 
     // Compute today's weekday name in Asia/Manila timezone
     const todayName = new Date().toLocaleDateString('en-US', { weekday: 'long', timeZone: 'Asia/Manila' });
     
-    console.log(`🕐 Looking for ${todayName} collections (collector_id: ${collector_id || 'none'}, barangay_id: ${barangay_id || 'all'})`);
+    console.log(`🕐 Looking for ${todayName} collections (collector_id: ${collector_id || 'none'}, barangay_id: ${barangay_id || 'all'}, subdivision: ${subdivision || 'all'})`);
 
     // Step 1: Check if there are collection schedules for today
     let scheduleQuery = `
@@ -71,14 +71,19 @@ router.get('/today', async (req, res) => {
         u.user_id,
         COALESCE(un.first_name || ' ' || un.last_name, 'Unknown Resident') AS resident_name,
         COALESCE(a.full_address, COALESCE(a.street, '') || ', ' || COALESCE(b.barangay_name, '')) AS address,
+        a.subdivision,
+        a.block,
+        a.lot,
         b.barangay_id,
         b.barangay_name,
+        s.subdivision_name,
         cs.status as subscription_status,
         cs.subscription_id
       FROM users u
       LEFT JOIN user_names un ON u.name_id = un.name_id
       LEFT JOIN addresses a ON u.address_id = a.address_id
       LEFT JOIN barangays b ON a.barangay_id = b.barangay_id
+      LEFT JOIN subdivisions s ON a.subdivision_id = s.subdivision_id
       JOIN customer_subscriptions cs ON u.user_id = cs.user_id
       WHERE u.role_id = 3 
         AND u.approval_status = 'approved'
@@ -98,9 +103,17 @@ router.get('/today', async (req, res) => {
     if (barangay_id) {
       residentsQuery += ` AND b.barangay_id = $${queryParams.length + 1}`;
       queryParams.push(parseInt(barangay_id, 10));
+      console.log(`🏘️ Filtering residents by barangay_id: ${barangay_id}`);
     }
     
-    residentsQuery += ` ORDER BY b.barangay_name, u.user_id LIMIT 50`;
+    // Add subdivision filter if specified
+    if (subdivision && subdivision !== 'null' && subdivision !== 'undefined') {
+      residentsQuery += ` AND (a.subdivision = $${queryParams.length + 1} OR s.subdivision_name = $${queryParams.length + 1})`;
+      queryParams.push(subdivision);
+      console.log(`🏘️ Filtering residents by subdivision: ${subdivision}`);
+    }
+    
+    residentsQuery += ` ORDER BY a.subdivision, a.block, a.lot, b.barangay_name, u.user_id LIMIT 100`;
 
     let residentsResult;
     try {
@@ -112,11 +125,12 @@ router.get('/today', async (req, res) => {
     }
 
     if (residentsResult.rows.length === 0) {
-      console.log(`❌ No subscribed residents found for ${todayName}${barangay_id ? ` in barangay ${barangay_id}` : ''}`);
+      const locationDesc = subdivision ? ` in ${subdivision}, ${barangay_id ? 'barangay ' + barangay_id : 'selected area'}` : (barangay_id ? ` in barangay ${barangay_id}` : '');
+      console.log(`❌ No subscribed residents found for ${todayName}${locationDesc}`);
       return res.json({ 
         assignment: null, 
         stops: [],
-        message: `No residents with active subscriptions found for collection today${barangay_id ? ' in selected barangay' : ''}`
+        message: `No residents with active subscriptions found for collection today${locationDesc}`
       });
     }
 
@@ -141,6 +155,9 @@ router.get('/today', async (req, res) => {
         user_id: resident.user_id,
         resident_name: resident.resident_name,
         address: resident.address,
+        subdivision: resident.subdivision || resident.subdivision_name,
+        block: resident.block,
+        lot: resident.lot,
         barangay_id: resident.barangay_id,
         barangay_name: resident.barangay_name,
         planned_waste_type: residentSchedule.waste_type,

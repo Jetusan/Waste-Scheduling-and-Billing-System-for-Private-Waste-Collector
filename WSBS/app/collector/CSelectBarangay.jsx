@@ -139,6 +139,19 @@ const CSelectBarangay = () => {
         return;
       }
 
+      // For San Isidro, show subdivision selection first
+      if (barangay.barangay_name === 'San Isidro') {
+        router.push({
+          pathname: '/collector/CSelectSubdivision',
+          params: {
+            barangay_id: barangay.barangay_id,
+            barangay_name: barangay.barangay_name,
+            collector_id: await getCollectorId()
+          }
+        });
+        return;
+      }
+
       // Check if there are residents to collect in this barangay
       const token = await getToken();
       const collectorId = await getCollectorId();
@@ -225,19 +238,21 @@ const CSelectBarangay = () => {
   const renderBarangayCard = (barangay) => {
     const status = collectionStatus[barangay.barangay_id] || { status: 'available' };
     const statusDisplay = collectionStatusManager.getStatusDisplay(status);
+    const isSanIsidro = barangay.barangay_name === 'San Isidro';
     
     return (
       <TouchableOpacity
         key={`${barangay.barangay_id}-${barangay.assignment_id}`}
         style={[
           styles.barangayCard,
-          { borderLeftColor: statusDisplay.color, borderLeftWidth: 4 }
+          { borderLeftColor: statusDisplay.color, borderLeftWidth: 4 },
+          isSanIsidro && styles.sanIsidroCard
         ]}
         onPress={() => handleBarangaySelect(barangay)}
         activeOpacity={0.7}
       >
         <View style={styles.cardContent}>
-          <View style={styles.iconContainer}>
+          <View style={[styles.iconContainer, isSanIsidro && styles.sanIsidroIconContainer]}>
             <Ionicons 
               name={statusDisplay.icon} 
               size={28} 
@@ -246,8 +261,18 @@ const CSelectBarangay = () => {
           </View>
           
           <View style={styles.barangayInfo}>
-            <Text style={styles.barangayName}>{barangay.barangay_name}</Text>
+            <View style={styles.barangayNameContainer}>
+              <Text style={styles.barangayName}>{barangay.barangay_name}</Text>
+              {isSanIsidro && (
+                <View style={styles.priorityBadge}>
+                  <Text style={styles.priorityBadgeText}>VSM FOCUS</Text>
+                </View>
+              )}
+            </View>
             <Text style={styles.shiftLabel}>{barangay.shift_label}</Text>
+            {isSanIsidro && (
+              <Text style={styles.subdivisionHint}>Tap to select subdivision</Text>
+            )}
             <View style={styles.statusContainer}>
               <Text style={[styles.statusLabel, { color: statusDisplay.color }]}>
                 {statusDisplay.label}
@@ -532,6 +557,36 @@ const styles = StyleSheet.create({
     color: '#999',
     textAlign: 'center',
     lineHeight: 24,
+  },
+  sanIsidroCard: {
+    backgroundColor: '#f8fff8',
+    borderLeftColor: '#4CAF50',
+  },
+  sanIsidroIconContainer: {
+    backgroundColor: '#e8f5e8',
+  },
+  barangayNameContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  priorityBadge: {
+    backgroundColor: '#4CAF50',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+    marginLeft: 8,
+  },
+  priorityBadgeText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: 'bold',
+  },
+  subdivisionHint: {
+    fontSize: 12,
+    color: '#4CAF50',
+    fontStyle: 'italic',
+    marginBottom: 2,
   },
 });
 

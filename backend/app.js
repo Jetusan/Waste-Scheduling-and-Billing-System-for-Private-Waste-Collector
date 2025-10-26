@@ -36,6 +36,7 @@ const demoPaymentRouter = require('./routes/demoPayment');
 const issueAnalyticsRouter = require('./routes/issueAnalytics');
 const manualPaymentsRouter = require('./routes/manualPayments');
 const testingHelpersRouter = require('./routes/testingHelpers');
+const collectorSubdivisionRoutes = require('./routes/collectorSubdivisions');
 
 const app = express();
 
@@ -104,6 +105,7 @@ app.use('/api/residents', residentsRouter);
 app.use('/api/collectors', collectorsRouter);
 app.use('/api/trucks', trucksRouter);
 app.use('/api/collector/assignments', collectorAssignmentsRoutes);
+app.use('/api/collector/subdivisions', collectorSubdivisionRoutes);
 app.use('/api/collector/issues', collectorIssuesRoutes);
 app.use('/api/collector/issues', require('./routes/collectorIssuesAdmin'));
 app.use('/api/schedules', nextScheduleRoutes);

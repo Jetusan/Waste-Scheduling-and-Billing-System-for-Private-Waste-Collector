@@ -20,9 +20,11 @@ const CStartCollection = () => {
   const router = useRouter();
   const params = useLocalSearchParams();
   
-  // Get selected barangay from navigation params
+  // Get selected barangay and subdivision from navigation params
   const selectedBarangayId = params.barangay_id;
   const selectedBarangayName = params.barangay_name;
+  const selectedSubdivisionId = params.subdivision_id;
+  const selectedSubdivisionName = params.subdivision_name;
 
   // Assignment + stops state
   const [loading, setLoading] = useState(true);
@@ -214,8 +216,15 @@ const CStartCollection = () => {
         
         setCollectorId(collectorId);
         
-        // Fetch assignments for today
-        const url = `${API_BASE_URL}/api/collector/assignments/today?collector_id=${collectorId}&barangay_id=${selectedBarangayId}`;
+        // Fetch assignments for today with subdivision support
+        let url = `${API_BASE_URL}/api/collector/assignments/today?collector_id=${collectorId}&barangay_id=${selectedBarangayId}`;
+        
+        // Add subdivision parameter if available
+        if (selectedSubdivisionName) {
+          url += `&subdivision=${encodeURIComponent(selectedSubdivisionName)}`;
+          console.log('🏘️ Including subdivision filter:', selectedSubdivisionName);
+        }
+        
         console.log('🔗 Fetching assignments from:', url);
         
         const response = await fetch(url, {
@@ -1022,6 +1031,9 @@ const CStartCollection = () => {
             <>
               <Text style={styles.headerTitle}>Collection Route</Text>
               <Text style={styles.headerSubtitle}>{selectedBarangayName}</Text>
+              {selectedSubdivisionName && (
+                <Text style={styles.subdivisionLabel}>📍 {selectedSubdivisionName}</Text>
+              )}
             </>
           ) : (
             <Text style={styles.headerTitle}>Start Collection</Text>
@@ -1215,6 +1227,12 @@ const CStartCollection = () => {
                     <Text style={[styles.cardText, { color: '#2e7d32' }]}>Stop #{stop.sequence_no ?? '-'} 📍</Text>
                     {stop.resident_name && <Text style={{ color: '#333', fontWeight: 'bold', fontSize: 16 }}>{stop.resident_name}</Text>}
                     {stop.address && <Text style={{ color: '#333' }}>📍 {stop.address}</Text>}
+                    {stop.subdivision && <Text style={{ color: '#4CAF50', fontSize: 12, fontWeight: '600' }}>🏘️ {stop.subdivision}</Text>}
+                    {(stop.block || stop.lot) && (
+                      <Text style={{ color: '#666', fontSize: 12 }}>
+                        📍 {stop.block ? `Block ${stop.block}` : ''}{stop.block && stop.lot ? ', ' : ''}{stop.lot ? `Lot ${stop.lot}` : ''}
+                      </Text>
+                    )}
                     {stop.barangay_name && <Text style={{ color: '#666', fontSize: 12 }}>🏘️ {stop.barangay_name}</Text>}
                     {stop.planned_waste_type && <Text style={{ color: '#2e7d32', fontWeight: 'bold' }}>🗑️ {stop.planned_waste_type}</Text>}
                     {/* Show subscription status badge */}
@@ -1755,6 +1773,12 @@ const styles = StyleSheet.create({
   headerSubtitle: {
     fontSize: 12,
     color: '#666',
+    marginTop: 2,
+  },
+  subdivisionLabel: {
+    fontSize: 11,
+    color: '#4CAF50',
+    fontWeight: '600',
     marginTop: 2,
   },
   headerActions: {
