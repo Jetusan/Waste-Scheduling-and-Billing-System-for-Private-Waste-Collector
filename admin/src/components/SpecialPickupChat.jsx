@@ -218,7 +218,7 @@ const SpecialPickupChat = ({ requestId, requestData, onClose }) => {
       <div className="chat-container">
         <div className="chat-header">
           <div className="request-info">
-            <h3>Chat - Request #{requestId}</h3>
+            <h3>Chat - {requestData?.user_name || requestData?.username || `User ${requestData?.user_id}`}</h3>
             <p>{requestData?.waste_type} • {requestData?.status}</p>
             {isPolling && (
               <small className="polling-indicator">

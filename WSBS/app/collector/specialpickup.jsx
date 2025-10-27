@@ -272,75 +272,48 @@ const SpecialPickup = () => {
   const startNavigation = (request) => {
     const { address, pickup_latitude, pickup_longitude } = request;
     
-    // If GPS coordinates are available, show on integrated map first
+    // Directly open external navigation without dialog
     if (pickup_latitude && pickup_longitude) {
-      // First show on the integrated map
-      showPickupOnMap(request);
+      // Use GPS coordinates for navigation
+      const lat = parseFloat(pickup_latitude);
+      const lng = parseFloat(pickup_longitude);
+      const url = Platform.OS === 'ios' 
+        ? `maps://app?daddr=${lat},${lng}`
+        : `google.navigation:q=${lat},${lng}`;
       
-      // Then ask if they want external navigation
-      Alert.alert(
-        'Navigation Options',
-        `Location shown on map above.\n\nGPS: ${parseFloat(pickup_latitude).toFixed(6)}, ${parseFloat(pickup_longitude).toFixed(6)}\nAddress: ${address}`,
-        [
-          { text: 'Stay on Map', style: 'cancel' },
-          { 
-            text: 'Open External Maps', 
-            onPress: () => {
-              const lat = parseFloat(pickup_latitude);
-              const lng = parseFloat(pickup_longitude);
-              const url = Platform.OS === 'ios' 
-                ? `maps://app?daddr=${lat},${lng}`
-                : `google.navigation:q=${lat},${lng}`;
-              
-              Linking.canOpenURL(url)
-                .then((supported) => {
-                  if (supported) {
-                    Linking.openURL(url);
-                  } else {
-                    // Fallback to web maps
-                    const webUrl = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
-                    Linking.openURL(webUrl);
-                  }
-                })
-                .catch(() => {
-                  Alert.alert('Error', 'Unable to open maps application');
-                });
-            }
+      Linking.canOpenURL(url)
+        .then((supported) => {
+          if (supported) {
+            Linking.openURL(url);
+          } else {
+            // Fallback to web maps
+            const webUrl = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
+            Linking.openURL(webUrl);
           }
-        ]
-      );
+        })
+        .catch(() => {
+          Alert.alert('Error', 'Unable to open maps application');
+        });
     } else {
-      // Fallback to address-based navigation
-      Alert.alert(
-        'Navigate to Location',
-        `Navigate to: ${address}`,
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { 
-            text: 'Open Maps', 
-            onPress: () => {
-              const encodedAddress = encodeURIComponent(address);
-              const url = Platform.OS === 'ios' 
-                ? `maps://app?daddr=${encodedAddress}`
-                : `google.navigation:q=${encodedAddress}`;
-              
-              Linking.canOpenURL(url)
-                .then((supported) => {
-                  if (supported) {
-                    Linking.openURL(url);
-                  } else {
-                    // Fallback to web maps
-                    const webUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodedAddress}`;
-                    Linking.openURL(webUrl);
-                  }
-                })
-                .catch(() => {
-                  Alert.alert('Error', 'Unable to open maps application');
-                });
-            }
+      // Use address for navigation
+      const encodedAddress = encodeURIComponent(address);
+      const url = Platform.OS === 'ios' 
+        ? `maps://app?daddr=${encodedAddress}`
+        : `google.navigation:q=${encodedAddress}`;
+      
+      Linking.canOpenURL(url)
+        .then((supported) => {
+          if (supported) {
+            Linking.openURL(url);
+          } else {
+            // Fallback to web maps
+            const webUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodedAddress}`;
+            Linking.openURL(webUrl);
           }
-        ]
-      );
+        })
+        .catch(() => {
+          Alert.alert('Error', 'Unable to open maps application');
+        });
     }
   };
 
@@ -415,22 +388,16 @@ const SpecialPickup = () => {
                     </View>
                   </TouchableOpacity>
                   
-                  {/* GPS Coordinates if available */}
-                  {req.pickup_latitude && req.pickup_longitude && (
-                    <View style={styles.gpsContainer}>
-                      <View style={styles.gpsHeader}>
-                        <Ionicons name="navigate-circle" size={20} color="#4CAF50" />
-                        <Text style={styles.gpsLabel}>GPS Location Available</Text>
-                      </View>
-                      <Text style={styles.gpsCoordinates}>
-                        📍 {parseFloat(req.pickup_latitude).toFixed(6)}, {parseFloat(req.pickup_longitude).toFixed(6)}
-                      </Text>
-                    </View>
-                  )}
                 </View>
                 <View style={styles.detailItem}>
                   <MaterialIcons name="schedule" size={24} color="#2196F3" />
-                  <Text style={styles.detailText}>{req.pickup_date} at {req.pickup_time}</Text>
+                  <Text style={styles.detailText}>
+                    {new Date(req.pickup_date).toLocaleDateString('en-US', {
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric'
+                    })}
+                  </Text>
                 </View>
                 <View style={styles.detailItem}>
                   <MaterialIcons name="delete" size={24} color="#FF9800" />
@@ -446,12 +413,26 @@ const SpecialPickup = () => {
                   </View>
                 </View>
                 
-                {/* Price Information */}
+                {/* Bag Quantity and Pricing Information */}
+                <View style={styles.detailItem}>
+                  <MaterialIcons name="shopping-bag" size={24} color="#4CAF50" />
+                  <Text style={styles.detailText}>
+                    📦 {req.bag_quantity || 1} {(req.bag_quantity || 1) === 1 ? 'bag' : 'bags'}
+                  </Text>
+                </View>
+                
                 {req.final_price ? (
                   <View style={styles.detailItem}>
                     <MaterialIcons name="attach-money" size={24} color="#4CAF50" />
                     <Text style={[styles.detailText, styles.priceText]}>
                       Amount: ₱{parseFloat(req.final_price).toFixed(2)}
+                    </Text>
+                  </View>
+                ) : req.estimated_total ? (
+                  <View style={styles.detailItem}>
+                    <MaterialIcons name="attach-money" size={24} color="#4CAF50" />
+                    <Text style={[styles.detailText, styles.priceText]}>
+                      Estimated: ₱{parseFloat(req.estimated_total).toFixed(2)}
                     </Text>
                   </View>
                 ) : (
@@ -496,9 +477,7 @@ const SpecialPickup = () => {
                     onPress={() => startNavigation(req)}
                   >
                     <MaterialIcons name="navigation" size={20} color="white" />
-                    <Text style={styles.buttonText}>
-                      {req.pickup_latitude && req.pickup_longitude ? 'Navigate (GPS)' : 'Navigate'}
-                    </Text>
+                    <Text style={styles.buttonText}>Navigate</Text>
                   </TouchableOpacity>
                   <TouchableOpacity 
                     style={styles.collectedButton} 

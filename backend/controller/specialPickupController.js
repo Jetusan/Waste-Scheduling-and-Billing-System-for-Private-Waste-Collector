@@ -1,5 +1,6 @@
 const specialPickupModel = require('../models/specialPickupModel');
 const { notifySpecialPickupRequested } = require('../services/specialPickupNotificationService');
+const { query } = require('../config/db');
 
 // Create a new special pickup request
 const createRequest = async (req, res) => {
@@ -168,14 +169,8 @@ const collectPayment = async (req, res) => {
       });
     }
 
-    // Call the database function to collect payment
-    const { Pool } = require('pg');
-    const pool = new Pool({
-      connectionString: process.env.DATABASE_URL,
-      ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
-    });
-
-    const result = await pool.query(
+    // Call the database function to collect payment using shared pool
+    const result = await query(
       'SELECT collect_special_pickup_payment($1, $2, $3, $4, $5, $6) as result',
       [request_id, collector_id, bags_collected, amount_collected, payment_method, collector_notes]
     );
