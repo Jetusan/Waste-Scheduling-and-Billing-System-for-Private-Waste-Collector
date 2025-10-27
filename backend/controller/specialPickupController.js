@@ -123,6 +123,15 @@ const updateRequest = async (req, res) => {
     const { request_id } = req.params;
     const updates = req.body;
     const updated = await specialPickupModel.updateSpecialPickupRequest(request_id, updates);
+    
+    if (!updated) {
+      return res.status(404).json({ error: 'Special pickup request not found' });
+    }
+    
+    res.json(updated);
+  } catch (error) {
+    console.error('Error updating special pickup request:', error);
+    res.status(500).json({ error: 'Failed to update special pickup request' });
   }
 };
 
