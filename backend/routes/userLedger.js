@@ -65,8 +65,8 @@ router.get('/users-with-history', async (req, res) => {
 // GET /api/billing/user-ledger/:userId
 // Returns detailed ledger for a specific user
 router.get('/user-ledger/:userId', async (req, res) => {
+  const { userId } = req.params;
   try {
-    const { userId } = req.params;
     console.log(`🔍 Fetching ledger for user ${userId}...`);
 
     const query = `

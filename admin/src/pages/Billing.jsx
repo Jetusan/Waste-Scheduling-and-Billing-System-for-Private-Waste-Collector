@@ -22,6 +22,7 @@ const Billing = () => {
   const [loading, setLoading] = useState(true);
   const [ledgerLoading, setLedgerLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [ledgerError, setLedgerError] = useState(null);
 
   // View states
   const [activeView, setActiveView] = useState('users'); // ['users', 'ledger']
@@ -78,6 +79,7 @@ const Billing = () => {
     try {
       console.log(`🔄 Fetching ledger for user ${userId}...`);
       setLedgerLoading(true);
+      setLedgerError(null);
 
       const response = await axios.get(`${API_BASE_URL}/billing/user-ledger/${userId}`);
       console.log('✅ User ledger:', response.data);
@@ -92,7 +94,7 @@ const Billing = () => {
 
     } catch (error) {
       console.error('❌ Error fetching user ledger:', error);
-      setError(`Failed to load user ledger: ${error.response?.data?.error || error.message}`);
+      setLedgerError(`Failed to load user ledger: ${error.response?.data?.error || error.message}`);
     } finally {
       setLedgerLoading(false);
     }
@@ -116,6 +118,7 @@ const Billing = () => {
     setActiveView('users');
     setSelectedUser(null);
     setUserLedger(initialLedgerState);
+    setLedgerError(null);
   };
 
   // Payment handling
@@ -325,6 +328,17 @@ const Billing = () => {
             <div className="loading-state">
               <div className="spinner"></div>
               <p>Loading user ledger...</p>
+            </div>
+          ) : ledgerError ? (
+            <div className="ledger-error">
+              <strong>Unable to load ledger.</strong>
+              <span>{ledgerError}</span>
+              <button
+                className="btn btn-secondary"
+                onClick={() => fetchUserLedger(selectedUser.user_id)}
+              >
+                Retry
+              </button>
             </div>
           ) : (
             <>
