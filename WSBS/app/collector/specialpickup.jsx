@@ -270,50 +270,46 @@ const SpecialPickup = () => {
   };
 
   const startNavigation = (request) => {
-    const { address, pickup_latitude, pickup_longitude } = request;
-    
-    // Directly open external navigation without dialog
+    const { pickup_latitude, pickup_longitude, address } = request;
+
     if (pickup_latitude && pickup_longitude) {
-      // Use GPS coordinates for navigation
-      const lat = parseFloat(pickup_latitude);
-      const lng = parseFloat(pickup_longitude);
-      const url = Platform.OS === 'ios' 
-        ? `maps://app?daddr=${lat},${lng}`
-        : `google.navigation:q=${lat},${lng}`;
+      // Show pickup on the in-app map
+      showPickupOnMap(request);
       
-      Linking.canOpenURL(url)
-        .then((supported) => {
-          if (supported) {
-            Linking.openURL(url);
-          } else {
-            // Fallback to web maps
-            const webUrl = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
-            Linking.openURL(webUrl);
-          }
-        })
-        .catch(() => {
-          Alert.alert('Error', 'Unable to open maps application');
-        });
+      // Scroll to map section to make it visible
+      setTimeout(() => {
+        if (mapRef) {
+          // Center and zoom on the pickup location
+          sendToMap({
+            type: 'center_on_location',
+            location: {
+              latitude: Number(pickup_latitude),
+              longitude: Number(pickup_longitude)
+            },
+            zoom: 16 // Close zoom level
+          });
+          
+          // Highlight the specific pickup marker
+          sendToMap({
+            type: 'highlight_pickup',
+            request_id: request.request_id
+          });
+        }
+      }, 500);
+      
+      // Show success message
+      Alert.alert(
+        'Navigation',
+        `Showing pickup location on map:\n${address}`,
+        [{ text: 'OK' }]
+      );
     } else {
-      // Use address for navigation
-      const encodedAddress = encodeURIComponent(address);
-      const url = Platform.OS === 'ios' 
-        ? `maps://app?daddr=${encodedAddress}`
-        : `google.navigation:q=${encodedAddress}`;
-      
-      Linking.canOpenURL(url)
-        .then((supported) => {
-          if (supported) {
-            Linking.openURL(url);
-          } else {
-            // Fallback to web maps
-            const webUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodedAddress}`;
-            Linking.openURL(webUrl);
-          }
-        })
-        .catch(() => {
-          Alert.alert('Error', 'Unable to open maps application');
-        });
+      Alert.alert(
+        'Location Not Available',
+        address 
+          ? `GPS coordinates are not available. Address: ${address}`
+          : 'GPS coordinates are not available for this pickup request.'
+      );
     }
   };
 
