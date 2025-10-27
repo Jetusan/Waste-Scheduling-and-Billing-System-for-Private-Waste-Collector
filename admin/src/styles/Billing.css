@@ -386,6 +386,30 @@
   border-bottom: none;
 }
 
+.ledger-error {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wsbs-spacing-3);
+  background: rgba(244, 67, 54, 0.08);
+  border: 1px solid rgba(244, 67, 54, 0.35);
+  color: #b91c1c;
+  padding: var(--wsbs-spacing-5);
+  border-radius: var(--wsbs-radius-lg);
+  margin-bottom: var(--wsbs-spacing-5);
+}
+
+.ledger-error strong {
+  font-size: var(--wsbs-font-size-base);
+}
+
+.ledger-error span {
+  font-size: var(--wsbs-font-size-sm);
+}
+
+.ledger-error .btn {
+  align-self: flex-start;
+}
+
 .ledger-debit {
   color: #14532d;
   font-weight: var(--wsbs-font-weight-medium);

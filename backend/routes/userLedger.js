@@ -75,13 +75,13 @@ router.get('/user-ledger/:userId', async (req, res) => {
         SELECT 
           i.created_at as date,
           CASE 
-            WHEN i.description LIKE '%Special%' THEN 'Special Pickup - ' || COALESCE(i.description, 'Service')
-            WHEN i.description LIKE '%Late%' THEN 'Late Payment Fee'
-            WHEN i.description LIKE '%subscription%' THEN 
+            WHEN COALESCE(i.description, '') ILIKE '%special%' THEN 'Special Pickup - ' || COALESCE(i.description, 'Service')
+            WHEN COALESCE(i.description, '') ILIKE '%late%' THEN 'Late Payment Fee'
+            WHEN COALESCE(i.description, '') ILIKE '%subscription%' THEN 
               TO_CHAR(i.created_at, 'Month YYYY') || ' Subscription'
             ELSE COALESCE(i.description, 'Subscription Fee')
           END as description,
-          i.invoice_number as reference,
+          COALESCE(i.invoice_number, CONCAT('INV-', i.invoice_id)) as reference,
           i.amount as debit,
           0 as credit,
           'invoice' as entry_type,
@@ -94,7 +94,7 @@ router.get('/user-ledger/:userId', async (req, res) => {
         -- Payment entries (credits)
         SELECT 
           p.payment_date as date,
-          'Payment Received - ' || p.payment_method as description,
+          'Payment Received - ' || COALESCE(p.payment_method, 'Unknown Method') as description,
           COALESCE(p.reference_number, 'PAY-' || p.payment_id) as reference,
           0 as debit,
           p.amount as credit,
