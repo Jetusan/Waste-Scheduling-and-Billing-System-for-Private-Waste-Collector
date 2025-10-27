@@ -152,16 +152,32 @@ const LocationStatusCard = () => {
       {/* Expandable Details - Only show when location is set and details are expanded */}
       {locationStatus === 'set' && showDetails && locationData && (
         <View style={styles.expandedDetails}>
-          <View style={styles.detailRow}>
-            <Ionicons name="pin" size={14} color="#666" />
-            <Text style={styles.detailLabel}>Coordinates:</Text>
-          </View>
-          {locationData.latitude && locationData.longitude ? (
-            <Text style={styles.coordsText}>
-              {locationData.latitude.toFixed(6)}, {locationData.longitude.toFixed(6)}
-            </Text>
-          ) : (
-            <Text style={styles.coordsText}>Coordinates unavailable</Text>
+          {/* Address Display (if available) */}
+          {locationData.address && (
+            <>
+              <View style={styles.detailRow}>
+                <Ionicons name="location" size={14} color="#666" />
+                <Text style={styles.detailLabel}>Address:</Text>
+              </View>
+              <Text style={styles.addressText}>{locationData.address}</Text>
+            </>
+          )}
+          
+          {/* Gate Image Display - Show prominently */}
+          {locationData.gate_image_url && (
+            <>
+              <View style={styles.detailRow}>
+                <Ionicons name="camera" size={14} color="#666" />
+                <Text style={styles.detailLabel}>Gate Photo:</Text>
+              </View>
+              <View style={styles.gateImageContainer}>
+                <Image 
+                  source={{ uri: `${API_BASE_URL}${locationData.gate_image_url}` }}
+                  style={styles.gateImage}
+                  resizeMode="cover"
+                />
+              </View>
+            </>
           )}
           
           {locationData.pinned_at && (
@@ -171,24 +187,6 @@ const LocationStatusCard = () => {
                 <Text style={styles.detailLabel}>Set on:</Text>
               </View>
               <Text style={styles.dateText}>{formatDate(locationData.pinned_at)}</Text>
-            </>
-          )}
-          
-          {/* Gate Image Display */}
-          {locationData.gate_image_url && (
-            <>
-              <View style={styles.detailRow}>
-                <Ionicons name="camera" size={14} color="#666" />
-                <Text style={styles.detailLabel}>Gate Image:</Text>
-              </View>
-              <View style={styles.gateImageContainer}>
-                <Image 
-                  source={{ uri: `${API_BASE_URL}${locationData.gate_image_url}` }}
-                  style={styles.gateImage}
-                  resizeMode="cover"
-                />
-                <Text style={styles.gateImageCaption}>Your uploaded gate image</Text>
-              </View>
             </>
           )}
           
@@ -313,15 +311,24 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginLeft: 4,
   },
+  addressText: {
+    fontSize: 12,
+    color: '#333',
+    marginBottom: 12,
+    marginLeft: 20,
+    lineHeight: 18,
+  },
   gateImageContainer: {
     marginLeft: 20,
-    marginBottom: 8,
+    marginBottom: 12,
   },
   gateImage: {
-    width: 120,
-    height: 80,
+    width: '100%',
+    height: 150,
     borderRadius: 8,
     backgroundColor: '#f0f0f0',
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
   },
   gateImageCaption: {
     fontSize: 10,

@@ -37,6 +37,7 @@ const issueAnalyticsRouter = require('./routes/issueAnalytics');
 const manualPaymentsRouter = require('./routes/manualPayments');
 const testingHelpersRouter = require('./routes/testingHelpers');
 const collectorSubdivisionRoutes = require('./routes/collectorSubdivisions');
+const userLedgerRouter = require('./routes/userLedger');
 
 const app = express();
 
@@ -92,6 +93,7 @@ app.get('/health-simple', (req, res) => {
 });
 app.use('/api/auth', authRouter);
 app.use('/api/billing', billingRouter);
+app.use('/api/billing', userLedgerRouter);
 app.use('/api/receipt', require('./routes/receipt'));
 app.use('/api/collection-schedules', collectionSchedulesRouter);
 app.use('/api/enhanced-schedules', enhancedCollectionFlowRouter);

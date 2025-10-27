@@ -561,6 +561,19 @@ const SPickup = () => {
         </View>
       </SafeAreaView>
 
+      {/* Working Hours Notice */}
+      <View style={styles.workingHoursNotice}>
+        <View style={styles.noticeIcon}>
+          <Ionicons name="time-outline" size={20} color="#856404" />
+        </View>
+        <View style={styles.noticeContent}>
+          <Text style={styles.noticeTitle}>Notice</Text>
+          <Text style={styles.noticeText}>
+            Working hours of WSBS is <Text style={styles.noticeTextBold}>6AM to 6PM</Text>.
+          </Text>
+        </View>
+      </View>
+
       {!showForm ? (
         // Preview Mode - Show user's special pickup requests
         <ScrollView 
@@ -1030,6 +1043,51 @@ const styles = StyleSheet.create({
   refreshButton: {
     padding: 8,
     marginLeft: 12,
+  },
+  workingHoursNotice: {
+    backgroundColor: '#fff3cd',
+    borderLeftWidth: 4,
+    borderLeftColor: '#ffc107',
+    marginHorizontal: 16,
+    marginTop: 16,
+    marginBottom: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  noticeIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#ffc107',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  noticeContent: {
+    flex: 1,
+  },
+  noticeTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#856404',
+    marginBottom: 2,
+  },
+  noticeText: {
+    fontSize: 13,
+    color: '#856404',
+    lineHeight: 18,
+  },
+  noticeTextBold: {
+    fontWeight: '700',
+    color: '#664d03',
   },
   section: {
     backgroundColor: '#fff',

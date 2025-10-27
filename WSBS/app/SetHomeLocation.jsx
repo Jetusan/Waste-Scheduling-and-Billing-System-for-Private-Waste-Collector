@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Pressable, ActivityIndicator, Alert, Linking, P
 import { WebView } from 'react-native-webview';
 import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { getToken } from './auth';
@@ -335,61 +336,72 @@ export default function SetHomeLocationEnhanced() {
         return;
       }
 
-      // Create FormData for multipart upload
-      const formData = new FormData();
-      formData.append('latitude', coords.latitude.toString());
-      formData.append('longitude', coords.longitude.toString());
-      // Only append gate image if a new one was selected
-      if (gateImage) {
-        formData.append('gateImage', {
-          uri: gateImage.uri,
-          type: gateImage.type || 'image/jpeg',
-          name: gateImage.fileName || 'gate-image.jpg'
-        });
-      }
-
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 15000);
-      
-      console.log('📤 Sending PUT request to:', `${API_BASE_URL}/api/residents/me/home-location`);
-      console.log('📦 FormData contents:', {
+      console.log('📤 Uploading to:', `${API_BASE_URL}/api/residents/me/home-location`);
+      console.log('📦 Data:', {
         latitude: coords.latitude,
         longitude: coords.longitude,
         hasGateImage: !!gateImage
       });
       
-      let res;
-      try {
-        res = await fetch(`${API_BASE_URL}/api/residents/me/home-location`, {
-          method: 'PUT',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            // DO NOT set Content-Type for FormData - let the browser/React Native set it automatically with boundary
-          },
-          body: formData,
-          signal: controller.signal,
-        });
-        console.log('📥 Response status:', res.status, res.statusText);
-      } finally {
-        clearTimeout(timeout);
-      }
-
-      let payload = null;
-      try { 
-        payload = await res.json();
-        console.log('📄 Response payload:', payload);
-      } catch (_) { 
-        payload = null;
-        console.log('⚠️ Could not parse response as JSON');
-      }
-
-      if (!res.ok) {
-        const serverMsg = (payload && (payload.message || payload.error)) || 'Failed to save your location.';
-        console.log('❌ Save failed:', serverMsg);
-        Alert.alert('Error', serverMsg);
-        return;
-      }
+      // Use XMLHttpRequest for file upload (works better than fetch in React Native)
+      const xhr = new XMLHttpRequest();
       
+      const uploadPromise = new Promise((resolve, reject) => {
+        xhr.onload = () => {
+          console.log('📥 Upload complete - Status:', xhr.status);
+          if (xhr.status === 200) {
+            try {
+              const response = JSON.parse(xhr.responseText);
+              console.log('📄 Response:', response);
+              resolve(response);
+            } catch (e) {
+              resolve({ success: true });
+            }
+          } else {
+            try {
+              const error = JSON.parse(xhr.responseText);
+              reject(new Error(error.message || 'Upload failed'));
+            } catch (e) {
+              reject(new Error(`Upload failed with status ${xhr.status}`));
+            }
+          }
+        };
+        
+        xhr.onerror = () => {
+          console.error('❌ XHR error');
+          reject(new Error('Network error occurred'));
+        };
+        
+        xhr.ontimeout = () => {
+          console.error('⏱️ XHR timeout');
+          reject(new Error('Upload timed out'));
+        };
+        
+        xhr.open('PUT', `${API_BASE_URL}/api/residents/me/home-location`);
+        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+        xhr.timeout = 30000; // 30 second timeout
+        
+        const formData = new FormData();
+        formData.append('latitude', coords.latitude.toString());
+        formData.append('longitude', coords.longitude.toString());
+        
+        if (gateImage) {
+          const uriParts = gateImage.uri.split('.');
+          const fileType = uriParts[uriParts.length - 1];
+          
+          formData.append('gateImage', {
+            uri: gateImage.uri,
+            name: `gate-${Date.now()}.${fileType}`,
+            type: `image/${fileType}`,
+          });
+          console.log('📎 Uploading image:', gateImage.uri);
+        }
+        
+        console.log('🌐 Sending XHR request...');
+        xhr.send(formData);
+      });
+      
+      await uploadPromise;
       console.log('✅ Save successful!');
 
       Alert.alert(
@@ -400,10 +412,20 @@ export default function SetHomeLocationEnhanced() {
         [{ text: 'OK', onPress: () => router.back() }]
       );
     } catch (e) {
-      const msg = e?.name === 'AbortError'
-        ? 'Request timed out. Please check your internet and try again.'
-        : (e?.message || 'Network error occurred. Please try again.');
-      Alert.alert('Network error', msg);
+      console.error('❌ Save location error:', e);
+      console.error('Error name:', e?.name);
+      console.error('Error message:', e?.message);
+      
+      let msg;
+      if (e?.name === 'AbortError') {
+        msg = 'Request timed out after 30 seconds. The image might be too large or your connection is slow. Please try again with a smaller image.';
+      } else if (e?.message?.includes('Network request failed')) {
+        msg = 'Network connection failed. Please check your internet connection and try again.';
+      } else {
+        msg = e?.message || 'An unexpected error occurred. Please try again.';
+      }
+      
+      Alert.alert('Upload Failed', msg);
     } finally {
       setBusy(false);
     }

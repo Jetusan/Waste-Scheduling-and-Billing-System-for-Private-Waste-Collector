@@ -7,14 +7,15 @@ const API_BASE_URL = `${API_CONFIG.BASE_URL}/api`;
 
 const Billing = () => {
   // Data states
-  const [subscriptionPlans, setSubscriptionPlans] = useState([]);
-  const [invoices, setInvoices] = useState([]);
+  const [users, setUsers] = useState([]);
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [userLedger, setUserLedger] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [ledgerLoading, setLedgerLoading] = useState(false);
   const [error, setError] = useState(null);
 
   // View states
-  const [activeView, setActiveView] = useState('invoices'); // ['invoices', 'aging', 'history']
-  const [selectedInvoice, setSelectedInvoice] = useState(null);
+  const [activeView, setActiveView] = useState('users'); // ['users', 'ledger']
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [paymentForm, setPaymentForm] = useState({
     amount: '',
@@ -25,18 +26,9 @@ const Billing = () => {
 
   // Filter states
   const [filters, setFilters] = useState({
-    plan: 'All Plans',
+    search: '',
     status: 'All Status',
-    date: '',
-    aging: 'all' // ['all', '30', '60', '90']
-  });
-
-  // Add new state for export modal
-  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
-  const [exportRange, setExportRange] = useState({
-    startDate: new Date().toISOString().split('T')[0],
-    endDate: new Date().toISOString().split('T')[0],
-    type: 'all' // 'all', 'monthly', 'yearly', 'custom'
+    barangay: 'All Barangays'
   });
 
   // Helper functions (removed unused helpers)
