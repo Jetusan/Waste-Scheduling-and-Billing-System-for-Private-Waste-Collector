@@ -9,26 +9,42 @@ router.get('/users-with-history', async (req, res) => {
     console.log('🔍 Fetching users with billing history...');
 
     const query = `
-      SELECT DISTINCT
+      WITH invoice_stats AS (
+        SELECT 
+          user_id,
+          COUNT(*) AS total_invoices,
+          COALESCE(SUM(CASE WHEN status = 'unpaid' THEN amount ELSE 0 END), 0) AS outstanding_balance
+        FROM invoices
+        GROUP BY user_id
+      ),
+      payment_stats AS (
+        SELECT 
+          i.user_id,
+          COUNT(p.payment_id) AS total_payments,
+          MAX(p.payment_date) AS last_payment_date
+        FROM payments p
+        JOIN invoices i ON p.invoice_id = i.invoice_id
+        GROUP BY i.user_id
+      )
+      SELECT
         u.user_id,
-        COALESCE(un.first_name || ' ' || un.last_name, 'Unknown User') as full_name,
+        COALESCE(un.first_name || ' ' || un.last_name, 'Unknown User') AS full_name,
         u.email,
         b.barangay_name,
-        cs.status as account_status,
-        COUNT(DISTINCT i.invoice_id) as total_invoices,
-        COALESCE(SUM(CASE WHEN i.status = 'unpaid' THEN i.amount ELSE 0 END), 0) as outstanding_balance,
-        MAX(p.payment_date) as last_payment_date
+        cs.status AS account_status,
+        COALESCE(inv.total_invoices, 0) AS total_invoices,
+        COALESCE(inv.outstanding_balance, 0) AS outstanding_balance,
+        pay.last_payment_date
       FROM users u
       LEFT JOIN user_names un ON u.name_id = un.name_id
       LEFT JOIN addresses a ON u.address_id = a.address_id
       LEFT JOIN barangays b ON a.barangay_id = b.barangay_id
       LEFT JOIN customer_subscriptions cs ON u.user_id = cs.user_id
-      LEFT JOIN invoices i ON u.user_id = i.user_id
-      LEFT JOIN payments p ON u.user_id = p.user_id
-      WHERE u.role_id = 3 
+      LEFT JOIN invoice_stats inv ON inv.user_id = u.user_id
+      LEFT JOIN payment_stats pay ON pay.user_id = u.user_id
+      WHERE u.role_id = 3
         AND u.approval_status = 'approved'
-        AND (i.invoice_id IS NOT NULL OR p.payment_id IS NOT NULL)
-      GROUP BY u.user_id, un.first_name, un.last_name, u.email, b.barangay_name, cs.status
+        AND (COALESCE(inv.total_invoices, 0) > 0 OR COALESCE(pay.total_payments, 0) > 0)
       ORDER BY u.user_id
     `;
 
@@ -85,7 +101,8 @@ router.get('/user-ledger/:userId', async (req, res) => {
           'payment' as entry_type,
           p.payment_date as sort_date
         FROM payments p
-        WHERE p.user_id = $1
+        INNER JOIN invoices i ON p.invoice_id = i.invoice_id
+        WHERE i.user_id = $1
       ),
       ledger_with_balance AS (
         SELECT *,
@@ -122,9 +139,9 @@ router.get('/user-ledger/:userId', async (req, res) => {
 // Record a manual payment entry
 router.post('/manual-payment', async (req, res) => {
   try {
-    const { user_id, amount, payment_method, payment_date, reference_number, notes } = req.body;
-    
-    console.log('💰 Recording manual payment:', { user_id, amount, payment_method });
+    const { user_id, amount, payment_method, payment_date, reference_number, notes, invoice_id } = req.body;
+
+    console.log('💰 Recording manual payment:', { user_id, amount, payment_method, invoice_id });
 
     // Validate required fields
     if (!user_id || !amount || !payment_method || !payment_date) {
@@ -133,17 +150,37 @@ router.post('/manual-payment', async (req, res) => {
       });
     }
 
-    // Insert payment record
+    // Determine target invoice
+    let targetInvoiceId = invoice_id;
+    if (!targetInvoiceId) {
+      const invoiceResult = await pool.query(
+        `SELECT invoice_id, amount FROM invoices
+         WHERE user_id = $1
+         ORDER BY created_at DESC
+         LIMIT 1`,
+        [user_id]
+      );
+
+      if (invoiceResult.rows.length === 0) {
+        return res.status(400).json({
+          error: 'No invoice found for user. Please create an invoice before recording a payment.'
+        });
+      }
+
+      targetInvoiceId = invoiceResult.rows[0].invoice_id;
+    }
+
+    // Insert payment record linked to the invoice
     const insertQuery = `
       INSERT INTO payments (
-        user_id, amount, payment_method, payment_date, 
+        invoice_id, amount, payment_method, payment_date,
         reference_number, notes, created_at
       ) VALUES ($1, $2, $3, $4, $5, $6, NOW())
       RETURNING *
     `;
 
     const result = await pool.query(insertQuery, [
-      user_id,
+      targetInvoiceId,
       parseFloat(amount),
       payment_method,
       payment_date,
@@ -151,11 +188,24 @@ router.post('/manual-payment', async (req, res) => {
       notes || 'Manual payment entry'
     ]);
 
+    // Update invoice payment status based on total payments
+    await pool.query(
+      `UPDATE invoices SET status = CASE
+         WHEN (SELECT COALESCE(SUM(amount), 0) FROM payments WHERE invoice_id = $1) >= invoices.amount THEN 'paid'
+         WHEN (SELECT COALESCE(SUM(amount), 0) FROM payments WHERE invoice_id = $1) > 0 THEN 'partially_paid'
+         ELSE status
+       END,
+       updated_at = CURRENT_TIMESTAMP
+       WHERE invoice_id = $1`,
+      [targetInvoiceId]
+    );
+
     console.log('✅ Payment recorded successfully:', result.rows[0]);
     res.json({ 
       success: true, 
       payment: result.rows[0],
-      message: 'Payment recorded successfully' 
+      message: 'Payment recorded successfully',
+      invoice_id: targetInvoiceId
     });
 
   } catch (error) {
@@ -175,22 +225,41 @@ router.get('/user-summary/:userId', async (req, res) => {
     console.log(`📊 Fetching summary for user ${userId}...`);
 
     const query = `
+      WITH invoice_stats AS (
+        SELECT 
+          user_id,
+          COUNT(*) AS total_invoices,
+          COALESCE(SUM(amount), 0) AS total_billed,
+          COALESCE(SUM(CASE WHEN status = 'unpaid' THEN amount ELSE 0 END), 0) AS outstanding_balance,
+          MIN(created_at) AS first_invoice_date
+        FROM invoices
+        GROUP BY user_id
+      ),
+      payment_stats AS (
+        SELECT 
+          i.user_id,
+          COALESCE(SUM(p.amount), 0) AS total_paid,
+          COUNT(p.payment_id) AS total_payments,
+          MAX(p.payment_date) AS last_payment_date
+        FROM payments p
+        JOIN invoices i ON p.invoice_id = i.invoice_id
+        GROUP BY i.user_id
+      )
       SELECT 
         u.user_id,
         COALESCE(un.first_name || ' ' || un.last_name, 'Unknown User') as full_name,
-        COUNT(DISTINCT i.invoice_id) as total_invoices,
-        COALESCE(SUM(i.amount), 0) as total_billed,
-        COALESCE(SUM(p.amount), 0) as total_paid,
-        COALESCE(SUM(CASE WHEN i.status = 'unpaid' THEN i.amount ELSE 0 END), 0) as outstanding_balance,
-        COUNT(DISTINCT p.payment_id) as total_payments,
-        MAX(p.payment_date) as last_payment_date,
-        MIN(i.created_at) as first_invoice_date
+        COALESCE(inv.total_invoices, 0) as total_invoices,
+        COALESCE(inv.total_billed, 0) as total_billed,
+        COALESCE(pay.total_paid, 0) as total_paid,
+        COALESCE(inv.outstanding_balance, 0) as outstanding_balance,
+        COALESCE(pay.total_payments, 0) as total_payments,
+        pay.last_payment_date,
+        inv.first_invoice_date
       FROM users u
       LEFT JOIN user_names un ON u.name_id = un.name_id
-      LEFT JOIN invoices i ON u.user_id = i.user_id
-      LEFT JOIN payments p ON u.user_id = p.user_id
+      LEFT JOIN invoice_stats inv ON inv.user_id = u.user_id
+      LEFT JOIN payment_stats pay ON pay.user_id = u.user_id
       WHERE u.user_id = $1
-      GROUP BY u.user_id, un.first_name, un.last_name
     `;
 
     const result = await pool.query(query, [userId]);
