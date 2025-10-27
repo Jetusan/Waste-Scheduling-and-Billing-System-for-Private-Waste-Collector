@@ -913,6 +913,62 @@ class ReportController {
         }
       });
 
+      // Get user balance summaries from ledger
+      const ledgerSummaryQuery = `
+        WITH user_balances AS (
+          SELECT 
+            i.user_id,
+            u.username,
+            b.barangay_name,
+            SUM(i.amount) as total_billed,
+            COALESCE(SUM(p.amount), 0) as total_paid,
+            SUM(i.amount) - COALESCE(SUM(p.amount), 0) as current_balance,
+            COUNT(i.invoice_id) as total_invoices,
+            COUNT(CASE WHEN i.status = 'paid' THEN 1 END) as paid_invoices,
+            COUNT(CASE WHEN i.status = 'overdue' THEN 1 END) as overdue_invoices
+          FROM invoices i
+          LEFT JOIN payments p ON p.invoice_id = i.invoice_id
+          LEFT JOIN users u ON i.user_id = u.user_id
+          LEFT JOIN addresses a ON u.address_id = a.address_id
+          LEFT JOIN barangays b ON a.barangay_id = b.barangay_id
+          WHERE DATE(i.generated_date) BETWEEN $1 AND $2
+          GROUP BY i.user_id, u.username, b.barangay_name
+        )
+        SELECT 
+          COUNT(*) as total_users,
+          SUM(current_balance) as total_outstanding,
+          COUNT(CASE WHEN current_balance > 0 THEN 1 END) as users_with_balance,
+          COUNT(CASE WHEN current_balance > 1000 THEN 1 END) as high_balance_users,
+          AVG(current_balance) as avg_balance,
+          MAX(current_balance) as max_balance,
+          MIN(current_balance) as min_balance
+        FROM user_balances
+      `;
+
+      const ledgerResult = await pool.query(ledgerSummaryQuery, [validStartDate, validEndDate]);
+      const ledgerSummary = ledgerResult.rows[0] || {};
+
+      // Get top debtors for management attention
+      const topDebtorsQuery = `
+        SELECT 
+          u.username,
+          b.barangay_name,
+          SUM(i.amount) - COALESCE(SUM(p.amount), 0) as balance,
+          COUNT(CASE WHEN i.status = 'overdue' THEN 1 END) as overdue_count
+        FROM invoices i
+        LEFT JOIN payments p ON p.invoice_id = i.invoice_id
+        LEFT JOIN users u ON i.user_id = u.user_id
+        LEFT JOIN addresses a ON u.address_id = a.address_id
+        LEFT JOIN barangays b ON a.barangay_id = b.barangay_id
+        WHERE DATE(i.generated_date) BETWEEN $1 AND $2
+        GROUP BY u.username, b.barangay_name
+        HAVING SUM(i.amount) - COALESCE(SUM(p.amount), 0) > 0
+        ORDER BY balance DESC
+        LIMIT 10
+      `;
+
+      const topDebtorsResult = await pool.query(topDebtorsQuery, [validStartDate, validEndDate]);
+
       // Barangay breakdown
       const barangayBreakdown = {};
       invoices.forEach(invoice => {
@@ -930,6 +986,18 @@ class ReportController {
       const finalResult = {
         reportType: 'billing-payment',
         summary,
+        ledgerAnalytics: {
+          userBalances: ledgerSummary,
+          topDebtors: topDebtorsResult.rows,
+          balanceDistribution: {
+            totalUsers: parseInt(ledgerSummary.total_users || 0),
+            usersWithBalance: parseInt(ledgerSummary.users_with_balance || 0),
+            highBalanceUsers: parseInt(ledgerSummary.high_balance_users || 0),
+            averageBalance: parseFloat(ledgerSummary.avg_balance || 0),
+            maxBalance: parseFloat(ledgerSummary.max_balance || 0),
+            minBalance: parseFloat(ledgerSummary.min_balance || 0)
+          }
+        },
         invoices: result.rows,
         planBreakdown,
         barangayBreakdown,
