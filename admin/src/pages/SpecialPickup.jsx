@@ -203,9 +203,6 @@ const SpecialPickup = () => {
                     <div style={{ fontWeight: 'bold', color: '#333' }}>
                       {req.user_name || req.username || `User ${req.user_id}`}
                     </div>
-                    <div style={{ fontSize: '12px', color: '#666' }}>
-                      Request #{req.request_id}
-                    </div>
                   </td>
                   <td style={{ padding: '12px' }}>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
@@ -236,7 +233,13 @@ const SpecialPickup = () => {
                     {req.address}
                   </td>
                   <td style={{ padding: '12px' }}>
-                    <div style={{ fontWeight: 'bold', color: '#333' }}>{req.pickup_date}</div>
+                    <div style={{ fontWeight: 'bold', color: '#333' }}>
+                      {new Date(req.pickup_date).toLocaleDateString('en-US', {
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric'
+                      })}
+                    </div>
                   </td>
                   <td style={{ padding: '12px' }}>
                     <span style={{
@@ -385,13 +388,10 @@ const SpecialPickup = () => {
               color: '#888',
               cursor: 'pointer',
             }}>&times;</button>
-            <h2 style={{ marginTop: 0, marginBottom: 18, textAlign: 'center', fontWeight: 700, fontSize: 26 }}>Special Pickup Request #{selected.request_id}</h2>
+            <h2 style={{ marginTop: 0, marginBottom: 18, textAlign: 'center', fontWeight: 700, fontSize: 26 }}>Special Pickup Request</h2>
             <div style={{ borderTop: '1px solid #eee', marginBottom: 18 }} />
             
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', rowGap: 14, columnGap: 18 }}>
-              <div style={{ fontWeight: 600, color: '#555' }}>Request ID:</div>
-              <div>#{selected.request_id}</div>
-              
               <div style={{ fontWeight: 600, color: '#555' }}>Requested By:</div>
               <div>{selected.user_name || selected.username || `User ${selected.user_id}`}</div>
               
@@ -408,7 +408,13 @@ const SpecialPickup = () => {
               <div>{selected.description}</div>
               
               <div style={{ fontWeight: 600, color: '#555' }}>Pickup Date:</div>
-              <div style={{ fontWeight: 'bold', color: '#333' }}>{selected.pickup_date}</div>
+              <div style={{ fontWeight: 'bold', color: '#333' }}>
+                {new Date(selected.pickup_date).toLocaleDateString('en-US', {
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric'
+                })}
+              </div>
               
               <div style={{ fontWeight: 600, color: '#555' }}>Address:</div>
               <div>{selected.address}</div>
