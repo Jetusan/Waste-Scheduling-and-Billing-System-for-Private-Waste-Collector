@@ -6,6 +6,7 @@ import { Feather, MaterialIcons, Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { API_BASE_URL } from '../config';
 import { getUserId, getCollectorId } from '../auth';
+import PaymentConfirmationModal from '../../components/PaymentConfirmationModal';
 
 const SpecialPickup = () => {
   const router = useRouter();
@@ -19,6 +20,11 @@ const SpecialPickup = () => {
   const [mapRef, setMapRef] = useState(null);
   const [collectorLocation, setCollectorLocation] = useState(null);
   const [selectedPickupLocation, setSelectedPickupLocation] = useState(null);
+  
+  // Payment confirmation states
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [selectedRequest, setSelectedRequest] = useState(null);
+  const [paymentLoading, setPaymentLoading] = useState(false);
 
   const loadRequests = useCallback(async (cid) => {
     const idToUse = cid ?? collectorId;
@@ -180,37 +186,53 @@ const SpecialPickup = () => {
     }
   }, [collectorLocation, mapRef, sendToMap]);
 
-  const markAsCollected = async (requestId) => {
-    Alert.alert(
-      'Confirm Collection',
-      'Are you sure you want to mark this pickup as collected?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Confirm', 
-          onPress: async () => {
-            try {
-              // Remove from list immediately (optimistic update)
-              setRequests((prev) => prev.filter((r) => r.request_id !== requestId));
-              
-              const res = await fetch(`${API_BASE_URL}/api/special-pickup/${requestId}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ status: 'collected', collector_id: collectorId })
-              });
-              const data = await res.json();
-              if (!res.ok) throw new Error(data.error || 'Failed to update request');
-              
-              Alert.alert('Success', 'Pickup marked as collected successfully!');
-            } catch (e) {
-              Alert.alert('Update Failed', e.message || 'Could not mark as collected');
-              // rollback by reloading
-              await loadRequests();
-            }
-          }
-        }
-      ]
-    );
+  const handleCollectPayment = (request) => {
+    setSelectedRequest(request);
+    setShowPaymentModal(true);
+  };
+
+  const confirmPayment = async (paymentData) => {
+    setPaymentLoading(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/special-pickup/collect-payment`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          request_id: paymentData.requestId,
+          collector_id: collectorId,
+          bags_collected: paymentData.bagsCollected,
+          amount_collected: paymentData.amountReceived,
+          payment_method: paymentData.paymentMethod,
+          collector_notes: paymentData.collectorNotes
+        })
+      });
+
+      const result = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to confirm payment');
+      }
+
+      // Remove from list (optimistic update)
+      setRequests(prev => prev.filter(r => r.request_id !== paymentData.requestId));
+      
+      setShowPaymentModal(false);
+      setSelectedRequest(null);
+      
+      Alert.alert(
+        'Payment Confirmed! 🎉',
+        `Receipt: ${result.receipt_number}\nAmount: ₱${paymentData.amountReceived}\nBags: ${paymentData.bagsCollected}`,
+        [{ text: 'OK' }]
+      );
+      
+    } catch (error) {
+      console.error('Payment confirmation error:', error);
+      Alert.alert('Error', error.message || 'Failed to confirm payment');
+    } finally {
+      setPaymentLoading(false);
+    }
   };
 
   const markAsMissed = async (requestId) => {
@@ -480,10 +502,10 @@ const SpecialPickup = () => {
                   </TouchableOpacity>
                   <TouchableOpacity 
                     style={styles.collectedButton} 
-                    onPress={() => markAsCollected(req.request_id)}
+                    onPress={() => handleCollectPayment(req)}
                   >
-                    <MaterialIcons name="check-circle" size={20} color="#4CAF50" />
-                    <Text style={[styles.buttonText, { color: '#4CAF50' }]}>Collected</Text>
+                    <MaterialIcons name="payments" size={20} color="#4CAF50" />
+                    <Text style={[styles.buttonText, { color: '#4CAF50' }]}>Collect Payment</Text>
                   </TouchableOpacity>
                   <TouchableOpacity 
                     style={styles.missedButton} 
@@ -498,6 +520,17 @@ const SpecialPickup = () => {
           )}
         </ScrollView>
       )}
+
+      <PaymentConfirmationModal
+        visible={showPaymentModal}
+        onClose={() => {
+          setShowPaymentModal(false);
+          setSelectedRequest(null);
+        }}
+        request={selectedRequest}
+        onConfirmPayment={confirmPayment}
+        loading={paymentLoading}
+      />
 
     </View>
   );

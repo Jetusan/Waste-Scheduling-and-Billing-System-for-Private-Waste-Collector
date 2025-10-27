@@ -16,6 +16,9 @@ router.get('/user/:user_id', authenticateJWT, specialPickupController.getRequest
 // GET /api/special-pickup/collector/:collector_id - Get requests by collector
 router.get('/collector/:collector_id', specialPickupController.getRequestsByCollector);
 
+// POST /api/special-pickup/collect-payment - Collect payment for special pickup
+router.post('/collect-payment', specialPickupController.collectPayment);
+
 // PUT /api/special-pickup/:request_id - Update a special pickup request
 router.put('/:request_id', specialPickupController.updateRequest);
 

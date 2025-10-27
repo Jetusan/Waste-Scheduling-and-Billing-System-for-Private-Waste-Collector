@@ -23,6 +23,7 @@ import { useRouter } from 'expo-router';
 import { getToken, getUserId, logout } from './auth';
 import { API_BASE_URL } from './config';
 import RequestChatSection from './components/RequestChatSection';
+import BagQuantitySelector from '../components/BagQuantitySelector';
 
 const SPickup = () => {
   const router = useRouter();
@@ -36,6 +37,7 @@ const SPickup = () => {
   const [notes, setNotes] = useState('');
   const [message, setMessage] = useState('');
   const [image, setImage] = useState(null);
+  const [bagQuantity, setBagQuantity] = useState(1); // New state for bag quantity
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [currentUserId, setCurrentUserId] = useState(null);
   const [userProfile, setUserProfile] = useState(null);
@@ -431,6 +433,8 @@ const SPickup = () => {
       formData.append('description', description);
       formData.append('pickup_date', date ? date.toISOString().split('T')[0] : '');
       formData.append('address', address);
+      formData.append('bag_quantity', bagQuantity.toString());
+      formData.append('estimated_total', (bagQuantity * 25).toString());
       formData.append('notes', notes);
       formData.append('message', message);
       
@@ -653,10 +657,23 @@ const SPickup = () => {
                     {request.description}
                   </Text>
                   
-                  {request.final_price && (
+                  {/* Bag Quantity Display */}
+                  {request.bag_quantity && (
+                    <View style={styles.bagQuantityContainer}>
+                      <Ionicons name="bag-outline" size={16} color="#666" />
+                      <Text style={styles.bagQuantityText}>
+                        {request.bag_quantity} {request.bag_quantity === 1 ? 'bag' : 'bags'} × ₱25
+                      </Text>
+                    </View>
+                  )}
+                  
+                  {/* Price Display */}
+                  {(request.final_price || request.estimated_total) && (
                     <View style={styles.priceContainer}>
                       <Ionicons name="pricetag" size={16} color="#4CAF50" />
-                      <Text style={styles.priceText}>₱{request.final_price}</Text>
+                      <Text style={styles.priceText}>
+                        {request.final_price ? `₱${request.final_price}` : `₱${request.estimated_total} (estimated)`}
+                      </Text>
                     </View>
                   )}
                   
@@ -774,6 +791,13 @@ const SPickup = () => {
             />
           </View>
         </View>
+
+        {/* Bag Quantity Section */}
+        <BagQuantitySelector 
+          bagQuantity={bagQuantity}
+          setBagQuantity={setBagQuantity}
+          pricePerBag={25}
+        />
 
         {/* Date & Time Section */}
         <View style={styles.section}>
@@ -1357,6 +1381,22 @@ const styles = StyleSheet.create({
     color: '#666',
     lineHeight: 20,
     marginBottom: 8,
+  },
+  bagQuantityContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    backgroundColor: '#f0f0f0',
+    borderRadius: 12,
+    alignSelf: 'flex-start',
+  },
+  bagQuantityText: {
+    fontSize: 14,
+    color: '#666',
+    marginLeft: 4,
+    fontWeight: '500',
   },
   priceContainer: {
     flexDirection: 'row',

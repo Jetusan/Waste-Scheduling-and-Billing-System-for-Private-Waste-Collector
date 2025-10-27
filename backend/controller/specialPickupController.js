@@ -33,6 +33,15 @@ const createRequest = async (req, res) => {
       data.image_url = `/uploads/${req.file.filename}`;
     }
     
+    // Handle bag quantity and pricing
+    if (data.bag_quantity) {
+      data.bag_quantity = parseInt(data.bag_quantity) || 1;
+      data.price_per_bag = 25.00; // Fixed price per bag
+      data.estimated_total = data.bag_quantity * 25.00;
+      
+      console.log(`📦 Special pickup request: ${data.bag_quantity} bags × ₱25 = ₱${data.estimated_total}`);
+    }
+    
     const newRequest = await specialPickupModel.createSpecialPickupRequest(data);
     
     // Send notification to user and admins
@@ -114,9 +123,6 @@ const updateRequest = async (req, res) => {
     const { request_id } = req.params;
     const updates = req.body;
     const updated = await specialPickupModel.updateSpecialPickupRequest(request_id, updates);
-    res.json(updated);
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to update special pickup request', details: err.message });
   }
 };
 
@@ -131,6 +137,62 @@ const getRequestById = async (req, res) => {
     res.json(request);
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch special pickup request', details: err.message });
+  }
+};
+
+// Collect payment for special pickup
+const collectPayment = async (req, res) => {
+  try {
+    const {
+      request_id,
+      collector_id,
+      bags_collected,
+      amount_collected,
+      payment_method = 'cash',
+      collector_notes
+    } = req.body;
+
+    // Validate required fields
+    if (!request_id || !collector_id || !bags_collected || !amount_collected) {
+      return res.status(400).json({ 
+        error: 'Missing required fields: request_id, collector_id, bags_collected, amount_collected' 
+      });
+    }
+
+    // Call the database function to collect payment
+    const { Pool } = require('pg');
+    const pool = new Pool({
+      connectionString: process.env.DATABASE_URL,
+      ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+    });
+
+    const result = await pool.query(
+      'SELECT collect_special_pickup_payment($1, $2, $3, $4, $5, $6) as result',
+      [request_id, collector_id, bags_collected, amount_collected, payment_method, collector_notes]
+    );
+
+    const paymentResult = result.rows[0]?.result;
+    
+    if (!paymentResult || !paymentResult.success) {
+      return res.status(400).json({ 
+        error: paymentResult?.error || 'Failed to collect payment' 
+      });
+    }
+
+    console.log(`💰 Payment collected: ₱${amount_collected} for ${bags_collected} bags (Request #${request_id})`);
+    
+    res.json({
+      success: true,
+      message: 'Payment collected successfully',
+      receipt_number: paymentResult.receipt_number,
+      amount_collected: paymentResult.amount_collected,
+      bags_collected: paymentResult.bags_collected,
+      collector_balance: paymentResult.collector_balance
+    });
+
+  } catch (error) {
+    console.error('Error collecting payment:', error);
+    res.status(500).json({ error: 'Failed to collect payment' });
   }
 };
 
@@ -152,5 +214,6 @@ module.exports = {
   getRequestsByCollector,
   updateRequest,
   getRequestById,
+  collectPayment,
   cancelRequest
 }; 

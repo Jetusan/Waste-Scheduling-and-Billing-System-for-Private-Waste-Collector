@@ -189,6 +189,7 @@ const SpecialPickup = () => {
               <tr style={{ backgroundColor: '#f5f5f5' }}>
                 <th style={{ padding: '12px', textAlign: 'left', fontWeight: 'bold' }}>Requested By</th>
                 <th style={{ padding: '12px', textAlign: 'left', fontWeight: 'bold' }}>Waste Type</th>
+                <th style={{ padding: '12px', textAlign: 'left', fontWeight: 'bold' }}>Quantity</th>
                 <th style={{ padding: '12px', textAlign: 'left', fontWeight: 'bold' }}>Location</th>
                 <th style={{ padding: '12px', textAlign: 'left', fontWeight: 'bold' }}>Pickup Date</th>
                 <th style={{ padding: '12px', textAlign: 'left', fontWeight: 'bold' }}>Status</th>
@@ -221,6 +222,14 @@ const SpecialPickup = () => {
                           {type.trim()}
                         </span>
                       ))}
+                    </div>
+                  </td>
+                  <td style={{ padding: '12px' }}>
+                    <div style={{ fontWeight: 'bold', color: '#333', fontSize: '14px' }}>
+                      📦 {req.bag_quantity || 1} {(req.bag_quantity || 1) === 1 ? 'bag' : 'bags'}
+                    </div>
+                    <div style={{ fontSize: '12px', color: '#4CAF50', fontWeight: '600' }}>
+                      ₱{req.estimated_total || (req.bag_quantity || 1) * 25}
                     </div>
                   </td>
                   <td style={{ padding: '12px', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -307,7 +316,7 @@ const SpecialPickup = () => {
                             fontSize: '12px'
                           }}
                         >
-                          Assign
+                          Accept & Assign
                         </button>
                       )}
                       {(req.status === 'assigned' || req.status === 'in_progress') && (
