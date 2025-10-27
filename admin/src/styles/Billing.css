@@ -39,6 +39,18 @@
   margin-bottom: var(--wsbs-spacing-6);
 }
 
+.ledger-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--wsbs-spacing-4);
+  margin-bottom: var(--wsbs-spacing-6);
+}
+
+.ledger-summary .summary-card {
+  background: #f8faf5;
+  border: 1px solid #cde0b6;
+}
+
 .summary-card {
   background: var(--wsbs-white);
   padding: var(--wsbs-spacing-6);
@@ -318,6 +330,89 @@
 
 .billing-table tbody tr:last-child td {
   border-bottom: none;
+}
+
+.user-name-block {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.user-full-name {
+  font-weight: var(--wsbs-font-weight-semibold);
+  color: var(--wsbs-gray-900);
+}
+
+.user-email {
+  font-size: var(--wsbs-font-size-xs);
+  color: var(--wsbs-gray-500);
+  text-transform: lowercase;
+}
+
+.ledger-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--wsbs-white);
+  border-radius: var(--wsbs-radius-xl);
+  overflow: hidden;
+  box-shadow: var(--wsbs-shadow-sm);
+  border: 1px solid #cde0b6;
+}
+
+.ledger-table thead {
+  background: linear-gradient(135deg, #5c8f3c, #3f6d25);
+  color: #f4fbe6;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.ledger-table th,
+.ledger-table td {
+  padding: var(--wsbs-spacing-3) var(--wsbs-spacing-4);
+  text-align: left;
+  border-bottom: 1px solid rgba(92, 143, 60, 0.15);
+  font-size: var(--wsbs-font-size-sm);
+}
+
+.ledger-table tbody tr:nth-child(odd) {
+  background: rgba(92, 143, 60, 0.05);
+}
+
+.ledger-table tbody tr:hover {
+  background: rgba(92, 143, 60, 0.12);
+}
+
+.ledger-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.ledger-debit {
+  color: #14532d;
+  font-weight: var(--wsbs-font-weight-medium);
+}
+
+.ledger-credit {
+  color: #b91c1c;
+  font-weight: var(--wsbs-font-weight-medium);
+}
+
+.ledger-balance {
+  font-weight: var(--wsbs-font-weight-semibold);
+}
+
+.ledger-balance.negative {
+  color: #b91c1c;
+}
+
+.ledger-balance.positive {
+  color: #14532d;
+}
+
+.ledger-empty {
+  text-align: center;
+  padding: var(--wsbs-spacing-6);
+  color: var(--wsbs-gray-500);
+  font-style: italic;
 }
 
 /* Status Badges */

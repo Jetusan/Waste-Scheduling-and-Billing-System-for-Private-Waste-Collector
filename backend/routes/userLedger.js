@@ -122,9 +122,26 @@ router.get('/user-ledger/:userId', async (req, res) => {
     `;
 
     const result = await pool.query(query, [userId]);
+
+    // Compute running totals for summary
+    const totals = result.rows.reduce((acc, entry) => {
+      const debit = entry.debit ? parseFloat(entry.debit) : 0;
+      const credit = entry.credit ? parseFloat(entry.credit) : 0;
+      acc.totalDebit += debit;
+      acc.totalCredit += credit;
+      acc.balance = parseFloat(entry.balance || acc.balance);
+      return acc;
+    }, { totalDebit: 0, totalCredit: 0, balance: 0 });
     
     console.log(`✅ Found ${result.rows.length} ledger entries for user ${userId}`);
-    res.json(result.rows);
+    res.json({
+      entries: result.rows,
+      summary: {
+        totalDebit: totals.totalDebit,
+        totalCredit: totals.totalCredit,
+        balance: totals.balance
+      }
+    });
 
   } catch (error) {
     console.error(`❌ Error fetching ledger for user ${userId}:`, error);

@@ -5,11 +5,20 @@ import API_CONFIG from '../config/api';
 
 const API_BASE_URL = `${API_CONFIG.BASE_URL}/api`;
 
+const initialLedgerState = {
+  entries: [],
+  summary: {
+    totalDebit: 0,
+    totalCredit: 0,
+    balance: 0
+  }
+};
+
 const Billing = () => {
   // Data states
   const [users, setUsers] = useState([]);
   const [selectedUser, setSelectedUser] = useState(null);
-  const [userLedger, setUserLedger] = useState([]);
+  const [userLedger, setUserLedger] = useState(initialLedgerState);
   const [loading, setLoading] = useState(true);
   const [ledgerLoading, setLedgerLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -50,6 +59,20 @@ const Billing = () => {
     }
   };
 
+  const formatCurrency = (value) => {
+    if (value === null || value === undefined) return '—';
+    const numberValue = Number(value);
+    if (Number.isNaN(numberValue)) return '—';
+    return new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(numberValue);
+  };
+
+  const formatDate = (value) => {
+    if (!value) return '—';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '—';
+    return date.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' });
+  };
+
   // Fetch user ledger
   const fetchUserLedger = async (userId) => {
     try {
@@ -58,7 +81,14 @@ const Billing = () => {
 
       const response = await axios.get(`${API_BASE_URL}/billing/user-ledger/${userId}`);
       console.log('✅ User ledger:', response.data);
-      setUserLedger(response.data);
+      setUserLedger({
+        entries: response.data?.entries || [],
+        summary: {
+          totalDebit: response.data?.summary?.totalDebit || 0,
+          totalCredit: response.data?.summary?.totalCredit || 0,
+          balance: response.data?.summary?.balance || 0
+        }
+      });
 
     } catch (error) {
       console.error('❌ Error fetching user ledger:', error);
@@ -85,7 +115,7 @@ const Billing = () => {
   const handleBackToUsers = () => {
     setActiveView('users');
     setSelectedUser(null);
-    setUserLedger([]);
+    setUserLedger(initialLedgerState);
   };
 
   // Payment handling
@@ -127,7 +157,7 @@ const Billing = () => {
   const filteredUsers = users.filter(user => {
     const matchesSearch = filters.search === '' || 
       user.full_name.toLowerCase().includes(filters.search.toLowerCase()) ||
-      user.user_id.toString().includes(filters.search);
+      (user.email || '').toLowerCase().includes(filters.search.toLowerCase());
     
     const matchesStatus = filters.status === 'All Status' || 
       user.account_status === filters.status;
@@ -137,21 +167,6 @@ const Billing = () => {
 
     return matchesSearch && matchesStatus && matchesBarangay;
   });
-
-  // Calculate ledger totals
-  const calculateLedgerTotals = () => {
-    let totalDebits = 0;
-    let totalCredits = 0;
-    let balance = 0;
-
-    userLedger.forEach(entry => {
-      if (entry.debit) totalDebits += parseFloat(entry.debit);
-      if (entry.credit) totalCredits += parseFloat(entry.credit);
-      balance = parseFloat(entry.balance);
-    });
-
-    return { totalDebits, totalCredits, balance };
-  };
 
   if (loading) {
     return (
@@ -189,12 +204,12 @@ const Billing = () => {
             </button>
           )}
           <h2>
-            {activeView === 'users' ? 'Billing Management' : `${selectedUser?.full_name} - Ledger`}
+            {activeView === 'users' ? 'Billing Management' : `${selectedUser?.full_name}`}
           </h2>
           <p className="header-subtitle">
             {activeView === 'users' 
               ? 'Manage user accounts and billing history' 
-              : `User ID: ${selectedUser?.user_id} | ${selectedUser?.barangay_name}`
+              : `${selectedUser?.barangay_name || '—'} • ${selectedUser?.email || 'No email on file'}`
             }
           </p>
         </div>
@@ -221,7 +236,7 @@ const Billing = () => {
             <div className="filter-group">
               <input
                 type="text"
-                placeholder="Search by name or ID..."
+                placeholder="Search by name or email..."
                 value={filters.search}
                 onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}
                 className="filter-input"
@@ -259,7 +274,6 @@ const Billing = () => {
               <table className="billing-table">
                 <thead>
                   <tr>
-                    <th>User ID</th>
                     <th>Name</th>
                     <th>Barangay</th>
                     <th>Status</th>
@@ -272,11 +286,10 @@ const Billing = () => {
                 <tbody>
                   {filteredUsers.map(user => (
                     <tr key={user.user_id}>
-                      <td>#{user.user_id}</td>
                       <td className="user-name">
-                        <div>
-                          <strong>{user.full_name}</strong>
-                          <small>{user.email}</small>
+                        <div className="user-name-block">
+                          <span className="user-full-name">{user.full_name}</span>
+                          <span className="user-email">{user.email || 'No email on file'}</span>
                         </div>
                       </td>
                       <td>{user.barangay_name}</td>
@@ -287,9 +300,9 @@ const Billing = () => {
                       </td>
                       <td>{user.total_invoices || 0}</td>
                       <td className={`amount ${parseFloat(user.outstanding_balance || 0) > 0 ? 'negative' : 'positive'}`}>
-                        ₱{parseFloat(user.outstanding_balance || 0).toFixed(2)}
+                        {formatCurrency(user.outstanding_balance || 0)}
                       </td>
-                      <td>{user.last_payment_date || 'No payments'}</td>
+                      <td>{user.last_payment_date ? formatDate(user.last_payment_date) : 'No payments yet'}</td>
                       <td>
                         <button
                           onClick={() => handleUserSelect(user)}
@@ -319,16 +332,16 @@ const Billing = () => {
               <div className="ledger-summary">
                 <div className="summary-card">
                   <h4>Total Debits</h4>
-                  <p className="amount negative">₱{calculateLedgerTotals().totalDebits.toFixed(2)}</p>
+                  <p className="amount negative">{formatCurrency(userLedger.summary.totalDebit)}</p>
                 </div>
                 <div className="summary-card">
                   <h4>Total Credits</h4>
-                  <p className="amount positive">₱{calculateLedgerTotals().totalCredits.toFixed(2)}</p>
+                  <p className="amount positive">{formatCurrency(userLedger.summary.totalCredit)}</p>
                 </div>
                 <div className="summary-card">
                   <h4>Current Balance</h4>
-                  <p className={`amount ${calculateLedgerTotals().balance > 0 ? 'negative' : 'positive'}`}>
-                    ₱{Math.abs(calculateLedgerTotals().balance).toFixed(2)}
+                  <p className={`amount ${userLedger.summary.balance > 0 ? 'negative' : 'positive'}`}>
+                    {formatCurrency(Math.abs(userLedger.summary.balance))}
                   </p>
                 </div>
               </div>
@@ -347,19 +360,24 @@ const Billing = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {userLedger.map((entry, index) => (
+                    {userLedger.entries.length === 0 && (
+                      <tr>
+                        <td colSpan={6} className="ledger-empty">No ledger entries found for this user.</td>
+                      </tr>
+                    )}
+                    {userLedger.entries.map((entry, index) => (
                       <tr key={index}>
-                        <td>{new Date(entry.date).toLocaleDateString()}</td>
+                        <td>{formatDate(entry.date)}</td>
                         <td>{entry.description}</td>
                         <td>{entry.reference}</td>
-                        <td className="amount negative">
-                          {entry.debit ? `₱${parseFloat(entry.debit).toFixed(2)}` : '-'}
+                        <td className="ledger-debit">
+                          {entry.debit ? formatCurrency(entry.debit) : '—'}
                         </td>
-                        <td className="amount positive">
-                          {entry.credit ? `₱${parseFloat(entry.credit).toFixed(2)}` : '-'}
+                        <td className="ledger-credit">
+                          {entry.credit ? formatCurrency(entry.credit) : '—'}
                         </td>
-                        <td className={`amount ${parseFloat(entry.balance) > 0 ? 'negative' : 'positive'}`}>
-                          ₱{Math.abs(parseFloat(entry.balance)).toFixed(2)}
+                        <td className={`ledger-balance ${parseFloat(entry.balance) > 0 ? 'negative' : 'positive'}`}>
+                          {formatCurrency(Math.abs(parseFloat(entry.balance)))}
                         </td>
                       </tr>
                     ))}
