@@ -24,6 +24,10 @@ export default function SetHomeLocationEnhanced() {
   const [previousLocation, setPreviousLocation] = useState(null);
   const [existingGateImage, setExistingGateImage] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
+  
+  // Address state
+  const [address, setAddress] = useState(null);
+  const [loadingAddress, setLoadingAddress] = useState(false);
 
   const openAppSettings = () => {
     if (Platform.OS === 'ios') {
@@ -32,6 +36,39 @@ export default function SetHomeLocationEnhanced() {
       Linking.openSettings();
     }
   };
+
+  // Reverse geocode coordinates to get address
+  const getAddressFromCoords = useCallback(async (latitude, longitude) => {
+    try {
+      setLoadingAddress(true);
+      const result = await Location.reverseGeocodeAsync({
+        latitude,
+        longitude
+      });
+      
+      if (result && result.length > 0) {
+        const location = result[0];
+        // Build a readable address
+        const addressParts = [
+          location.street,
+          location.district || location.subregion,
+          location.city,
+          location.region
+        ].filter(Boolean);
+        
+        const formattedAddress = addressParts.join(', ') || 'Address not available';
+        setAddress(formattedAddress);
+        console.log('📍 Address:', formattedAddress);
+      } else {
+        setAddress('Address not available');
+      }
+    } catch (error) {
+      console.error('Error getting address:', error);
+      setAddress('Unable to get address');
+    } finally {
+      setLoadingAddress(false);
+    }
+  }, []);
 
   const requestPermissionAndLocate = useCallback(async () => {
     try {
@@ -103,6 +140,9 @@ export default function SetHomeLocationEnhanced() {
         longitude: pos.coords.longitude.toString()
       });
       
+      // Get address from coordinates
+      await getAddressFromCoords(pos.coords.latitude, pos.coords.longitude);
+      
       // Send location to map if loaded
       if (mapRef && mapLoaded) {
         sendToMap({ type: 'set_home_location', location: newCoords });
@@ -128,7 +168,7 @@ export default function SetHomeLocationEnhanced() {
     } finally {
       setBusy(false);
     }
-  }, []);
+  }, [getAddressFromCoords]);
 
   useEffect(() => {
     loadExistingLocation();
@@ -268,18 +308,26 @@ export default function SetHomeLocationEnhanced() {
   };
 
   const saveHomeLocation = useCallback(async () => {
+    console.log('🔄 Save button pressed');
+    console.log('📍 Coords:', coords);
+    console.log('🖼️ Gate Image:', gateImage ? 'Selected' : 'Not selected');
+    console.log('🖼️ Existing Gate Image:', existingGateImage ? 'Exists' : 'Not exists');
+    
     if (!coords) {
+      console.log('❌ No coordinates set');
       Alert.alert('Error', 'Please set your location on the map first.');
       return;
     }
 
     // For new locations, require gate image. For updates, allow keeping existing image
     if (!gateImage && !existingGateImage) {
+      console.log('❌ No gate image - showing alert');
       Alert.alert('Gate Image Required', 'Please upload an image of your gate before saving your location.');
       return;
     }
 
     try {
+      console.log('✅ Validation passed - starting save process');
       setBusy(true);
       const token = await getToken();
       if (!token) {
@@ -303,33 +351,46 @@ export default function SetHomeLocationEnhanced() {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 15000);
       
+      console.log('📤 Sending PUT request to:', `${API_BASE_URL}/api/residents/me/home-location`);
+      console.log('📦 FormData contents:', {
+        latitude: coords.latitude,
+        longitude: coords.longitude,
+        hasGateImage: !!gateImage
+      });
+      
       let res;
       try {
         res = await fetch(`${API_BASE_URL}/api/residents/me/home-location`, {
           method: 'PUT',
           headers: {
             'Authorization': `Bearer ${token}`,
-            'Content-Type': 'multipart/form-data',
+            // DO NOT set Content-Type for FormData - let the browser/React Native set it automatically with boundary
           },
           body: formData,
           signal: controller.signal,
         });
+        console.log('📥 Response status:', res.status, res.statusText);
       } finally {
         clearTimeout(timeout);
       }
 
       let payload = null;
       try { 
-        payload = await res.json(); 
+        payload = await res.json();
+        console.log('📄 Response payload:', payload);
       } catch (_) { 
-        payload = null; 
+        payload = null;
+        console.log('⚠️ Could not parse response as JSON');
       }
 
       if (!res.ok) {
         const serverMsg = (payload && (payload.message || payload.error)) || 'Failed to save your location.';
+        console.log('❌ Save failed:', serverMsg);
         Alert.alert('Error', serverMsg);
         return;
       }
+      
+      console.log('✅ Save successful!');
 
       Alert.alert(
         'Success!', 
@@ -401,58 +462,32 @@ export default function SetHomeLocationEnhanced() {
         <HomeLocationMapSection 
           onMapReady={handleMapReady} 
           selectedLocation={coords}
-          onLocationSelect={(location) => {
+          onLocationSelect={async (location) => {
             setCoords(location);
             setManualCoords({
               latitude: location.latitude.toString(),
               longitude: location.longitude.toString()
             });
+            // Get address from selected coordinates
+            await getAddressFromCoords(location.latitude, location.longitude);
           }}
           onMapLoaded={setMapLoaded}
         />
         
-        {/* Current Location Display */}
-        {coords && (
-          <View style={styles.coordsCard}>
-            <Text style={styles.coordLabel}>📍 Selected Location:</Text>
-            <Text style={styles.coordText}>Lat: {coords.latitude.toFixed(6)}</Text>
-            <Text style={styles.coordText}>Lng: {coords.longitude.toFixed(6)}</Text>
-            {coords.accuracy && (
-              <Text style={styles.accuracyText}>GPS Accuracy: ±{Math.round(coords.accuracy)} m</Text>
+        {/* Display Address */}
+        {address && (
+          <View style={styles.addressCard}>
+            <View style={styles.addressHeader}>
+              <Ionicons name="location" size={20} color="#4CD964" />
+              <Text style={styles.addressLabel}>Selected Location:</Text>
+            </View>
+            {loadingAddress ? (
+              <ActivityIndicator size="small" color="#4CD964" style={{ marginTop: 8 }} />
+            ) : (
+              <Text style={styles.addressText}>{address}</Text>
             )}
           </View>
         )}
-        
-        {/* Manual Coordinate Input */}
-        <View style={styles.manualInputContainer}>
-          <Text style={styles.inputLabel}>Or enter coordinates manually:</Text>
-          <View style={styles.coordInputRow}>
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputSubLabel}>Latitude:</Text>
-              <TextInput
-                style={styles.coordInput}
-                value={manualCoords.latitude}
-                onChangeText={(text) => setManualCoords(prev => ({ ...prev, latitude: text }))}
-                placeholder="6.1547981"
-                keyboardType="numeric"
-              />
-            </View>
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputSubLabel}>Longitude:</Text>
-              <TextInput
-                style={styles.coordInput}
-                value={manualCoords.longitude}
-                onChangeText={(text) => setManualCoords(prev => ({ ...prev, longitude: text }))}
-                placeholder="125.1651827"
-                keyboardType="numeric"
-              />
-            </View>
-          </View>
-          <Pressable style={styles.updateCoordsBtn} onPress={updateManualCoords}>
-            <Ionicons name="checkmark-circle" size={20} color="#007AFF" />
-            <Text style={styles.updateCoordsBtnText}>Use These Coordinates</Text>
-          </Pressable>
-        </View>
       </View>
 
       {/* Gate Image Section */}
@@ -527,14 +562,14 @@ export default function SetHomeLocationEnhanced() {
           style={[
             styles.btn, 
             styles.btnPrimary, 
-            (!coords || !gateImage || busy) && { opacity: 0.5 }
+            (!coords || (!gateImage && !existingGateImage) || busy) && { opacity: 0.5 }
           ]} 
           onPress={saveHomeLocation} 
-          disabled={!coords || !gateImage || busy}
+          disabled={!coords || (!gateImage && !existingGateImage) || busy}
         >
           <Ionicons name="save-outline" size={18} color="#fff" />
           <Text style={styles.btnPrimaryText}>
-            {busy ? 'Saving...' : 'Save Home Location'}
+            {busy ? 'Saving...' : isEditing ? 'Update Location' : 'Save Home Location'}
           </Text>
         </Pressable>
       </View>
@@ -711,6 +746,35 @@ const styles = StyleSheet.create({
     fontFamily: 'monospace',
     color: '#2d5a2d',
     marginLeft: 22,
+  },
+  addressCard: {
+    backgroundColor: '#f0f8ff',
+    padding: 16,
+    borderRadius: 12,
+    marginTop: 12,
+    borderLeftWidth: 4,
+    borderLeftColor: '#4CD964',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  addressHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  addressLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#2d5a2d',
+    marginLeft: 8,
+  },
+  addressText: {
+    fontSize: 14,
+    color: '#333',
+    lineHeight: 20,
   },
   existingImageContainer: {
     marginBottom: 16,

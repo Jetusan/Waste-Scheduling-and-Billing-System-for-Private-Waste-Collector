@@ -327,17 +327,30 @@ const upload = multer({
 
 router.put('/me/home-location', authenticateJWT, upload.single('gateImage'), async (req, res) => {
   try {
+    console.log('📥 PUT /me/home-location - Request received');
     const userId = req.user?.userId;
-    if (!userId) return res.status(401).json({ success: false, message: 'Unauthorized' });
+    console.log('👤 User ID:', userId);
+    
+    if (!userId) {
+      console.log('❌ Unauthorized - no user ID');
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
 
+    console.log('📦 Request body:', req.body);
+    console.log('📎 File uploaded:', req.file ? `Yes - ${req.file.filename}` : 'No');
+    
     let { latitude, longitude } = req.body || {};
     latitude = Number(latitude);
     longitude = Number(longitude);
 
+    console.log('📍 Parsed coordinates:', { latitude, longitude });
+
     if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+      console.log('❌ Invalid coordinates');
       return res.status(400).json({ success: false, message: 'Invalid coordinates' });
     }
     if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
+      console.log('❌ Coordinates out of range');
       return res.status(400).json({ success: false, message: 'Coordinates out of range' });
     }
 
@@ -346,23 +359,30 @@ router.put('/me/home-location', authenticateJWT, upload.single('gateImage'), asy
     if (req.file) {
       // Store relative path from uploads directory
       gateImageUrl = `/uploads/gate-images/${req.file.filename}`;
+      console.log('✅ Gate image saved:', gateImageUrl);
+    } else {
+      console.log('⚠️ No gate image in request');
     }
 
     // Mark any previous 'home' locations as not current, then insert a new current row
-    await pool.query(
+    console.log('🔄 Updating previous home locations...');
+    const updateResult = await pool.query(
       `UPDATE user_locations
        SET is_current = false
        WHERE user_id = $1 AND kind = 'home' AND is_current = true`,
       [userId]
     );
+    console.log(`✅ Updated ${updateResult.rowCount} previous locations`);
 
+    console.log('💾 Inserting new home location...');
     await pool.query(
       `INSERT INTO user_locations (user_id, kind, latitude, longitude, accuracy_m, source, captured_at, is_current, gate_image_url)
        VALUES ($1, 'home', $2, $3, NULL, 'app', NOW(), true, $4)`,
       [userId, latitude, longitude, gateImageUrl]
     );
+    console.log('✅ New home location inserted successfully');
 
-    return res.json({ 
+    const response = { 
       success: true, 
       message: 'Home location and gate image saved successfully',
       data: {
@@ -370,9 +390,13 @@ router.put('/me/home-location', authenticateJWT, upload.single('gateImage'), asy
         longitude,
         gateImageUrl
       }
-    });
+    };
+    console.log('📤 Sending success response:', response);
+    return res.json(response);
   } catch (error) {
-    console.error('Error saving home location:', error);
+    console.error('❌ Error saving home location:', error);
+    console.error('Error details:', error.message);
+    console.error('Stack trace:', error.stack);
     // Clean up uploaded file if database operation fails
     if (req.file && fs.existsSync(req.file.path)) {
       fs.unlinkSync(req.file.path);

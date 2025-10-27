@@ -207,16 +207,21 @@ const SpecialPickup = () => {
                     </div>
                   </td>
                   <td style={{ padding: '12px' }}>
-                    <span style={{ 
-                      backgroundColor: '#e3f2fd', 
-                      color: '#1976d2', 
-                      padding: '2px 8px', 
-                      borderRadius: '12px', 
-                      fontSize: '12px',
-                      fontWeight: 'bold'
-                    }}>
-                      {req.waste_type}
-                    </span>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                      {req.waste_type.split(',').map((type, index) => (
+                        <span key={index} style={{ 
+                          backgroundColor: '#e8f5e9', 
+                          color: '#2e7d32', 
+                          padding: '4px 10px', 
+                          borderRadius: '12px', 
+                          fontSize: '11px',
+                          fontWeight: '600',
+                          border: '1px solid #4CAF50'
+                        }}>
+                          {type.trim()}
+                        </span>
+                      ))}
+                    </div>
                   </td>
                   <td style={{ padding: '12px', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {req.address}
@@ -382,7 +387,13 @@ const SpecialPickup = () => {
               <div>{selected.user_name || selected.username || `User ${selected.user_id}`}</div>
               
               <div style={{ fontWeight: 600, color: '#555' }}>Waste Type:</div>
-              <div><span style={{ backgroundColor: '#e3f2fd', color: '#1976d2', padding: '4px 12px', borderRadius: '12px', fontSize: '14px', fontWeight: 'bold' }}>{selected.waste_type}</span></div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '4px' }}>
+                {selected.waste_type.split(',').map((type, index) => (
+                  <span key={index} style={{ backgroundColor: '#e8f5e9', color: '#2e7d32', padding: '6px 14px', borderRadius: '14px', fontSize: '13px', fontWeight: '600', border: '1px solid #4CAF50' }}>
+                    {type.trim()}
+                  </span>
+                ))}
+              </div>
               
               <div style={{ fontWeight: 600, color: '#555' }}>Description:</div>
               <div>{selected.description}</div>
@@ -507,7 +518,16 @@ const SpecialPickup = () => {
             <h3 style={{ marginTop: 0, marginBottom: 20 }}>Assign Collector to Request #{selected.request_id}</h3>
             
             <div style={{ marginBottom: 20 }}>
-              <p><strong>Waste Type:</strong> {selected.waste_type}</p>
+              <div style={{ marginBottom: '12px' }}>
+                <strong>Waste Type:</strong>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '6px' }}>
+                  {selected.waste_type.split(',').map((type, index) => (
+                    <span key={index} style={{ backgroundColor: '#e8f5e9', color: '#2e7d32', padding: '6px 14px', borderRadius: '14px', fontSize: '13px', fontWeight: '600', border: '1px solid #4CAF50' }}>
+                      {type.trim()}
+                    </span>
+                  ))}
+                </div>
+              </div>
               <p><strong>Location:</strong> {selected.address}</p>
               <p><strong>Date/Time:</strong> {selected.pickup_date} {selected.pickup_time}</p>
             </div>

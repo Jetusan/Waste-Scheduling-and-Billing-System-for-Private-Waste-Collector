@@ -412,7 +412,16 @@ const SpecialPickup = () => {
                 </View>
                 <View style={styles.detailItem}>
                   <MaterialIcons name="delete" size={24} color="#FF9800" />
-                  <Text style={styles.detailText}>{req.waste_type} - {req.description}</Text>
+                  <View style={{ flex: 1 }}>
+                    <View style={styles.wasteTypeBadges}>
+                      {req.waste_type.split(',').map((type, index) => (
+                        <View key={index} style={styles.wasteTypeBadge}>
+                          <Text style={styles.wasteTypeBadgeText}>{type.trim()}</Text>
+                        </View>
+                      ))}
+                    </View>
+                    <Text style={styles.detailText}>{req.description}</Text>
+                  </View>
                 </View>
                 
                 {/* Price Information */}
@@ -621,6 +630,25 @@ const styles = StyleSheet.create({
   pendingPriceText: {
     fontStyle: 'italic',
     color: '#FF9800',
+  },
+  wasteTypeBadges: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: 8,
+  },
+  wasteTypeBadge: {
+    backgroundColor: '#e8f5e9',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#4CAF50',
+  },
+  wasteTypeBadgeText: {
+    color: '#2e7d32',
+    fontSize: 12,
+    fontWeight: '600',
   },
   emptyState: {
     flex: 1,

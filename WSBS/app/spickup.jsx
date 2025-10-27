@@ -476,9 +476,9 @@ const SPickup = () => {
               text: 'OK',
               onPress: () => {
                 // Clear form
-                setWasteType('');
+                setWasteTypes([]);
                 setDescription('');
-                setDate('');
+                setDate(null);
                 setAddress('');
                 setNotes('');
                 setMessage('');
