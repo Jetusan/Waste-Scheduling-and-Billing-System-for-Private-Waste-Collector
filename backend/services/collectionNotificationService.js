@@ -49,58 +49,91 @@ const sendCollectionReminders = async () => {
     }
     
     console.log(`✅ Sent ${result.rows.length} collection reminders`);
-    return result.rows.length;
   } catch (error) {
-    console.error('❌ Failed to send collection reminders:', error);
-    throw error;
+    console.error('❌ Error sending collection reminders:', error);
   }
 };
 
 // 2. COLLECTION COMPLETION NOTIFICATION
-const notifyCollectionCompleted = async (userId, collectionData) => {
+const notifyCollectionCompleted = async (userId, collectorName = 'Collector', paymentAmount = null) => {
   try {
-    const nextCollectionDate = new Date(collectionData.collection_date);
-    nextCollectionDate.setDate(nextCollectionDate.getDate() + 7); // Weekly collection
+    const completionTime = new Date().toLocaleString('en-US', {
+      timeZone: 'Asia/Manila',
+      hour12: true,
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit'
+    });
+    
+    let message = `Your waste has been successfully collected by ${collectorName} at ${completionTime}.`;
+    
+    if (paymentAmount) {
+      message += ` Payment of ₱${paymentAmount} was also collected.`;
+    }
+    
+    message += ' Thank you for your cooperation!';
     
     await createUserNotification(
       userId,
-      '✅ Collection Completed',
-      `Your waste has been successfully collected on ${new Date(collectionData.collection_date).toLocaleDateString()}. Thank you for using our service! Next collection: ${nextCollectionDate.toLocaleDateString()}`,
+      '✅ Waste Collected',
+      message,
       'collection_completed'
     );
+    
+    console.log(`✅ Collection completion notification sent to user ${userId}`);
   } catch (error) {
-    console.error('❌ Failed to send collection completion notification:', error);
-    throw error;
+    console.error('❌ Error sending collection completion notification:', error);
   }
 };
 
-// 3. COLLECTION SCHEDULE CHANGE NOTIFICATION
-const notifyScheduleChange = async (userId, scheduleData) => {
+// 3. MISSED COLLECTION NOTIFICATION
+const notifyMissedCollection = async (userId, reason = 'Not available') => {
   try {
+    const missedTime = new Date().toLocaleString('en-US', {
+      timeZone: 'Asia/Manila',
+      hour12: true,
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit'
+    });
+    
     await createUserNotification(
       userId,
-      '📅 Collection Schedule Changed',
-      `Your collection schedule has been updated. New date: ${scheduleData.new_date}, Time: ${scheduleData.new_time}. Reason: ${scheduleData.reason || 'Schedule optimization'}`,
-      'schedule_change'
+      '⚠️ Missed Collection',
+      `We were unable to collect your waste at ${missedTime}. Reason: ${reason}. We'll try again on the next scheduled collection day.`,
+      'collection_missed'
     );
+    
+    console.log(`⚠️ Missed collection notification sent to user ${userId}`);
   } catch (error) {
-    console.error('❌ Failed to send schedule change notification:', error);
-    throw error;
+    console.error('❌ Error sending missed collection notification:', error);
   }
 };
 
-// 4. COLLECTOR ASSIGNMENT NOTIFICATION
-const notifyCollectorAssigned = async (userId, collectorData) => {
+// 4. CASH PAYMENT CONFIRMATION NOTIFICATION
+const notifyPaymentCollected = async (userId, amount, collectorName = 'Collector') => {
   try {
+    const paymentTime = new Date().toLocaleString('en-US', {
+      timeZone: 'Asia/Manila',
+      hour12: true,
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit'
+    });
+    
     await createUserNotification(
       userId,
-      '👷 Collector Assigned',
-      `${collectorData.collector_name} has been assigned to your area for waste collection. Contact: ${collectorData.phone || 'N/A'}`,
-      'collector_assigned'
+      '💰 Payment Collected',
+      `Your cash payment of ₱${amount} has been successfully collected by ${collectorName} at ${paymentTime}. Your subscription is now active!`,
+      'payment_collected'
     );
+    
+    console.log(`💰 Payment collection notification sent to user ${userId}`);
   } catch (error) {
-    console.error('❌ Failed to send collector assignment notification:', error);
-    throw error;
+    console.error('❌ Error sending payment collection notification:', error);
   }
 };
 
@@ -161,8 +194,8 @@ const notifyCollectionDelay = async (affectedUserIds, delayData) => {
 module.exports = {
   sendCollectionReminders,
   notifyCollectionCompleted,
-  notifyScheduleChange,
-  notifyCollectorAssigned,
+  notifyMissedCollection,
+  notifyPaymentCollected,
   notifyCollectionSuspensionWarning,
   notifyCollectionSuspended,
   notifyCollectionDelay

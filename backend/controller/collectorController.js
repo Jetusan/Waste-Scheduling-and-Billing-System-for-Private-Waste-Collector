@@ -1,8 +1,10 @@
 const { query } = require('../config/db');
 const {
   notifyCollectionCompleted,
-  notifyCollectorAssigned
+  notifyMissedCollection,
+  notifyPaymentCollected
 } = require('../services/collectionNotificationService');
+const routeOptimizationService = require('../services/routeOptimizationService');
 
 // Get collector dashboard stats
 const getDashboardStats = async (req, res) => {

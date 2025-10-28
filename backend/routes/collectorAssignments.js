@@ -6,6 +6,7 @@ const path = require('path');
 const { authenticateJWT } = require('../middleware/auth');
 const { handleMissedCollectionWithNextSchedule } = require('./nextScheduleCalculator');
 const { emitCollectionUpdate, emitStatsUpdate, emitAdminUpdate, emitResidentNotification } = require('../services/websocketService');
+const { notifyCollectionCompleted, notifyMissedCollection, notifyPaymentCollected } = require('../services/collectionNotificationService');
 
 // GET /api/collector/assignments/today?collector_id=123
 // Returns a lightweight assignment object and a list of resident stops for barangays scheduled today.
@@ -500,16 +501,39 @@ async function handleEvent(req, res, action) {
         }
       } catch (e) {
         console.warn('Failed to handle next schedule calculation:', e.message);
-        // Fallback to original notification
+        // Enhanced missed collection notifications
         if (missed_reason !== 'collector_fault') {
+          await notifyMissedCollection(user_id, missed_reason || 'Not available');
           await notifyResident(user_id, 'Collection missed', 'We could not collect today. We\'ll try again on your next scheduled pickup.');
           await notifyAdmins('Missed (Resident)', `Resident-fault missed for user ${user_id}. Will roll over to next schedule. Collector #${collector_id}.`);
         }
       }
     }
     if (action === 'collected') {
-      await notifyResident(user_id, 'Collection completed', 'Your waste was collected today. Thank you!');
-      await notifyAdmins('Collected', `Collected by collector #${collector_id} for user ${user_id} (schedule ${schedule_id || 'N/A'}).`);
+      // Get collector name for enhanced notifications
+      let collectorName = 'Collector';
+      try {
+        const collectorQuery = `
+          SELECT u.username, COALESCE(un.first_name || ' ' || un.last_name, u.username) as full_name
+          FROM collectors c
+          JOIN users u ON c.user_id = u.user_id
+          LEFT JOIN user_names un ON u.name_id = un.name_id
+          WHERE c.collector_id = $1
+        `;
+        const collectorResult = await pool.query(collectorQuery, [collector_id]);
+        if (collectorResult.rows.length > 0) {
+          collectorName = collectorResult.rows[0].full_name || collectorResult.rows[0].username;
+        }
+      } catch (err) {
+        console.warn('Failed to get collector name:', err.message);
+      }
+
+      // Enhanced notification with collector name and amount if available
+      await notifyCollectionCompleted(user_id, collectorName, amount);
+      
+      // Legacy notification for backward compatibility
+      await notifyResident(user_id, 'Collection completed', `Your waste was collected by ${collectorName}. Thank you!`);
+      await notifyAdmins('Collected', `Collected by ${collectorName} (ID: ${collector_id}) for user ${user_id} (schedule ${schedule_id || 'N/A'}).`);
       
       // Emit real-time WebSocket updates
       try {

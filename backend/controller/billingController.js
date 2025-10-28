@@ -16,6 +16,7 @@ const {
   notifyLateFeeAdded,
   notifyMonthlyInvoicesGenerated
 } = require('../services/subscriptionNotificationService');
+const { notifyPaymentCollected } = require('../services/collectionNotificationService');
 
 // Subscription Plans Controllers
 const getAllSubscriptionPlans = async (req, res) => {
@@ -1211,6 +1212,27 @@ const confirmCashPayment = async (req, res) => {
 
     // Send notifications
     try {
+      // Get collector name for enhanced notification
+      let collectorName = 'Collector';
+      try {
+        const collectorQuery = `
+          SELECT u.username, COALESCE(un.first_name || ' ' || un.last_name, u.username) as full_name
+          FROM collectors c
+          JOIN users u ON c.user_id = u.user_id
+          LEFT JOIN user_names un ON u.name_id = un.name_id
+          WHERE c.collector_id = $1
+        `;
+        const collectorResult = await pool.query(collectorQuery, [collector_id]);
+        if (collectorResult.rows.length > 0) {
+          collectorName = collectorResult.rows[0].full_name || collectorResult.rows[0].username;
+        }
+      } catch (err) {
+        console.warn('Failed to get collector name:', err.message);
+      }
+
+      // Enhanced payment collection notification
+      await notifyPaymentCollected(activatedSubscription.user_id, paymentData.amount, collectorName);
+      
       await notifyPaymentConfirmed(activatedSubscription.user_id, {
         amount: paymentData.amount,
         method: 'Cash',

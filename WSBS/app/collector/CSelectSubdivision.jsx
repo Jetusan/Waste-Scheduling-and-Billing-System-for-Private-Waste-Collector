@@ -134,19 +134,12 @@ const CSelectSubdivision = () => {
         
         // Check if this is VSM Heights Phase 1 and not collection day
         const isVSM = subdivision.subdivision_name?.toLowerCase().includes('vsm');
-        const isMondayTest = subdivision.subdivision_name?.toLowerCase().includes('monday test');
         const isCollectionDay = ['Wednesday', 'Thursday', 'Friday'].includes(today);
         
         if (isVSM && !isCollectionDay) {
           Alert.alert(
             'Collection Day Notice',
             `VSM Heights Phase 1 collection is scheduled for Wednesday, Thursday, and Friday only.\n\nToday is ${today}. Please return on a collection day.`,
-            [{ text: 'OK' }]
-          );
-        } else if (isMondayTest) {
-          Alert.alert(
-            'Test Area Notice',
-            `Monday Test Area is available for collection testing on any day.\n\nToday is ${today}. This area is used for demonstration purposes.`,
             [{ text: 'OK' }]
           );
         } else {
@@ -179,12 +172,11 @@ const CSelectSubdivision = () => {
   const renderSubdivisionCard = (subdivision) => {
     const collectionCount = collectionCounts[subdivision.subdivision_id] || 0;
     const isVSM = subdivision.subdivision_name?.toLowerCase().includes('vsm');
-    const isMondayTest = subdivision.subdivision_name?.toLowerCase().includes('monday test');
     const today = new Date().toLocaleDateString('en-US', { weekday: 'long', timeZone: 'Asia/Manila' });
     const isCollectionDay = ['Wednesday', 'Thursday', 'Friday'].includes(today);
     
     // Determine availability
-    const isAvailable = isMondayTest || (isVSM && isCollectionDay) || (!isVSM && !isMondayTest);
+    const isAvailable = (isVSM && isCollectionDay) || !isVSM;
     
     return (
       <TouchableOpacity
@@ -192,7 +184,6 @@ const CSelectSubdivision = () => {
         style={[
           styles.subdivisionCard,
           isVSM && styles.vsmCard,
-          isMondayTest && styles.testCard,
           !isAvailable && styles.unavailableCard
         ]}
         onPress={() => handleSubdivisionSelect(subdivision)}
@@ -201,32 +192,25 @@ const CSelectSubdivision = () => {
         <View style={styles.cardContent}>
           <View style={[
             styles.iconContainer, 
-            isVSM && styles.vsmIconContainer,
-            isMondayTest && styles.testIconContainer
+            isVSM && styles.vsmIconContainer
           ]}>
             <Ionicons 
-              name={isVSM ? "home" : isMondayTest ? "flask" : "location"} 
+              name={isVSM ? "home" : "location"} 
               size={28} 
-              color={isVSM ? "#4CAF50" : isMondayTest ? "#FF9800" : "#2196F3"} 
+              color={isVSM ? "#4CAF50" : "#2196F3"} 
             />
           </View>
           
           <View style={styles.subdivisionInfo}>
             <Text style={[
               styles.subdivisionName, 
-              isVSM && styles.vsmName,
-              isMondayTest && styles.testName
+              isVSM && styles.vsmName
             ]}>
               {subdivision.subdivision_name}
             </Text>
             {isVSM && (
               <View style={styles.priorityBadge}>
                 <Text style={styles.priorityText}>PRIORITY AREA</Text>
-              </View>
-            )}
-            {isMondayTest && (
-              <View style={styles.testBadge}>
-                <Text style={styles.testText}>TEST AREA</Text>
               </View>
             )}
             <Text style={styles.collectionCount}>
