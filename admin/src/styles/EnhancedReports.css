@@ -87,6 +87,48 @@
   margin-bottom: 2rem;
 }
 
+.info-card-single {
+  background: white;
+  padding: 2rem;
+  border-radius: 15px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.info-card-single::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(135deg, #4CAF50, #45a049);
+}
+
+.info-card-single .card-icon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+  display: block;
+  color: #4CAF50;
+}
+
+.info-card-single h4 {
+  color: #2c3e50;
+  font-size: 1.6rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+}
+
+.info-card-single p {
+  color: #7f8c8d;
+  line-height: 1.6;
+  margin: 0;
+  font-size: 1.1rem;
+}
+
 .info-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));

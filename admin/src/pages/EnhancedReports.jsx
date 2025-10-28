@@ -10,9 +10,8 @@ const EnhancedReports = () => {
   const [showModal, setShowModal] = useState(false);
   const [reportPreview, setReportPreview] = useState(null);
   
-  // Enhanced report form with your requested structure
+  // Simplified report form - reports only
   const [reportForm, setReportForm] = useState({
-    type: 'financial', // financial, collection, combined
     period: 'monthly', // monthly, annual
     year: new Date().getFullYear(),
     month: new Date().getMonth() + 1,
@@ -52,7 +51,7 @@ const EnhancedReports = () => {
       }
 
       const requestData = {
-        type: reportForm.type,
+        type: 'combined', // Always generate combined reports
         period: reportForm.period,
         start_date: startDate,
         end_date: endDate,
@@ -106,12 +105,12 @@ const EnhancedReports = () => {
       const link = document.createElement('a');
       link.href = url;
       
-      // Generate filename based on report type and period
+      // Generate filename based on period
       const periodText = reportForm.period === 'monthly' 
         ? `${months[reportForm.month - 1]}_${reportForm.year}`
         : `Annual_${reportForm.year}`;
       
-      link.download = `WSBS_${reportData.type}_Report_${periodText}.pdf`;
+      link.download = `WSBS_Report_${periodText}.pdf`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -146,24 +145,10 @@ const EnhancedReports = () => {
       </div>
 
       <div className="reports-info">
-        <div className="info-grid">
-          <div className="info-card financial">
-            <div className="card-icon">💰</div>
-            <h4>Financial Reports</h4>
-            <p>Billing, payments, and revenue analysis with detailed transaction records</p>
-          </div>
-          
-          <div className="info-card collection">
-            <div className="card-icon">🚛</div>
-            <h4>Collection Reports</h4>
-            <p>Waste collection activities, routes, and operational performance</p>
-          </div>
-          
-          <div className="info-card combined">
-            <div className="card-icon">📊</div>
-            <h4>Combined Reports</h4>
-            <p>Comprehensive overview including both financial and collection data</p>
-          </div>
+        <div className="info-card-single">
+          <div className="card-icon">📊</div>
+          <h4>WSBS Business Reports</h4>
+          <p>Comprehensive business reports including billing, payments, collections, and operational data. Generate monthly or annual reports with professional WSBS branding.</p>
         </div>
       </div>
 
@@ -188,56 +173,6 @@ const EnhancedReports = () => {
             </div>
 
             <form onSubmit={handleGenerateReport} className="enhanced-form">
-              {/* Report Type Selection */}
-              <div className="form-section">
-                <h4><i className="fas fa-chart-bar"></i> Report Type</h4>
-                <div className="report-type-grid">
-                  <label className={`report-type-card ${reportForm.type === 'financial' ? 'selected' : ''}`}>
-                    <input
-                      type="radio"
-                      name="type"
-                      value="financial"
-                      checked={reportForm.type === 'financial'}
-                      onChange={(e) => setReportForm(prev => ({ ...prev, type: e.target.value }))}
-                    />
-                    <div className="card-content">
-                      <div className="card-icon">💰</div>
-                      <h5>Financial Report</h5>
-                      <p>Payments, billing, revenue</p>
-                    </div>
-                  </label>
-                  
-                  <label className={`report-type-card ${reportForm.type === 'collection' ? 'selected' : ''}`}>
-                    <input
-                      type="radio"
-                      name="type"
-                      value="collection"
-                      checked={reportForm.type === 'collection'}
-                      onChange={(e) => setReportForm(prev => ({ ...prev, type: e.target.value }))}
-                    />
-                    <div className="card-content">
-                      <div className="card-icon">🚛</div>
-                      <h5>Collection Report</h5>
-                      <p>Waste collection activities</p>
-                    </div>
-                  </label>
-                  
-                  <label className={`report-type-card ${reportForm.type === 'combined' ? 'selected' : ''}`}>
-                    <input
-                      type="radio"
-                      name="type"
-                      value="combined"
-                      checked={reportForm.type === 'combined'}
-                      onChange={(e) => setReportForm(prev => ({ ...prev, type: e.target.value }))}
-                    />
-                    <div className="card-content">
-                      <div className="card-icon">📊</div>
-                      <h5>Combined Report</h5>
-                      <p>Complete overview</p>
-                    </div>
-                  </label>
-                </div>
-              </div>
 
               {/* Period Selection */}
               <div className="form-section">
@@ -345,7 +280,7 @@ const EnhancedReports = () => {
                     <strong>System:</strong> WSBS Management
                   </div>
                   <div className="preview-item">
-                    <strong>Type:</strong> {reportForm.type.charAt(0).toUpperCase() + reportForm.type.slice(1)} Report
+                    <strong>Type:</strong> Business Report
                   </div>
                   <div className="preview-item">
                     <strong>Period:</strong> 
