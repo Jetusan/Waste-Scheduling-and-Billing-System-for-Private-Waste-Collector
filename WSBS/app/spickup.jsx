@@ -27,6 +27,7 @@ import { API_BASE_URL } from './config';
 import RequestChatSection from './components/RequestChatSection';
 import WasteTypeBagSelector from '../components/WasteTypeBagSelector';
 import SmartDatePicker from './components/SmartDatePicker';
+import pricingService from './services/pricingService';
 
 const SPickup = () => {
   const router = useRouter();
@@ -56,6 +57,9 @@ const SPickup = () => {
   const [expandedChat, setExpandedChat] = useState(null);
   const [unreadMessages, setUnreadMessages] = useState({});
   const [requestsLoading, setRequestsLoading] = useState(true);
+  
+  // Dynamic pricing state
+  const [pricePerBag, setPricePerBag] = useState(25); // Default fallback
   
   // Map states
   const [mapRef, setMapRef] = useState(null);
@@ -324,9 +328,23 @@ const SPickup = () => {
     }
   };
 
-  // Fetch requests on component mount
+  // Load dynamic pricing
+  const loadDynamicPricing = async () => {
+    try {
+      console.log('🔄 Loading dynamic pricing for special pickup page...');
+      const specialPickupPricing = await pricingService.getSpecialPickupPricing();
+      setPricePerBag(specialPickupPricing.pricePerBag);
+      console.log('✅ Dynamic pricing loaded:', specialPickupPricing.pricePerBag);
+    } catch (error) {
+      console.error('❌ Error loading dynamic pricing:', error);
+      console.log('⚠️ Using fallback pricing: ₱25');
+    }
+  };
+
+  // Fetch requests and pricing on component mount
   useEffect(() => {
     fetchSpecialRequests();
+    loadDynamicPricing();
   }, []);
 
   const checkLocationPermission = async () => {
@@ -507,7 +525,7 @@ const SPickup = () => {
       formData.append('pickup_date', date ? date.toISOString().split('T')[0] : '');
       formData.append('address', address);
       formData.append('bag_quantity', totalBags.toString());
-      formData.append('estimated_total', (totalBags * 25).toString());
+      formData.append('estimated_total', (totalBags * pricePerBag).toString());
       formData.append('notes', notes);
       formData.append('message', message);
       
@@ -734,7 +752,7 @@ const SPickup = () => {
                     <View style={styles.bagQuantityContainer}>
                       <Ionicons name="bag-outline" size={16} color="#666" />
                       <Text style={styles.bagQuantityText}>
-                        {request.bag_quantity} {request.bag_quantity === 1 ? 'bag' : 'bags'} × ₱25
+                        {request.bag_quantity} {request.bag_quantity === 1 ? 'bag' : 'bags'} × ₱{pricePerBag}
                       </Text>
                     </View>
                   )}
@@ -796,7 +814,7 @@ const SPickup = () => {
         <WasteTypeBagSelector 
           wasteSelections={wasteSelections}
           setWasteSelections={setWasteSelections}
-          pricePerBag={25}
+          pricePerBag={pricePerBag}
         />
 
         {/* Date & Time Section - Using Smart Date Picker */}

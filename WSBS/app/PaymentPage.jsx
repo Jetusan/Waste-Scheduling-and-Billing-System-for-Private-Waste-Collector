@@ -172,7 +172,7 @@ const PaymentPage = ({
                        selectedPaymentMethod.id === 'manual_gcash' ? 'manual_gcash' : 'cash'
       };
 
-      const subscriptionResponse = await fetch(`${API_BASE_URL}/api/billing/mobile-subscription`, {
+      const subscriptionResponse = await fetch(`${API_BASE_URL}/api/subscription/create-mobile-subscription`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -201,7 +201,7 @@ const PaymentPage = ({
           params: {
             subscription: JSON.stringify(subscriptionResult.subscription),
             amount: selectedPlanData.priceValue.toString(),
-            subscription_id: subscriptionResult.subscription.id.toString()
+            subscription_id: subscriptionResult.subscription.subscription_id.toString()
           }
         });
       } else {

@@ -40,6 +40,7 @@ const collectorSubdivisionRoutes = require('./routes/collectorSubdivisions');
 const userLedgerRouter = require('./routes/userLedger');
 const pricingRouter = require('./routes/pricing');
 const lateFeesRouter = require('./routes/lateFees');
+const subscriptionRouter = require('./routes/subscription');
 
 const app = express();
 
@@ -131,6 +132,7 @@ app.use('/api/collector/emergency', collectorEmergencyRouter);
 app.use('/api/reports', reportsRouter);
 app.use('/api/analytics', issueAnalyticsRouter);
 app.use('/api/manual-payments', manualPaymentsRouter);
+app.use('/api/subscription', subscriptionRouter);
 app.use('/api/testing', testingHelpersRouter);
 app.use('/api/webhooks', require('./routes/webhooks'));
 app.use('/', demoPaymentRouter); // Demo payment routes for defense

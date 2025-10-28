@@ -75,11 +75,12 @@ router.get('/user-ledger/:userId', async (req, res) => {
         SELECT 
           i.created_at as date,
           CASE 
-            WHEN COALESCE(i.description, '') ILIKE '%special%' THEN 'Special Pickup - ' || COALESCE(i.description, 'Service')
-            WHEN COALESCE(i.description, '') ILIKE '%late%' THEN 'Late Payment Fee'
-            WHEN COALESCE(i.description, '') ILIKE '%subscription%' THEN 
-              TO_CHAR(i.created_at, 'Month YYYY') || ' Subscription'
-            ELSE COALESCE(i.description, 'Subscription Fee')
+            WHEN COALESCE(i.description, '') ILIKE '%special%' OR i.invoice_number LIKE 'SP-%' THEN 
+              'Special Pickup - ' || COALESCE(i.description, 'Special Pickup Service')
+            WHEN COALESCE(i.description, '') ILIKE '%late%' THEN 
+              'Late Payment Fee'
+            ELSE 
+              'Monthly Subscription Fee'
           END as description,
           COALESCE(i.invoice_number, CONCAT('INV-', i.invoice_id)) as reference,
           i.amount as debit,
@@ -94,8 +95,13 @@ router.get('/user-ledger/:userId', async (req, res) => {
         -- Payment entries (credits)
         SELECT 
           p.payment_date as date,
-          'Payment Received - ' || COALESCE(p.payment_method, 'Unknown Method') as description,
-          COALESCE(p.reference_number, 'PAY-' || p.payment_id) as reference,
+          CASE 
+            WHEN COALESCE(p.payment_method, '') ILIKE '%gcash%' THEN 'Payment Received - Manual GCash'
+            WHEN COALESCE(p.payment_method, '') ILIKE '%cash%' THEN 'Payment Received - cash'
+            WHEN COALESCE(p.reference_number, '') LIKE 'SP-%' THEN 'Payment Received - cash'
+            ELSE 'Payment Received - ' || COALESCE(p.payment_method, 'Unknown Method')
+          END as description,
+          COALESCE(p.reference_number, 'AUTO-' || EXTRACT(EPOCH FROM p.payment_date)::bigint) as reference,
           0 as debit,
           p.amount as credit,
           'payment' as entry_type,
@@ -106,9 +112,10 @@ router.get('/user-ledger/:userId', async (req, res) => {
       ),
       ledger_with_balance AS (
         SELECT *,
-          SUM(debit - credit) OVER (ORDER BY sort_date, entry_type DESC) as balance
+          SUM(debit - credit) OVER (ORDER BY sort_date, 
+            CASE WHEN entry_type = 'invoice' THEN 1 ELSE 2 END) as balance
         FROM ledger_entries
-        ORDER BY sort_date, entry_type DESC
+        ORDER BY sort_date, CASE WHEN entry_type = 'invoice' THEN 1 ELSE 2 END
       )
       SELECT 
         date,
@@ -118,7 +125,7 @@ router.get('/user-ledger/:userId', async (req, res) => {
         CASE WHEN credit > 0 THEN credit ELSE NULL END as credit,
         balance
       FROM ledger_with_balance
-      ORDER BY sort_date, entry_type DESC
+      ORDER BY sort_date, CASE WHEN entry_type = 'invoice' THEN 1 ELSE 2 END
     `;
 
     const result = await pool.query(query, [userId]);
