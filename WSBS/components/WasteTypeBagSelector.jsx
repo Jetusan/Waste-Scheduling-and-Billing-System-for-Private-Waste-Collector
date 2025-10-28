@@ -16,19 +16,28 @@ const WasteTypeBagSelector = ({ wasteSelections, setWasteSelections, pricePerBag
 
   const loadDynamicPricing = async () => {
     try {
+      console.log('🔄 Loading dynamic pricing for special pickup...');
+      
+      // Clear cache to ensure we get fresh pricing
+      pricingService.clearCache();
+      
       const specialPickupPricing = await pricingService.getSpecialPickupPricing();
+      console.log('💰 Raw pricing response:', specialPickupPricing);
+      
       setDynamicPricing({
         pricePerBag: specialPickupPricing.pricePerBag,
         loading: false
       });
-      console.log('💰 Dynamic pricing loaded:', specialPickupPricing);
+      console.log('✅ Dynamic pricing set to:', specialPickupPricing.pricePerBag);
     } catch (error) {
       console.error('❌ Error loading dynamic pricing:', error);
       // Use fallback pricing
+      const fallbackPrice = propPricePerBag || 25;
       setDynamicPricing({
-        pricePerBag: propPricePerBag || 25,
+        pricePerBag: fallbackPrice,
         loading: false
       });
+      console.log('⚠️ Using fallback pricing:', fallbackPrice);
     }
   };
 

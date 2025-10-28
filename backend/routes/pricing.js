@@ -121,9 +121,14 @@ router.get('/current-pricing', async (req, res) => {
     let config = getDefaultPricingConfig();
     if (configResult.rows.length > 0) {
       config = configResult.rows[0].config_data;
+      console.log('📊 Using database pricing config:', {
+        specialPickupPrice: config.specialPickup?.pricePerBag,
+        subscriptionPrice: config.subscription?.fullPlan?.price
+      });
     } else {
       // Insert default config if none exists
       await insertDefaultPricingConfig(config);
+      console.log('📊 Using default pricing config (no database config found)');
     }
     
     console.log('✅ Current pricing retrieved for mobile app');
@@ -224,7 +229,7 @@ function getDefaultPricingConfig() {
       }
     },
     specialPickup: {
-      pricePerBag: 25.00
+      pricePerBag: 30.00
     },
     lateFees: {
       lateFeeAmount: 50.00,

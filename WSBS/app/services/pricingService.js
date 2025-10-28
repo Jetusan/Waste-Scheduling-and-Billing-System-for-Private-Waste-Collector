@@ -66,9 +66,18 @@ class PricingService {
   // Get special pickup pricing
   async getSpecialPickupPricing() {
     const pricing = await this.getCurrentPricing();
+    console.log('🔍 Full pricing config:', pricing);
+    console.log('🎯 Special pickup section:', pricing.specialPickup);
     return {
       pricePerBag: pricing.specialPickup?.pricePerBag || 25.00
     };
+  }
+
+  // Clear cache to force fresh fetch
+  clearCache() {
+    this.cachedPricing = null;
+    this.lastFetchTime = null;
+    console.log('🗑️ Pricing cache cleared');
   }
 
   // Calculate special pickup total with discounts

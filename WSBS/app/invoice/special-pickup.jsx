@@ -99,28 +99,54 @@ const SpecialPickupInvoice = () => {
       const token = await getToken();
       const userId = await getUserId();
       
+      // Validate required data before submission
+      if (!invoiceData.requestData.wasteTypes || !invoiceData.requestData.bagQuantity || !invoiceData.requestData.pickupDate) {
+        throw new Error('Missing required fields: waste types, bag quantity, or pickup date');
+      }
+      
+      if (!userId) {
+        throw new Error('User not authenticated. Please log in again.');
+      }
+      
+      // Helper function to truncate text to fit database constraints
+      const truncateText = (text, maxLength) => {
+        if (!text) return "";
+        return text.length > maxLength ? text.substring(0, maxLength - 3) + "..." : text;
+      };
+
       // Prepare the final request data with proper field mapping for backend
-      const finalRequestData = {
+      const requestData = {
         user_id: userId,
-        waste_type: invoiceData.requestData.wasteTypes,
-        description: invoiceData.requestData.wasteTypes, // Use waste types as description
-        pickup_date: invoiceData.requestData.pickupDate,
+        waste_type: truncateText(invoiceData.requestData.wasteTypes, 50), // Limit to 50 chars
+        description: invoiceData.requestData.wasteTypes, // Full description (TEXT field, no limit)
+        pickup_date: new Date(invoiceData.requestData.pickupDate).toISOString().split('T')[0], // Format as YYYY-MM-DD
         pickup_time: '09:00:00', // Default time since it's required by database
         address: invoiceData.requestData.address || 'Location will be confirmed by collector', // Required field
-        notes: invoiceData.requestData.notes || null,
-        message: invoiceData.requestData.message || null,
-        pickup_latitude: invoiceData.requestData.pickupLocation?.latitude || null,
-        pickup_longitude: invoiceData.requestData.pickupLocation?.longitude || null,
-        bag_quantity: invoiceData.requestData.bagQuantity,
-        price_per_bag: invoiceData.pricing.pricePerBag,
-        estimated_total: invoiceData.pricing.finalPrice,
-        final_price: invoiceData.pricing.finalPrice,
-        discount_applied: invoiceData.pricing.discount,
-        discount_reason: invoiceData.pricing.discountReason,
+        notes: invoiceData.requestData.notes || "",
+        message: invoiceData.requestData.message || "",
+        bag_quantity: parseInt(invoiceData.requestData.bagQuantity) || 1,
+        price_per_bag: parseFloat(invoiceData.pricing.pricePerBag) || 25.00,
+        estimated_total: parseFloat(invoiceData.pricing.finalPrice) || 25.00,
+        final_price: parseFloat(invoiceData.pricing.finalPrice) || 25.00,
+        discount_applied: parseFloat(invoiceData.pricing.discount) || 0,
+        discount_reason: invoiceData.pricing.discountReason || "",
         invoice_number: invoiceData.invoiceNumber
       };
+
+      // Only include GPS coordinates if they're actually provided
+      if (invoiceData.requestData.pickupLocation?.latitude && invoiceData.requestData.pickupLocation?.longitude) {
+        requestData.pickup_latitude = parseFloat(invoiceData.requestData.pickupLocation.latitude);
+        requestData.pickup_longitude = parseFloat(invoiceData.requestData.pickupLocation.longitude);
+      }
+
+      const finalRequestData = requestData;
       
       console.log('🔄 Submitting special pickup request:', finalRequestData);
+      console.log('📅 Pickup date formatted:', finalRequestData.pickup_date);
+      console.log('🆔 User ID:', finalRequestData.user_id);
+      console.log('📦 Bag quantity:', finalRequestData.bag_quantity, typeof finalRequestData.bag_quantity);
+      console.log('🗂️ Waste type (truncated):', finalRequestData.waste_type);
+      console.log('📝 Full description:', finalRequestData.description);
       
       const response = await fetch(`${API_BASE_URL}/api/special-pickup`, {
         method: 'POST',
