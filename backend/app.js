@@ -39,11 +39,15 @@ const testingHelpersRouter = require('./routes/testingHelpers');
 const collectorSubdivisionRoutes = require('./routes/collectorSubdivisions');
 const userLedgerRouter = require('./routes/userLedger');
 const pricingRouter = require('./routes/pricing');
+const lateFeesRouter = require('./routes/lateFees');
 
 const app = express();
 
 // Initialize automated notification scheduler
 const { initializeNotificationScheduler } = require('./services/automatedNotificationScheduler');
+
+// Initialize late fee scheduler
+const lateFeeScheduler = require('./services/lateFeeScheduler');
 
 // Middleware
 // Configure CORS with allowlist from config
@@ -103,6 +107,7 @@ app.use('/api/special-pickup', specialPickupRouter);
 app.use('/api/admin', require('./routes/adminAuth')); // Add admin auth routes
 app.use('/api/admin', pricingRouter); // Add pricing management routes
 app.use('/api/pricing', pricingRouter); // Add public pricing routes for mobile app
+app.use('/api/admin/late-fees', lateFeesRouter); // Add late fees management routes
 app.use('/api/barangays', barangaysRouter); // Enable barangays route
 app.use('/api/special-pickup', specialPickupRouter); // Special pickup route
 // UserCollector related routes - all enabled

@@ -54,6 +54,9 @@ const App = () => {
           {/* Billing Routes */}
           <Route path="billing" element={<Billing />} />
           
+          {/* Pricing Routes */}
+          <Route path="pricing" element={<Pricing />} />
+          
           {/* Insights Routes */}
           <Route path="insights">
             <Route index element={<Navigate to="reports" replace />} />
@@ -64,7 +67,6 @@ const App = () => {
           <Route path="settings">
             <Route index element={<Navigate to="notifications" replace />} />
             <Route path="notifications" element={<Notifications />} />
-            <Route path="pricing" element={<Pricing />} />
             <Route path="about" element={<About />} />
           </Route>
           

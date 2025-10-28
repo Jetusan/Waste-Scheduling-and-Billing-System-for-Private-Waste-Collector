@@ -32,6 +32,12 @@ const navConfig = [
     description: 'Financial Management'
   },
   {
+    title: 'Pricing Management',
+    icon: 'fas fa-dollar-sign',
+    path: '/admin/pricing',
+    description: 'Manage Service Pricing'
+  },
+  {
     title: 'Reports',
     icon: 'fas fa-chart-line',
     key: 'insights',
@@ -47,7 +53,6 @@ const navConfig = [
     description: 'System Configuration',
     items: [
       { title: 'Notifications', icon: 'fas fa-bell', path: '/admin/settings/notifications' },
-      { title: 'Pricing Management', icon: 'fas fa-dollar-sign', path: '/admin/settings/pricing' },
       { title: 'About', icon: 'fas fa-info-circle', path: '/admin/settings/about' }
     ]
   }
@@ -60,9 +65,9 @@ const pageTitles = {
   '/admin/operations/subscribers': 'Users & Residents',
   '/admin/operations/assignments': 'Collector Assignments',
   '/admin/billing': 'Billing',
+  '/admin/pricing': 'Pricing Management',
   '/admin/insights/reports': 'System Reports',
   '/admin/settings/notifications': 'Notifications',
-  '/admin/settings/pricing': 'Pricing Management',
   '/admin/settings/about': 'About',
   '/admin/profile': 'Profile Settings'
 };

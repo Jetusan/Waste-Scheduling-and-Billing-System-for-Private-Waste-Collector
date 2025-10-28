@@ -177,42 +177,6 @@ const Pricing = () => {
               </p>
             </div>
 
-            <div className="pricing-card">
-              <h4>Extra Bag Cost</h4>
-              <div className="price-input-group">
-                <span className="currency">₱</span>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={pricingConfig.subscription.fullPlan.extraBagCost}
-                  onChange={(e) => updateNestedPricing('subscription', 'fullPlan', 'extraBagCost', e.target.value)}
-                  disabled={!editMode}
-                  className="price-input"
-                />
-                <span className="period">/bag</span>
-              </div>
-              <p className="price-description">
-                Additional cost for bags exceeding monthly limit
-              </p>
-            </div>
-
-            <div className="pricing-card">
-              <h4>Pre-termination Fee</h4>
-              <div className="price-input-group">
-                <span className="currency">₱</span>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={pricingConfig.subscription.fullPlan.preTerminationFee}
-                  onChange={(e) => updateNestedPricing('subscription', 'fullPlan', 'preTerminationFee', e.target.value)}
-                  disabled={!editMode}
-                  className="price-input"
-                />
-              </div>
-              <p className="price-description">
-                Fee for early contract termination
-              </p>
-            </div>
           </div>
         </div>
 
@@ -328,90 +292,6 @@ const Pricing = () => {
           </div>
         </div>
 
-        {/* Discounts */}
-        <div className="pricing-section">
-          <div className="section-header">
-            <h3>💰 Discounts & Promotions</h3>
-            <p>Special pricing for eligible customers</p>
-          </div>
-          
-          <div className="pricing-grid">
-            <div className="pricing-card">
-              <h4>Senior Citizen Discount</h4>
-              <div className="price-input-group">
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  max="1"
-                  value={pricingConfig.discounts.seniorCitizenDiscount}
-                  onChange={(e) => updateNestedPricing('discounts', 'seniorCitizenDiscount', null, e.target.value)}
-                  disabled={!editMode}
-                  className="price-input"
-                />
-                <span className="period">%</span>
-              </div>
-              <p className="price-description">
-                Discount rate for senior citizens (0.20 = 20%)
-              </p>
-            </div>
-
-            <div className="pricing-card">
-              <h4>PWD Discount</h4>
-              <div className="price-input-group">
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  max="1"
-                  value={pricingConfig.discounts.pwdDiscount}
-                  onChange={(e) => updateNestedPricing('discounts', 'pwdDiscount', null, e.target.value)}
-                  disabled={!editMode}
-                  className="price-input"
-                />
-                <span className="period">%</span>
-              </div>
-              <p className="price-description">
-                Discount rate for PWD (0.20 = 20%)
-              </p>
-            </div>
-
-            <div className="pricing-card">
-              <h4>Bulk Discount</h4>
-              <div className="bulk-discount-inputs">
-                <div className="price-input-group">
-                  <label>Threshold:</label>
-                  <input
-                    type="number"
-                    min="1"
-                    value={pricingConfig.discounts.bulkDiscount.threshold}
-                    onChange={(e) => updateNestedPricing('discounts', 'bulkDiscount', 'threshold', e.target.value)}
-                    disabled={!editMode}
-                    className="price-input small"
-                  />
-                  <span className="period">bags</span>
-                </div>
-                <div className="price-input-group">
-                  <label>Discount:</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    max="1"
-                    value={pricingConfig.discounts.bulkDiscount.discountRate}
-                    onChange={(e) => updateNestedPricing('discounts', 'bulkDiscount', 'discountRate', e.target.value)}
-                    disabled={!editMode}
-                    className="price-input small"
-                  />
-                  <span className="period">%</span>
-                </div>
-              </div>
-              <p className="price-description">
-                Discount for special pickup orders above threshold
-              </p>
-            </div>
-          </div>
-        </div>
 
         {/* Pricing Summary */}
         <div className="pricing-section">
@@ -430,16 +310,8 @@ const Pricing = () => {
               <span className="summary-value">{formatCurrency(pricingConfig.specialPickup.pricePerBag)}</span>
             </div>
             <div className="summary-row">
-              <span className="summary-label">Extra Bags (subscription):</span>
-              <span className="summary-value">{formatCurrency(pricingConfig.subscription.fullPlan.extraBagCost)}</span>
-            </div>
-            <div className="summary-row">
               <span className="summary-label">Late Fee:</span>
               <span className="summary-value">{formatCurrency(pricingConfig.lateFees.lateFeeAmount)}</span>
-            </div>
-            <div className="summary-row">
-              <span className="summary-label">Senior/PWD Discount:</span>
-              <span className="summary-value">{(pricingConfig.discounts.seniorCitizenDiscount * 100).toFixed(0)}%</span>
             </div>
           </div>
         </div>

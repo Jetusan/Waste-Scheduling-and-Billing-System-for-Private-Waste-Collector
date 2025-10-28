@@ -124,6 +124,15 @@ const server = app.listen(PORT, '0.0.0.0', () => {
   
   // Initialize WebSocket after server starts
   initializeWebSocket(server);
+  
+  // Initialize late fee scheduler
+  try {
+    const lateFeeScheduler = require('./services/lateFeeScheduler');
+    lateFeeScheduler.start();
+    console.log('✅ Late fee scheduler initialized');
+  } catch (error) {
+    console.error('❌ Failed to initialize late fee scheduler:', error);
+  }
 });
 
 server.on('error', (err) => {
