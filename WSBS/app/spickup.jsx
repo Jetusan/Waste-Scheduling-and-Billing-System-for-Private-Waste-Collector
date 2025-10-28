@@ -24,13 +24,12 @@ import { getToken, getUserId, logout } from './auth';
 import { extractUserId, formatUserIdForAPI, isValidUserId, USER_ID_ERRORS } from './utils/userIdStandardization';
 import { API_BASE_URL } from './config';
 import RequestChatSection from './components/RequestChatSection';
-import BagQuantitySelector from '../components/BagQuantitySelector';
+import WasteTypeBagSelector from '../components/WasteTypeBagSelector';
 import SmartDatePicker from './components/SmartDatePicker';
 
 const SPickup = () => {
   const router = useRouter();
-  const [wasteTypes, setWasteTypes] = useState([]); // Changed to array for multiple selection
-  const [description, setDescription] = useState('');
+  const [wasteSelections, setWasteSelections] = useState({}); // Changed to object for waste type + bag quantities
   const [date, setDate] = useState(null);
   const [time, setTime] = useState(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -39,7 +38,6 @@ const SPickup = () => {
   const [notes, setNotes] = useState('');
   const [message, setMessage] = useState('');
   const [image, setImage] = useState(null);
-  const [bagQuantity, setBagQuantity] = useState(1); // New state for bag quantity
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [currentUserId, setCurrentUserId] = useState(null);
   const [userProfile, setUserProfile] = useState(null);
@@ -380,9 +378,15 @@ const SPickup = () => {
   };
 
   const handleSubmit = async () => {
+    // Calculate total bags and create description from selections
+    const totalBags = Object.values(wasteSelections).reduce((sum, quantity) => sum + (quantity || 0), 0);
+    const selectedWasteTypes = Object.entries(wasteSelections)
+      .filter(([type, quantity]) => quantity > 0)
+      .map(([type, quantity]) => `${type} (${quantity} ${quantity === 1 ? 'bag' : 'bags'})`);
+    
     // Basic validation
-    if (wasteTypes.length === 0 || !description || !date || !address) {
-      Alert.alert('Error', 'Please select at least one waste type and fill in all required fields');
+    if (totalBags === 0 || !date || !address) {
+      Alert.alert('Error', 'Please select at least one waste type with bag quantity and fill in all required fields');
       return;
     }
 
@@ -432,12 +436,12 @@ const SPickup = () => {
       // Create FormData for file upload
       const formData = new FormData();
       formData.append('user_id', currentUserId);
-      formData.append('waste_type', wasteTypes.join(', ')); // Join multiple waste types with comma
-      formData.append('description', description);
+      formData.append('waste_type', selectedWasteTypes.join(', ')); // Join multiple waste types with comma
+      formData.append('description', selectedWasteTypes.join(', ')); // Use waste types as description
       formData.append('pickup_date', date ? date.toISOString().split('T')[0] : '');
       formData.append('address', address);
-      formData.append('bag_quantity', bagQuantity.toString());
-      formData.append('estimated_total', (bagQuantity * 25).toString());
+      formData.append('bag_quantity', totalBags.toString());
+      formData.append('estimated_total', (totalBags * 25).toString());
       formData.append('notes', notes);
       formData.append('message', message);
       
@@ -483,8 +487,7 @@ const SPickup = () => {
               text: 'OK',
               onPress: () => {
                 // Clear form
-                setWasteTypes([]);
-                setDescription('');
+                setWasteSelections({});
                 setDate(null);
                 setAddress('');
                 setNotes('');
@@ -723,82 +726,10 @@ const SPickup = () => {
             <Ionicons name="arrow-back" size={16} color="#4CAF50" />
             <Text style={styles.backToRequestsText}>Back to My Requests</Text>
           </TouchableOpacity>
-        {/* Waste Type Section - Multi-Select */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Ionicons name="trash-outline" size={20} color="#4CAF50" />
-            <Text style={styles.sectionTitle}>Waste Type (Select One or More)</Text>
-          </View>
-          <View style={styles.buttonGroup}>
-            {[
-              { type: 'Non-Biodegradable', icon: 'cube-outline' },
-              { type: 'Biodegradable', icon: 'leaf-outline' },
-              { type: 'Recyclable', icon: 'refresh-outline' }
-            ].map((item) => (
-              <TouchableOpacity
-                key={item.type}
-                style={[
-                  styles.typeButton,
-                  wasteTypes.includes(item.type) && styles.activeButton
-                ]}
-                onPress={() => {
-                  if (wasteTypes.includes(item.type)) {
-                    // Remove if already selected
-                    setWasteTypes(wasteTypes.filter(t => t !== item.type));
-                  } else {
-                    // Add if not selected
-                    setWasteTypes([...wasteTypes, item.type]);
-                  }
-                }}
-                activeOpacity={0.7}
-              >
-                <Ionicons
-                  name={wasteTypes.includes(item.type) ? 'checkbox' : 'square-outline'}
-                  size={22}
-                  color={wasteTypes.includes(item.type) ? '#fff' : '#4CAF50'}
-                  style={[styles.selectionIcon, wasteTypes.includes(item.type) && styles.selectionIconActive]}
-                />
-                <View
-                  style={[
-                    styles.typeIconWrapper,
-                    wasteTypes.includes(item.type) && styles.typeIconWrapperActive
-                  ]}
-                >
-                  <Ionicons
-                    name={item.icon}
-                    size={18}
-                    color={wasteTypes.includes(item.type) ? '#fff' : '#2e7d32'}
-                  />
-                </View>
-                <Text style={[styles.buttonText, wasteTypes.includes(item.type) && styles.activeButtonText]}>
-                  {item.type}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-
-        {/* Description Section */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Ionicons name="document-text-outline" size={20} color="#4CAF50" />
-            <Text style={styles.sectionTitle}>Description</Text>
-          </View>
-          <View style={styles.inputContainer}>
-            <TextInput
-              placeholder="e.g., Old sofa, broken refrigerator"
-              placeholderTextColor="#999"
-              value={description}
-              onChangeText={setDescription}
-              style={styles.input}
-            />
-          </View>
-        </View>
-
-        {/* Bag Quantity Section */}
-        <BagQuantitySelector 
-          bagQuantity={bagQuantity}
-          setBagQuantity={setBagQuantity}
+        {/* Waste Type & Bag Quantity Section - Combined */}
+        <WasteTypeBagSelector 
+          wasteSelections={wasteSelections}
+          setWasteSelections={setWasteSelections}
           pricePerBag={25}
         />
 
@@ -813,7 +744,7 @@ const SPickup = () => {
             selectedDate={date}
             onDateChange={setDate}
             userArea={userProfile?.barangay || address}
-            bagQuantity={bagQuantity}
+            bagQuantity={Object.values(wasteSelections).reduce((sum, quantity) => sum + (quantity || 0), 0)}
           />
         </View>
 

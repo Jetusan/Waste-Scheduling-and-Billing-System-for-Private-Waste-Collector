@@ -439,6 +439,53 @@
   font-style: italic;
 }
 
+/* Ledger Filters */
+.ledger-filters {
+  display: flex;
+  gap: var(--wsbs-spacing-4);
+  margin-bottom: var(--wsbs-spacing-4);
+  align-items: center;
+}
+
+.ledger-filters .filter-group {
+  display: flex;
+  align-items: center;
+  gap: var(--wsbs-spacing-2);
+}
+
+.ledger-filters label {
+  font-size: var(--wsbs-font-size-sm);
+  font-weight: var(--wsbs-font-weight-medium);
+  color: var(--wsbs-gray-700);
+  white-space: nowrap;
+}
+
+/* Ledger Total Row */
+.ledger-total-row {
+  background: rgba(92, 143, 60, 0.12) !important;
+  font-weight: var(--wsbs-font-weight-semibold);
+}
+
+.ledger-total-row td {
+  border-top: 2px solid rgba(92, 143, 60, 0.35);
+  padding: var(--wsbs-spacing-4);
+}
+
+.ledger-total-label {
+  text-align: right;
+  font-size: var(--wsbs-font-size-base);
+  color: var(--wsbs-gray-800);
+}
+
+.ledger-total-balance {
+  text-align: left;
+  font-size: var(--wsbs-font-size-base);
+}
+
+.ledger-total-row:hover {
+  background: rgba(92, 143, 60, 0.18) !important;
+}
+
 /* Status Badges */
 .status-badge {
   display: inline-flex;

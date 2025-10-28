@@ -72,11 +72,10 @@ const specialPickupRequestSchema = Joi.object({
       'string.max': 'Waste type must not exceed 500 characters',
       'any.required': 'Waste type is required'
     }),
-  description: Joi.string().min(1).max(1000).required()
+  description: Joi.string().min(1).max(1000).optional().allow('')
     .messages({
       'string.min': 'Description cannot be empty',
-      'string.max': 'Description must not exceed 1000 characters',
-      'any.required': 'Description is required'
+      'string.max': 'Description must not exceed 1000 characters'
     }),
   pickup_date: commonSchemas.futureDate.required()
     .messages({

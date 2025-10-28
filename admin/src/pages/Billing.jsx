@@ -41,6 +41,9 @@ const Billing = () => {
     barangay: 'All Barangays'
   });
 
+  // Ledger filter states
+  const [ledgerLimit, setLedgerLimit] = useState(30); // Default to 30 transactions
+
   // Fetch users with billing history
   const fetchUsers = async () => {
     try {
@@ -217,14 +220,6 @@ const Billing = () => {
           </p>
         </div>
         <div className="header-actions">
-          {activeView === 'ledger' && (
-            <button 
-              onClick={() => setIsPaymentModalOpen(true)}
-              className="btn btn-primary"
-            >
-              + Add Payment
-            </button>
-          )}
           <button onClick={activeView === 'users' ? fetchUsers : () => fetchUserLedger(selectedUser.user_id)} className="btn btn-secondary">
             🔄 Refresh
           </button>
@@ -342,21 +337,22 @@ const Billing = () => {
             </div>
           ) : (
             <>
-              {/* Ledger Summary */}
-              <div className="ledger-summary">
-                <div className="summary-card">
-                  <h4>Total Debits</h4>
-                  <p className="amount negative">{formatCurrency(userLedger.summary.totalDebit)}</p>
-                </div>
-                <div className="summary-card">
-                  <h4>Total Credits</h4>
-                  <p className="amount positive">{formatCurrency(userLedger.summary.totalCredit)}</p>
-                </div>
-                <div className="summary-card">
-                  <h4>Current Balance</h4>
-                  <p className={`amount ${userLedger.summary.balance > 0 ? 'negative' : 'positive'}`}>
-                    {formatCurrency(Math.abs(userLedger.summary.balance))}
-                  </p>
+              {/* Ledger Filters */}
+              <div className="ledger-filters">
+                <div className="filter-group">
+                  <label htmlFor="ledger-limit">Show transactions:</label>
+                  <select
+                    id="ledger-limit"
+                    value={ledgerLimit}
+                    onChange={(e) => setLedgerLimit(parseInt(e.target.value))}
+                    className="filter-select"
+                  >
+                    <option value={10}>Last 10 transactions</option>
+                    <option value={30}>Last 30 transactions</option>
+                    <option value={40}>Last 40 transactions</option>
+                    <option value={50}>Last 50 transactions</option>
+                    <option value={-1}>All transactions</option>
+                  </select>
                 </div>
               </div>
 
@@ -379,7 +375,7 @@ const Billing = () => {
                         <td colSpan={6} className="ledger-empty">No ledger entries found for this user.</td>
                       </tr>
                     )}
-                    {userLedger.entries.map((entry, index) => (
+                    {(ledgerLimit === -1 ? userLedger.entries : userLedger.entries.slice(0, ledgerLimit)).map((entry, index) => (
                       <tr key={index}>
                         <td>{formatDate(entry.date)}</td>
                         <td>{entry.description}</td>
@@ -395,6 +391,14 @@ const Billing = () => {
                         </td>
                       </tr>
                     ))}
+                    {userLedger.entries.length > 0 && (
+                      <tr className="ledger-total-row">
+                        <td colSpan={5} className="ledger-total-label"><strong>Total Balance:</strong></td>
+                        <td className={`ledger-total-balance ${userLedger.summary.balance > 0 ? 'negative' : 'positive'}`}>
+                          <strong>{formatCurrency(Math.abs(userLedger.summary.balance))}</strong>
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>
