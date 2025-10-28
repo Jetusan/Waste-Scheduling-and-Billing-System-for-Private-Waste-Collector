@@ -2,10 +2,31 @@ const express = require('express');
 const router = express.Router();
 const lateFeeService = require('../services/lateFeeService');
 const lateFeeScheduler = require('../services/lateFeeScheduler');
-const { authenticateToken, requireAdmin } = require('../middleware/auth');
+const { authenticateJWT } = require('../middleware/auth');
+const { pool } = require('../config/db');
+
+// Server-side admin check using DB role lookup
+async function requireAdmin(req, res, next) {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) return res.status(401).json({ message: 'Unauthorized' });
+    
+    const query = 'SELECT role_id FROM users WHERE user_id = $1';
+    const result = await pool.query(query, [userId]);
+    
+    if (result.rows.length === 0 || result.rows[0].role_id !== 1) {
+      return res.status(403).json({ message: 'Admin access required' });
+    }
+    
+    next();
+  } catch (error) {
+    console.error('Admin check error:', error);
+    res.status(500).json({ message: 'Server error during authorization' });
+  }
+}
 
 // Manual late fee processing (admin only)
-router.post('/process', authenticateToken, requireAdmin, async (req, res) => {
+router.post('/process', authenticateJWT, requireAdmin, async (req, res) => {
   try {
     console.log('🔧 Manual late fee processing requested by admin');
     
@@ -33,7 +54,7 @@ router.post('/process', authenticateToken, requireAdmin, async (req, res) => {
 });
 
 // Get late fee statistics
-router.get('/stats', authenticateToken, requireAdmin, async (req, res) => {
+router.get('/stats', authenticateJWT, requireAdmin, async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
     
@@ -55,7 +76,7 @@ router.get('/stats', authenticateToken, requireAdmin, async (req, res) => {
 });
 
 // Check if specific invoice is eligible for late fee
-router.get('/check-eligibility/:invoiceId', authenticateToken, requireAdmin, async (req, res) => {
+router.get('/check-eligibility/:invoiceId', authenticateJWT, requireAdmin, async (req, res) => {
   try {
     const { invoiceId } = req.params;
     
@@ -77,7 +98,7 @@ router.get('/check-eligibility/:invoiceId', authenticateToken, requireAdmin, asy
 });
 
 // Get scheduler status
-router.get('/scheduler/status', authenticateToken, requireAdmin, async (req, res) => {
+router.get('/scheduler/status', authenticateJWT, requireAdmin, async (req, res) => {
   try {
     const status = lateFeeScheduler.getStatus();
     
@@ -97,7 +118,7 @@ router.get('/scheduler/status', authenticateToken, requireAdmin, async (req, res
 });
 
 // Manual scheduler trigger (admin only)
-router.post('/scheduler/run', authenticateToken, requireAdmin, async (req, res) => {
+router.post('/scheduler/run', authenticateJWT, requireAdmin, async (req, res) => {
   try {
     console.log('🔧 Manual scheduler run requested by admin');
     
@@ -120,9 +141,8 @@ router.post('/scheduler/run', authenticateToken, requireAdmin, async (req, res) 
 });
 
 // Get overdue invoices (for admin review)
-router.get('/overdue-invoices', authenticateToken, requireAdmin, async (req, res) => {
+router.get('/overdue-invoices', authenticateJWT, requireAdmin, async (req, res) => {
   try {
-    const { pool } = require('../config/db');
     
     // Get current pricing for grace period
     const pricingQuery = `
