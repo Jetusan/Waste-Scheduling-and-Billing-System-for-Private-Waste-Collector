@@ -7,6 +7,7 @@
     "dev": "nodemon index.js",
     "test": "jest",
     "init-db": "node config/initDb.js",
+    "check-schema": "node scripts/checkDatabaseSchema.js",
     "populate-data": "node scripts/runDataPopulation.js",
     "test-email-flow": "node test_email_verification_flow.js",
     "test-admin-emails": "node test_admin_notifications.js",

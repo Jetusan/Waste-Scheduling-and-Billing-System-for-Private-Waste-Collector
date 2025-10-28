@@ -301,6 +301,31 @@
   color: #4CAF50;
 }
 
+/* Simple Report Info */
+.simple-report-info {
+  text-align: center;
+  padding: 1.5rem;
+  background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+  border-radius: 12px;
+  border: 1px solid #dee2e6;
+}
+
+.simple-report-info p {
+  color: #6c757d;
+  margin-bottom: 1rem;
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+.current-period {
+  background: white;
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  border-left: 4px solid #4CAF50;
+  font-size: 1.1rem;
+  color: #2c3e50;
+}
+
 /* Report Type Grid */
 .report-type-grid {
   display: grid;

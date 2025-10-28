@@ -34,29 +34,21 @@ const EnhancedReports = () => {
     setLoading(true);
     
     try {
-      let startDate, endDate;
+      // Generate report for October 2024 where the sample data exists
+      const year = 2024;
+      const month = 10; // October 2024
       
-      if (reportForm.customRange) {
-        startDate = reportForm.startDate;
-        endDate = reportForm.endDate;
-      } else if (reportForm.period === 'monthly') {
-        // Monthly report
-        startDate = `${reportForm.year}-${String(reportForm.month).padStart(2, '0')}-01`;
-        const lastDay = new Date(reportForm.year, reportForm.month, 0).getDate();
-        endDate = `${reportForm.year}-${String(reportForm.month).padStart(2, '0')}-${lastDay}`;
-      } else {
-        // Annual report
-        startDate = `${reportForm.year}-01-01`;
-        endDate = `${reportForm.year}-12-31`;
-      }
+      const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
+      const lastDay = new Date(year, month, 0).getDate();
+      const endDate = `${year}-${String(month).padStart(2, '0')}-${lastDay}`;
 
       const requestData = {
         type: 'combined', // Always generate combined reports
-        period: reportForm.period,
+        period: 'monthly',
         start_date: startDate,
         end_date: endDate,
-        year: reportForm.year,
-        month: reportForm.month,
+        year: year,
+        month: month,
         generated_by: 'Admin User',
         format: 'enhanced'
       };
@@ -105,10 +97,8 @@ const EnhancedReports = () => {
       const link = document.createElement('a');
       link.href = url;
       
-      // Generate filename based on period
-      const periodText = reportForm.period === 'monthly' 
-        ? `${months[reportForm.month - 1]}_${reportForm.year}`
-        : `Annual_${reportForm.year}`;
+      // Generate filename for October 2024
+      const periodText = `October_2024`;
       
       link.download = `WSBS_Report_${periodText}.pdf`;
       document.body.appendChild(link);
@@ -174,125 +164,13 @@ const EnhancedReports = () => {
 
             <form onSubmit={handleGenerateReport} className="enhanced-form">
 
-              {/* Period Selection */}
+              {/* Simple Report Generation */}
               <div className="form-section">
-                <h4><i className="fas fa-calendar"></i> Report Period</h4>
-                <div className="period-selection">
-                  <label className={`period-option ${reportForm.period === 'monthly' ? 'selected' : ''}`}>
-                    <input
-                      type="radio"
-                      name="period"
-                      value="monthly"
-                      checked={reportForm.period === 'monthly'}
-                      onChange={(e) => setReportForm(prev => ({ ...prev, period: e.target.value, customRange: false }))}
-                    />
-                    <span>📅 Monthly Report</span>
-                  </label>
-                  
-                  <label className={`period-option ${reportForm.period === 'annual' ? 'selected' : ''}`}>
-                    <input
-                      type="radio"
-                      name="period"
-                      value="annual"
-                      checked={reportForm.period === 'annual'}
-                      onChange={(e) => setReportForm(prev => ({ ...prev, period: e.target.value, customRange: false }))}
-                    />
-                    <span>📆 Annual Report</span>
-                  </label>
-                  
-                  <label className={`period-option ${reportForm.customRange ? 'selected' : ''}`}>
-                    <input
-                      type="radio"
-                      name="period"
-                      value="custom"
-                      checked={reportForm.customRange}
-                      onChange={(e) => setReportForm(prev => ({ ...prev, customRange: true }))}
-                    />
-                    <span>📋 Custom Range</span>
-                  </label>
-                </div>
-              </div>
-
-              {/* Date Selection */}
-              <div className="form-section">
-                <h4><i className="fas fa-clock"></i> Date Selection</h4>
-                
-                {!reportForm.customRange ? (
-                  <div className="date-selectors">
-                    {/* Year Selection */}
-                    <div className="selector-group">
-                      <label>Year</label>
-                      <select
-                        value={reportForm.year}
-                        onChange={(e) => setReportForm(prev => ({ ...prev, year: parseInt(e.target.value) }))}
-                      >
-                        {[...Array(5)].map((_, i) => {
-                          const year = currentYear - i;
-                          return <option key={year} value={year}>{year}</option>;
-                        })}
-                      </select>
-                    </div>
-                    
-                    {/* Month Selection (only for monthly reports) */}
-                    {reportForm.period === 'monthly' && (
-                      <div className="selector-group">
-                        <label>Month</label>
-                        <select
-                          value={reportForm.month}
-                          onChange={(e) => setReportForm(prev => ({ ...prev, month: parseInt(e.target.value) }))}
-                        >
-                          {months.map((month, index) => (
-                            <option key={index + 1} value={index + 1}>{month}</option>
-                          ))}
-                        </select>
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div className="custom-date-range">
-                    <div className="date-input-group">
-                      <label>Start Date</label>
-                      <input
-                        type="date"
-                        value={reportForm.startDate}
-                        onChange={(e) => setReportForm(prev => ({ ...prev, startDate: e.target.value }))}
-                        required
-                      />
-                    </div>
-                    <div className="date-input-group">
-                      <label>End Date</label>
-                      <input
-                        type="date"
-                        value={reportForm.endDate}
-                        onChange={(e) => setReportForm(prev => ({ ...prev, endDate: e.target.value }))}
-                        required
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Report Preview Info */}
-              <div className="form-section preview-section">
-                <h4><i className="fas fa-eye"></i> Report Preview</h4>
-                <div className="preview-info">
-                  <div className="preview-item">
-                    <strong>System:</strong> WSBS Management
-                  </div>
-                  <div className="preview-item">
-                    <strong>Type:</strong> Business Report
-                  </div>
-                  <div className="preview-item">
-                    <strong>Period:</strong> 
-                    {reportForm.customRange 
-                      ? `${reportForm.startDate} to ${reportForm.endDate}`
-                      : reportForm.period === 'monthly' 
-                        ? `${months[reportForm.month - 1]} ${reportForm.year}`
-                        : `Annual ${reportForm.year}`
-                    }
-                  </div>
-                  <div className="preview-item">
-                    <strong>Format:</strong> Professional PDF with WSBS branding
+                <h4><i className="fas fa-file-alt"></i> Generate Business Report</h4>
+                <div className="simple-report-info">
+                  <p>Generate a comprehensive business report for the current month with all billing, payment, and collection data.</p>
+                  <div className="current-period">
+                    <strong>Report Period:</strong> October 2024 (Sample Data)
                   </div>
                 </div>
               </div>

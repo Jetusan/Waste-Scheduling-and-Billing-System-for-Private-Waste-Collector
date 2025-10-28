@@ -23,23 +23,21 @@ const realisticUsers = [
   { firstName: 'Patricia', lastName: 'Ortega', email: 'patricia.ortega@outlook.com', phone: '09311234581' }
 ];
 
-const addresses = [
-  { street: 'Mabini Street', block: '1', lot: '15', barangay: 'San Antonio' },
-  { street: 'Rizal Avenue', block: '2', lot: '8', barangay: 'San Antonio' },
-  { street: 'Bonifacio Road', block: '3', lot: '22', barangay: 'San Miguel' },
-  { street: 'Luna Street', block: '1', lot: '5', barangay: 'San Miguel' },
-  { street: 'Del Pilar Avenue', block: '4', lot: '18', barangay: 'Santa Cruz' },
-  { street: 'Quezon Boulevard', block: '2', lot: '12', barangay: 'Santa Cruz' },
-  { street: 'Aguinaldo Street', block: '5', lot: '9', barangay: 'San Jose' },
-  { street: 'Jacinto Road', block: '3', lot: '25', barangay: 'San Jose' },
-  { street: 'Malvar Avenue', block: '1', lot: '7', barangay: 'San Pedro' },
-  { street: 'Tandang Sora Street', block: '6', lot: '14', barangay: 'San Pedro' },
-  { street: 'Magallanes Road', block: '2', lot: '20', barangay: 'San Antonio' },
-  { street: 'Lapu-Lapu Street', block: '4', lot: '11', barangay: 'San Miguel' },
-  { street: 'Katipunan Avenue', block: '7', lot: '16', barangay: 'Santa Cruz' },
-  { street: 'Burgos Boulevard', block: '3', lot: '6', barangay: 'San Jose' },
-  { street: 'Escolta Street', block: '5', lot: '23', barangay: 'San Pedro' }
-];
+// Generate random addresses in VSM Heights Phase 1, San Isidro
+const generateVSMAddress = () => {
+  const streets = [
+    'VSM Drive', 'Heights Boulevard', 'Phase 1 Avenue', 'VSM Street',
+    'Heights Road', 'Villa Street', 'San Miguel Avenue', 'Heights Drive'
+  ];
+  
+  return {
+    street: streets[Math.floor(Math.random() * streets.length)],
+    block: String(Math.floor(Math.random() * 10) + 1), // Random block 1-10
+    lot: String(Math.floor(Math.random() * 25) + 1), // Random lot 1-25
+    barangay: 'San Isidro',
+    subdivision: 'VSM Heights Phase 1'
+  };
+};
 
 async function populateRealisticData() {
   const client = await pool.connect();
@@ -49,25 +47,23 @@ async function populateRealisticData() {
     
     console.log('🚀 Starting realistic data population...');
     
-    // 1. Get or create barangays
-    const barangayNames = ['San Antonio', 'San Miguel', 'Santa Cruz', 'San Jose', 'San Pedro'];
-    const barangayIds = {};
+    // 1. Get or create San Isidro barangay
+    const barangayName = 'San Isidro';
+    let barangayId;
     
-    for (const barangayName of barangayNames) {
-      const barangayResult = await client.query(
-        'SELECT barangay_id FROM barangays WHERE barangay_name = $1',
-        [barangayName]
+    const barangayResult = await client.query(
+      'SELECT barangay_id FROM barangays WHERE barangay_name = $1',
+      [barangayName]
+    );
+    
+    if (barangayResult.rows.length === 0) {
+      const insertResult = await client.query(
+        'INSERT INTO barangays (barangay_name, city_id) VALUES ($1, $2) RETURNING barangay_id',
+        [barangayName, 1] // Using city_id = 1 (assuming it exists)
       );
-      
-      if (barangayResult.rows.length === 0) {
-        const insertResult = await client.query(
-          'INSERT INTO barangays (barangay_name, municipality, province) VALUES ($1, $2, $3) RETURNING barangay_id',
-          [barangayName, 'Sample City', 'Sample Province']
-        );
-        barangayIds[barangayName] = insertResult.rows[0].barangay_id;
-      } else {
-        barangayIds[barangayName] = barangayResult.rows[0].barangay_id;
-      }
+      barangayId = insertResult.rows[0].barangay_id;
+    } else {
+      barangayId = barangayResult.rows[0].barangay_id;
     }
     
     console.log('✅ Barangays created/verified');
@@ -87,7 +83,7 @@ async function populateRealisticData() {
     
     for (let i = 0; i < realisticUsers.length; i++) {
       const user = realisticUsers[i];
-      const address = addresses[i];
+      const address = generateVSMAddress(); // Generate random VSM address
       
       try {
         // Create user name
@@ -100,7 +96,7 @@ async function populateRealisticData() {
         // Create address
         const addressResult = await client.query(
           'INSERT INTO addresses (street, block, lot, barangay_id) VALUES ($1, $2, $3, $4) RETURNING address_id',
-          [address.street, address.block, address.lot, barangayIds[address.barangay]]
+          [address.street, address.block, address.lot, barangayId]
         );
         const addressId = addressResult.rows[0].address_id;
         
@@ -109,7 +105,7 @@ async function populateRealisticData() {
         const hashedPassword = '$2b$10$example.hash.for.demo.purposes.only'; // Demo hash
         
         const userResult = await client.query(
-          'INSERT INTO users (username, email, password_hash, phone, role_id, name_id, address_id) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING user_id',
+          'INSERT INTO users (username, email, password_hash, contact_number, role_id, name_id, address_id) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING user_id',
           [username, user.email, hashedPassword, user.phone, 2, nameId, addressId] // role_id 2 = resident
         );
         const userId = userResult.rows[0].user_id;
@@ -118,7 +114,7 @@ async function populateRealisticData() {
         const randomPlan = plans[Math.floor(Math.random() * plans.length)];
         const subscriptionResult = await client.query(
           `INSERT INTO customer_subscriptions 
-           (user_id, plan_id, status, payment_status, payment_method, start_date, next_billing_date, billing_cycle_count) 
+           (user_id, plan_id, status, payment_status, payment_method, billing_start_date, next_billing_date, billing_cycle_count) 
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING subscription_id`,
           [
             userId, 
@@ -138,8 +134,11 @@ async function populateRealisticData() {
           subscriptionId,
           planPrice: randomPlan.price,
           userName: `${user.firstName} ${user.lastName}`,
-          paymentMethod: Math.random() > 0.5 ? 'GCash' : 'Cash'
+          paymentMethod: Math.random() > 0.5 ? 'GCash' : 'Cash',
+          address: `${address.street} Block ${address.block} Lot ${address.lot}, VSM Heights Phase 1`
         });
+        
+        console.log(`   ✅ Created: ${user.firstName} ${user.lastName} - ${address.street} Block ${address.block} Lot ${address.lot}`);
         
       } catch (error) {
         console.warn(`⚠️ Skipping user ${user.firstName} ${user.lastName}: ${error.message}`);
@@ -161,14 +160,14 @@ async function populateRealisticData() {
         const dueDate = new Date(invoiceDate);
         dueDate.setDate(dueDate.getDate() + 7); // Due 7 days after invoice
         
-        // Create invoice
+        // Create invoice with shorter invoice number
         const invoiceResult = await client.query(
           `INSERT INTO invoices 
            (subscription_id, invoice_number, amount, status, generated_date, due_date, service_start, service_end) 
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING invoice_id`,
           [
             user.subscriptionId,
-            `INV-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+            `INV${Math.floor(Math.random() * 100000)}`, // Shorter format: INV12345
             user.planPrice,
             'paid',
             invoiceDate,
@@ -185,15 +184,14 @@ async function populateRealisticData() {
         
         await client.query(
           `INSERT INTO payments 
-           (invoice_id, amount, payment_method, payment_date, reference_number, status) 
-           VALUES ($1, $2, $3, $4, $5, $6)`,
+           (invoice_id, amount, payment_method, payment_date, reference_number) 
+           VALUES ($1, $2, $3, $4, $5)`,
           [
             invoiceId,
             user.planPrice,
             paymentMethod,
             paymentDate,
-            `PAY-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
-            'completed'
+            `PAY${Math.floor(Math.random() * 100000)}` // Shorter format: PAY12345
           ]
         );
         
@@ -289,8 +287,8 @@ async function populateRealisticData() {
       
       await client.query(
         `INSERT INTO special_pickup_requests 
-         (user_id, collector_id, waste_type, bag_quantity, estimated_total, final_price, price_status, status, notes, created_at) 
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+         (user_id, collector_id, waste_type, bag_quantity, estimated_total, final_price, price_status, status, notes, created_at, pickup_date, address) 
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
         [
           user.userId,
           collectorId,
@@ -301,7 +299,9 @@ async function populateRealisticData() {
           priceStatus,
           status,
           `Special pickup request for ${wasteType.toLowerCase()}`,
-          requestDate
+          requestDate,
+          requestDate, // Use request date as pickup date
+          user.address // Use the user's VSM Heights address
         ]
       );
       
