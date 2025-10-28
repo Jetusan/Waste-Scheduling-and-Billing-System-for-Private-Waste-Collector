@@ -19,8 +19,6 @@ const WasteTypeBagSelector = ({ wasteSelections, setWasteSelections, pricePerBag
       const specialPickupPricing = await pricingService.getSpecialPickupPricing();
       setDynamicPricing({
         pricePerBag: specialPickupPricing.pricePerBag,
-        minBags: specialPickupPricing.minBags,
-        maxBags: specialPickupPricing.maxBags,
         loading: false
       });
       console.log('💰 Dynamic pricing loaded:', specialPickupPricing);
@@ -29,8 +27,6 @@ const WasteTypeBagSelector = ({ wasteSelections, setWasteSelections, pricePerBag
       // Use fallback pricing
       setDynamicPricing({
         pricePerBag: propPricePerBag || 25,
-        minBags: 1,
-        maxBags: 50,
         loading: false
       });
     }
@@ -44,10 +40,10 @@ const WasteTypeBagSelector = ({ wasteSelections, setWasteSelections, pricePerBag
   ];
 
   const updateBagQuantity = (wasteType, quantity) => {
-    const maxBags = dynamicPricing.maxBags || 20;
+    const maxBags = 50; // Set a reasonable default max
     setWasteSelections(prev => ({
       ...prev,
-      [wasteType]: Math.max(0, Math.min(quantity, maxBags)) // Min 0, Max from pricing
+      [wasteType]: Math.max(0, Math.min(quantity, maxBags)) // Min 0, Max 50
     }));
   };
 

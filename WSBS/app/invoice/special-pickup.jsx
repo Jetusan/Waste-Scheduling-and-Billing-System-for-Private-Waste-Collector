@@ -99,16 +99,28 @@ const SpecialPickupInvoice = () => {
       const token = await getToken();
       const userId = await getUserId();
       
-      // Prepare the final request data with pricing
+      // Prepare the final request data with proper field mapping for backend
       const finalRequestData = {
-        ...invoiceData.requestData,
         user_id: userId,
-        invoice_number: invoiceData.invoiceNumber,
+        waste_type: invoiceData.requestData.wasteTypes,
+        description: invoiceData.requestData.wasteTypes, // Use waste types as description
+        pickup_date: invoiceData.requestData.pickupDate,
+        pickup_time: '09:00:00', // Default time since it's required by database
+        address: invoiceData.requestData.address || 'Location will be confirmed by collector', // Required field
+        notes: invoiceData.requestData.notes || null,
+        message: invoiceData.requestData.message || null,
+        pickup_latitude: invoiceData.requestData.pickupLocation?.latitude || null,
+        pickup_longitude: invoiceData.requestData.pickupLocation?.longitude || null,
+        bag_quantity: invoiceData.requestData.bagQuantity,
+        price_per_bag: invoiceData.pricing.pricePerBag,
+        estimated_total: invoiceData.pricing.finalPrice,
         final_price: invoiceData.pricing.finalPrice,
         discount_applied: invoiceData.pricing.discount,
         discount_reason: invoiceData.pricing.discountReason,
-        price_per_bag: invoiceData.pricing.pricePerBag
+        invoice_number: invoiceData.invoiceNumber
       };
+      
+      console.log('🔄 Submitting special pickup request:', finalRequestData);
       
       const response = await fetch(`${API_BASE_URL}/api/special-pickup`, {
         method: 'POST',
@@ -136,13 +148,25 @@ const SpecialPickupInvoice = () => {
           ]
         );
       } else {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to submit request');
+        const errorText = await response.text();
+        console.error('❌ Backend error response:', response.status, errorText);
+        
+        let errorData;
+        try {
+          errorData = JSON.parse(errorText);
+        } catch (parseError) {
+          errorData = { error: errorText };
+        }
+        
+        throw new Error(errorData.error || `Server error: ${response.status}`);
       }
       
     } catch (err) {
-      console.error('Error submitting request:', err);
-      Alert.alert('Error', 'Failed to submit request. Please try again.');
+      console.error('❌ Error submitting request:', err);
+      Alert.alert(
+        'Submission Error', 
+        `Failed to submit request: ${err.message}. Please check your data and try again.`
+      );
     } finally {
       setSubmitting(false);
     }
@@ -253,13 +277,25 @@ const SpecialPickupInvoice = () => {
             </View>
             
             <View style={styles.serviceItem}>
-              <Text style={styles.serviceLabel}>Pickup Address:</Text>
-              <Text style={styles.serviceValue}>{invoiceData.requestData.address}</Text>
+              <Text style={styles.serviceLabel}>Pickup Location:</Text>
+              <Text style={styles.serviceValue}>
+                {invoiceData.requestData.address && (
+                  <Text>{invoiceData.requestData.address}</Text>
+                )}
+                {invoiceData.requestData.pickupLocation && (
+                  <Text>
+                    {invoiceData.requestData.address ? '\n' : ''}📍 GPS: {invoiceData.requestData.pickupLocation.latitude?.toFixed(6)}, {invoiceData.requestData.pickupLocation.longitude?.toFixed(6)}
+                  </Text>
+                )}
+                {!invoiceData.requestData.address && !invoiceData.requestData.pickupLocation && (
+                  <Text style={{ fontStyle: 'italic', color: '#666' }}>Location will be confirmed by collector</Text>
+                )}
+              </Text>
             </View>
             
             {invoiceData.requestData.notes && (
               <View style={styles.serviceItem}>
-                <Text style={styles.serviceLabel}>Notes:</Text>
+                <Text style={styles.serviceLabel}>Special Instructions:</Text>
                 <Text style={styles.serviceValue}>{invoiceData.requestData.notes}</Text>
               </View>
             )}

@@ -67,9 +67,7 @@ class PricingService {
   async getSpecialPickupPricing() {
     const pricing = await this.getCurrentPricing();
     return {
-      pricePerBag: pricing.specialPickup?.pricePerBag || 25.00,
-      minBags: pricing.specialPickup?.minBags || 1,
-      maxBags: pricing.specialPickup?.maxBags || 50
+      pricePerBag: pricing.specialPickup?.pricePerBag || 25.00
     };
   }
 
@@ -151,9 +149,7 @@ class PricingService {
         }
       },
       specialPickup: {
-        pricePerBag: 25.00,
-        minBags: 1,
-        maxBags: 50
+        pricePerBag: 25.00
       },
       lateFees: {
         lateFeeAmount: 50.00,

@@ -429,9 +429,9 @@ const SPickup = () => {
       .filter(([type, quantity]) => quantity > 0)
       .map(([type, quantity]) => `${type} (${quantity} ${quantity === 1 ? 'bag' : 'bags'})`);
     
-    // Basic validation
-    if (totalBags === 0 || !date || !address) {
-      Alert.alert('Error', 'Please select at least one waste type with bag quantity and fill in all required fields');
+    // Basic validation - only waste types and date are required
+    if (totalBags === 0 || !date) {
+      Alert.alert('Error', 'Please select at least one waste type with bag quantity and pickup date');
       return;
     }
 
@@ -819,7 +819,7 @@ const SPickup = () => {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Ionicons name="location-outline" size={20} color="#4CAF50" />
-            <Text style={styles.sectionTitle}>Pickup Location</Text>
+            <Text style={styles.sectionTitle}>Pickup Location (Optional)</Text>
           </View>
           
           {/* Location Status Display */}
@@ -936,7 +936,7 @@ const SPickup = () => {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Ionicons name="chatbox-outline" size={20} color="#4CAF50" />
-            <Text style={styles.sectionTitle}>Special Instructions</Text>
+            <Text style={styles.sectionTitle}>Special Instructions (Optional)</Text>
           </View>
           <View style={[styles.inputContainer, styles.textAreaContainer]}>
             <TextInput

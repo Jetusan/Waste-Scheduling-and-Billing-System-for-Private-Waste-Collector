@@ -335,6 +335,12 @@ const generateMonthlyInvoices = async () => {
       SELECT 1 FROM invoices i 
       WHERE i.subscription_id = cs.subscription_id 
       AND i.generated_date >= $2
+      AND i.status = 'unpaid'
+    )
+    AND NOT EXISTS (
+      SELECT 1 FROM invoices i 
+      WHERE i.subscription_id = cs.subscription_id 
+      AND DATE(i.created_at) = CURRENT_DATE
     )
   `;
   

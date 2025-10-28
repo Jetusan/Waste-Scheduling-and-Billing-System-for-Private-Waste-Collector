@@ -224,9 +224,7 @@ function getDefaultPricingConfig() {
       }
     },
     specialPickup: {
-      pricePerBag: 25.00,
-      minBags: 1,
-      maxBags: 50
+      pricePerBag: 25.00
     },
     lateFees: {
       lateFeeAmount: 50.00,

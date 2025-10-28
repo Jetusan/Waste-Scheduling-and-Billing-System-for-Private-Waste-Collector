@@ -638,18 +638,17 @@ const createMobileSubscription = async (req, res) => {
       payment_status: subscription.payment_status
     });
 
-    // Check for recent unpaid invoice to avoid duplicates during testing
+    // Check for ANY existing unpaid invoice for this subscription to avoid duplicates
     const recentInvoiceQuery = `
       SELECT * FROM invoices 
-      WHERE user_id = $1 AND status = 'unpaid' 
-      AND DATE(created_at) = CURRENT_DATE
+      WHERE user_id = $1 AND subscription_id = $2 AND status = 'unpaid'
       ORDER BY created_at DESC LIMIT 1
     `;
-    const recentInvoiceResult = await pool.query(recentInvoiceQuery, [user_id]);
+    const recentInvoiceResult = await pool.query(recentInvoiceQuery, [user_id, subscription.subscription_id]);
     
     let newInvoice;
     if (recentInvoiceResult.rows.length > 0) {
-      console.log('📋 Using existing unpaid invoice from today');
+      console.log('📋 Using existing unpaid invoice for this subscription');
       newInvoice = recentInvoiceResult.rows[0];
     } else {
       // Generate invoice for the subscription
