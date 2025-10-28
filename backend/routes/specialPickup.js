@@ -3,15 +3,25 @@ const router = express.Router();
 const specialPickupController = require('../controller/specialPickupController');
 const upload = require('../middleware/upload');
 const { authenticateJWT } = require('../middleware/auth');
+const { validators } = require('../middleware/validationMiddleware');
 
 // GET /api/special-pickup - Get all special pickup requests (with optional status filter)
 router.get('/', specialPickupController.getAllRequests);
 
-// POST /api/special-pickup - Create a new special pickup request with image upload
-router.post('/', authenticateJWT, upload.single('image'), specialPickupController.createRequest);
+// POST /api/special-pickup - Create a new special pickup request with validation and image upload
+router.post('/', 
+  authenticateJWT, 
+  upload.single('image'),
+  ...validators.specialPickupRequest,
+  specialPickupController.createRequest
+);
 
-// GET /api/special-pickup/user/:user_id - Get requests by user
-router.get('/user/:user_id', authenticateJWT, specialPickupController.getRequestsByUser);
+// GET /api/special-pickup/user/:user_id - Get requests by user with validation
+router.get('/user/:user_id', 
+  authenticateJWT, 
+  validators.userId,
+  specialPickupController.getRequestsByUser
+);
 
 // GET /api/special-pickup/collector/:collector_id - Get requests by collector
 router.get('/collector/:collector_id', specialPickupController.getRequestsByCollector);

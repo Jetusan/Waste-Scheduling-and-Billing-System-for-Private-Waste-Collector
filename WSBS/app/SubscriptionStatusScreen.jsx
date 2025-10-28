@@ -14,6 +14,13 @@ import { useRouter } from 'expo-router';
 import Constants from 'expo-constants';
 import { getToken, getUserId } from './auth';
 import { API_BASE_URL } from './config';
+import { 
+  normalizeSubscriptionStatus, 
+  normalizeInvoiceStatus, 
+  getStatusUIProperties, 
+  getAvailableActions 
+} from './utils/subscriptionStatusManager';
+import { extractUserId, formatUserIdForAPI, isValidUserId } from './utils/userIdStandardization';
 import { Platform } from 'react-native';
 
 const SubscriptionStatusScreen = () => {
@@ -219,15 +226,17 @@ const SubscriptionStatusScreen = () => {
         return;
       }
 
-      // Get user ID from storage (more reliable than profile API)
-      const userId = await getUserId();
-      console.log('🔥 Got user_id from storage:', userId);
+      // Get user ID using standardized approach
+      const rawUserId = await getUserId();
+      console.log('🔥 Got raw user_id from storage:', rawUserId);
       
-      if (!userId) {
-        Alert.alert('Error', 'No user ID found. Please login again.');
+      if (!isValidUserId(rawUserId)) {
+        Alert.alert('Error', 'Invalid user ID. Please login again.');
         router.push('/resident/Login');
         return;
       }
+      
+      const userId = formatUserIdForAPI(rawUserId);
 
       const response = await fetch(`${API_BASE_URL}/api/billing/subscription-status/${userId}`, {
         headers: {
@@ -238,32 +247,29 @@ const SubscriptionStatusScreen = () => {
 
       const data = await response.json();
       console.log('🔥 SubscriptionStatusScreen API Response:', JSON.stringify(data, null, 2));
-      console.log('🔥 data.has_subscription value:', data.has_subscription);
       console.log('🔥 Response status:', response.status);
       
-      // Handle both response formats: hasSubscription (new) and has_subscription (old)
-      const hasSubscription = data.hasSubscription ?? data.has_subscription;
+      // Use normalized subscription status management
+      const normalizedStatus = normalizeSubscriptionStatus(data);
+      console.log('🔥 Normalized subscription status:', normalizedStatus);
       
-      if (hasSubscription) {
-        // Guard: Allow ACTIVE and PENDING states to render here so users can pay
-        const incomingUiState = data.uiState || data.subscription?.status;
-        const allowedStates = ['active', 'pending_gcash', 'pending_manual_gcash', 'pending_cash'];
-        if (incomingUiState && !allowedStates.includes(incomingUiState)) {
-          Alert.alert('Access Restricted', 'Your subscription is not active yet. Please complete payment to continue.', [
+      if (normalizedStatus.hasSubscription) {
+        // Check if user can access this screen based on normalized status
+        if (!normalizedStatus.canAccess) {
+          const statusProps = getStatusUIProperties(normalizedStatus.status);
+          Alert.alert('Access Restricted', `Your subscription is ${statusProps.description}. Please complete payment to continue.`, [
             { text: 'OK', onPress: () => router.replace('/Subscription') }
           ]);
           return;
         }
-        console.log('🔥 Setting subscription data:', data);
         
-        // Normalize the data format
-        const normalizedData = {
+        console.log('🔥 Setting normalized subscription data');
+        setSubscriptionData({
           ...data,
+          normalizedStatus, // Add normalized status for easy access
           has_subscription: true, // Ensure backward compatibility
           hasSubscription: true
-        };
-        
-        setSubscriptionData(normalizedData);
+        });
         
         // Notifications: schedule if unpaid invoice, cancel otherwise
         const inv = data.currentInvoice;

@@ -21,9 +21,11 @@ import * as Location from 'expo-location';
 import { WebView } from 'react-native-webview';
 import { useRouter } from 'expo-router';
 import { getToken, getUserId, logout } from './auth';
+import { extractUserId, formatUserIdForAPI, isValidUserId, USER_ID_ERRORS } from './utils/userIdStandardization';
 import { API_BASE_URL } from './config';
 import RequestChatSection from './components/RequestChatSection';
 import BagQuantitySelector from '../components/BagQuantitySelector';
+import SmartDatePicker from './components/SmartDatePicker';
 
 const SPickup = () => {
   const router = useRouter();
@@ -102,18 +104,19 @@ const SPickup = () => {
           if (data.success && data.user) {
             setUserProfile(data.user);
             
-            // Set user ID from profile response (most reliable source)
-            const userId = data.user.user_id || data.user.id;
-            if (userId) {
-              console.log('Setting user ID from profile:', userId);
-              setCurrentUserId(userId);
+            // Set user ID using standardized extraction
+            const userId = extractUserId(data.user);
+            if (isValidUserId(userId)) {
+              console.log('Setting standardized user ID from profile:', userId);
+              setCurrentUserId(formatUserIdForAPI(userId));
               
               // Update storage with correct user ID
               const { saveAuth, getRole } = require('./auth');
               const userRole = await getRole() || 'resident';
               await saveAuth(token, userRole, userId);
             } else {
-              console.error('No user ID found in profile response');
+              console.error('No valid user ID found in profile response:', data.user);
+              Alert.alert('Authentication Error', USER_ID_ERRORS.NOT_FOUND);
             }
             
             // Pre-fill address if available
@@ -799,56 +802,20 @@ const SPickup = () => {
           pricePerBag={25}
         />
 
-        {/* Date & Time Section */}
+        {/* Date & Time Section - Using Smart Date Picker */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Ionicons name="calendar-outline" size={20} color="#4CAF50" />
             <Text style={styles.sectionTitle}>Pickup Schedule</Text>
           </View>
           
-          <TouchableOpacity
-            style={styles.dateTimeButton}
-            onPress={() => setShowDatePicker(true)}
-            activeOpacity={0.7}
-          >
-            <View style={styles.dateTimeIconContainer}>
-              <Ionicons name="calendar" size={22} color="#4CAF50" />
-            </View>
-            <View style={styles.dateTimeTextContainer}>
-              <Text style={styles.dateTimeLabel}>Pickup Date</Text>
-              <Text style={styles.dateTimeValue}>
-                {date ? date.toLocaleDateString('en-US', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' }) : 'Select a date'}
-              </Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color="#ccc" />
-          </TouchableOpacity>
-
-        </View>
-
-        {showDatePicker && (
-          <DateTimePicker
-            value={date || new Date()}
-            mode="date"
-            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-            onChange={(event, selectedDate) => {
-              setShowDatePicker(false);
-              if (selectedDate) {
-                const dayOfWeek = selectedDate.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
-                // Restrict Wednesday (3), Thursday (4), Friday (5)
-                if (dayOfWeek === 3 || dayOfWeek === 4 || dayOfWeek === 5) {
-                  Alert.alert(
-                    'Date Not Available',
-                    'Wednesday, Thursday, and Friday are reserved for regular collection schedules. Please select Monday, Tuesday, or Saturday.',
-                    [{ text: 'OK' }]
-                  );
-                  return;
-                }
-                setDate(selectedDate);
-              }
-            }}
-            minimumDate={new Date()}
+          <SmartDatePicker
+            selectedDate={date}
+            onDateChange={setDate}
+            userArea={userProfile?.barangay || address}
+            bagQuantity={bagQuantity}
           />
-        )}
+        </View>
 
 
         {/* Address Section with Location Picker */}
