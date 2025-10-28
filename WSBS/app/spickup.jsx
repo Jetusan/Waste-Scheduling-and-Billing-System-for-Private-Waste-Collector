@@ -14,6 +14,7 @@ import {
   Linking,
   ActivityIndicator,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -46,6 +47,8 @@ const SPickup = () => {
   const [pickupLocation, setPickupLocation] = useState(null); // { latitude, longitude, address }
   const [isGettingLocation, setIsGettingLocation] = useState(false);
   const [locationPermissionGranted, setLocationPermissionGranted] = useState(false);
+  const [savedLocation, setSavedLocation] = useState(null); // Remember previous location
+  const [useCurrentLocation, setUseCurrentLocation] = useState(true); // Toggle for using saved location
   
   // New states for preview mode
   const [showForm, setShowForm] = useState(false);
@@ -280,13 +283,52 @@ const SPickup = () => {
     }
   };
 
-  // Fetch requests on component mount
+  // Check location permission on mount
   useEffect(() => {
-    fetchSpecialRequests();
     checkLocationPermission();
   }, []);
 
-  // Check location permission on component mount
+  // Load saved location when user ID becomes available
+  useEffect(() => {
+    if (currentUserId) {
+      loadSavedLocation();
+    }
+  }, [currentUserId]);
+
+  // Load saved location from AsyncStorage
+  const loadSavedLocation = async () => {
+    try {
+      if (!currentUserId) return;
+      
+      const saved = await AsyncStorage.getItem(`saved_pickup_location_${currentUserId}`);
+      if (saved) {
+        const savedLocationData = JSON.parse(saved);
+        setSavedLocation(savedLocationData);
+        console.log('📍 Loaded saved location:', savedLocationData.address);
+      }
+    } catch (error) {
+      console.error('Error loading saved location:', error);
+    }
+  };
+
+  // Save location for future use
+  const saveLocationForFuture = async (locationData) => {
+    try {
+      if (!currentUserId) return;
+      
+      await AsyncStorage.setItem(`saved_pickup_location_${currentUserId}`, JSON.stringify(locationData));
+      setSavedLocation(locationData);
+      console.log('💾 Location saved for future use:', locationData.address);
+    } catch (error) {
+      console.error('Error saving location:', error);
+    }
+  };
+
+  // Fetch requests on component mount
+  useEffect(() => {
+    fetchSpecialRequests();
+  }, []);
+
   const checkLocationPermission = async () => {
     try {
       const { status } = await Location.getForegroundPermissionsAsync();
@@ -357,7 +399,10 @@ const SPickup = () => {
       setPickupLocation(locationData);
       setAddress(formattedAddress);
       
-      Alert.alert('Success', 'Location set successfully!');
+      // Save location for future use
+      await saveLocationForFuture(locationData);
+      
+      Alert.alert('Success', 'Location set successfully and saved for future use!');
       
     } catch (error) {
       console.error('Error getting location:', error);
@@ -808,6 +853,36 @@ const SPickup = () => {
             </View>
           )}
           
+          {/* Saved Location Option */}
+          {savedLocation && !pickupLocation && (
+            <View style={styles.savedLocationContainer}>
+              <View style={styles.savedLocationHeader}>
+                <Ionicons name="bookmark" size={20} color="#4CAF50" />
+                <Text style={styles.savedLocationTitle}>Use Previous Location?</Text>
+              </View>
+              <Text style={styles.savedLocationAddress}>{savedLocation.address}</Text>
+              <View style={styles.savedLocationButtons}>
+                <TouchableOpacity
+                  style={styles.useSavedLocationButton}
+                  onPress={() => {
+                    setPickupLocation(savedLocation);
+                    setAddress(savedLocation.address || '');
+                    Alert.alert('Success', 'Previous location loaded!');
+                  }}
+                >
+                  <Ionicons name="checkmark" size={16} color="#fff" />
+                  <Text style={styles.useSavedLocationText}>Use This Location</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.newLocationButton}
+                  onPress={() => setSavedLocation(null)}
+                >
+                  <Text style={styles.newLocationText}>Use New Location</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+
           {/* Enhanced Location Action Buttons */}
           <View style={styles.locationButtonsContainer}>
             <TouchableOpacity
@@ -824,7 +899,9 @@ const SPickup = () => {
               ) : (
                 <>
                   <Ionicons name="pin" size={20} color="#fff" />
-                  <Text style={styles.locationButtonText}>Pin Your Location</Text>
+                  <Text style={styles.locationButtonText}>
+                    {savedLocation && !pickupLocation ? 'Pin New Location' : 'Pin Your Location'}
+                  </Text>
                 </>
               )}
             </TouchableOpacity>
@@ -1502,6 +1579,68 @@ const styles = StyleSheet.create({
     color: '#4CAF50',
     marginLeft: 8,
     lineHeight: 18,
+  },
+  // Saved location styles
+  savedLocationContainer: {
+    backgroundColor: '#f8f9fa',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+  },
+  savedLocationHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  savedLocationTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#4CAF50',
+    marginLeft: 8,
+  },
+  savedLocationAddress: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 12,
+    lineHeight: 20,
+  },
+  savedLocationButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  useSavedLocationButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#4CAF50',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    gap: 6,
+  },
+  useSavedLocationText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  newLocationButton: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'transparent',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#ddd',
+  },
+  newLocationText: {
+    color: '#666',
+    fontSize: 14,
+    fontWeight: '500',
   },
 });
 

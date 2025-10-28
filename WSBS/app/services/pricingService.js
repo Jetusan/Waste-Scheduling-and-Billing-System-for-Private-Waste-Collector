@@ -18,7 +18,7 @@ class PricingService {
       }
 
       console.log('🔄 Fetching current pricing from API...');
-      const response = await fetch(`${API_BASE_URL}/pricing/current-pricing`);
+      const response = await fetch(`${API_BASE_URL}/api/pricing/current-pricing`);
       
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
