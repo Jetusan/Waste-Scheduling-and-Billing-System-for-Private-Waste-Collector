@@ -410,26 +410,15 @@
   align-self: flex-start;
 }
 
-.ledger-debit {
-  color: #14532d;
+.ledger-debit,
+.ledger-credit,
+.ledger-balance {
   font-weight: var(--wsbs-font-weight-medium);
-}
-
-.ledger-credit {
-  color: #b91c1c;
-  font-weight: var(--wsbs-font-weight-medium);
+  color: var(--wsbs-gray-900);
 }
 
 .ledger-balance {
   font-weight: var(--wsbs-font-weight-semibold);
-}
-
-.ledger-balance.negative {
-  color: #b91c1c;
-}
-
-.ledger-balance.positive {
-  color: #14532d;
 }
 
 .ledger-empty {

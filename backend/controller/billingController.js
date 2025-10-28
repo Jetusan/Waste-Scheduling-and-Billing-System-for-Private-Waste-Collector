@@ -577,11 +577,39 @@ const createMobileSubscription = async (req, res) => {
         }
       }
     } else {
-      // Get the single ₱199 plan (Full Plan)
+      // Get the current pricing and find the plan
+      let targetPrice = 199; // Default fallback
+      try {
+        const pricingQuery = `
+          SELECT config_data FROM pricing_config 
+          WHERE is_active = true 
+          ORDER BY updated_at DESC 
+          LIMIT 1
+        `;
+        const pricingResult = await pool.query(pricingQuery);
+        
+        if (pricingResult.rows.length > 0) {
+          const pricingConfig = pricingResult.rows[0].config_data;
+          targetPrice = pricingConfig.subscription?.fullPlan?.price || 199;
+          console.log(`💰 Using dynamic subscription price: ₱${targetPrice}`);
+        }
+      } catch (pricingError) {
+        console.error('⚠️ Error fetching dynamic pricing, using default:', pricingError);
+      }
+      
+      // Get the plan with current pricing
       const plans = await billingModel.getAllSubscriptionPlans();
-      const plan = plans.find(p => p.price == 199);
+      let plan = plans.find(p => p.price == targetPrice);
+      
+      // If no plan matches current pricing, get the first available plan and update its price
       if (!plan) {
-        return res.status(404).json({ error: 'Full Plan (₱199) not found in database' });
+        plan = plans[0]; // Get first available plan
+        if (!plan) {
+          return res.status(404).json({ error: 'No subscription plans found in database' });
+        }
+        // Update plan price to match current pricing
+        plan.price = targetPrice;
+        console.log(`📋 Using plan "${plan.plan_name}" with updated price: ₱${targetPrice}`);
       }
 
       // Set billing start date to current date

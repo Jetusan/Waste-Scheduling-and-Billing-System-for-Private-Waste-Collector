@@ -390,6 +390,27 @@ const SPickup = () => {
       return;
     }
 
+    // Prepare request data for invoice
+    const requestData = {
+      wasteTypes: selectedWasteTypes.join(', '),
+      bagQuantity: totalBags,
+      pickupDate: date.toISOString(),
+      address: address,
+      notes: notes,
+      message: message,
+      pickupLocation: pickupLocation,
+      wasteSelections: wasteSelections
+    };
+
+    // Navigate to invoice page instead of direct submission
+    router.push({
+      pathname: '/invoice/special-pickup',
+      params: {
+        requestData: JSON.stringify(requestData)
+      }
+    });
+    return;
+
     if (!currentUserId) {
       console.log('No currentUserId available, attempting to fetch...');
       

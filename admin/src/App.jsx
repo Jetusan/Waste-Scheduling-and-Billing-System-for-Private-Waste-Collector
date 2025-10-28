@@ -13,6 +13,7 @@ import About from './pages/About';
 import Billing from './pages/Billing';
 import Profile from './pages/Profile';
 import SpecialPickup from './pages/SpecialPickup';
+import Pricing from './pages/Pricing';
 import ProtectedRoute from './components/ProtectedRoute';
 
 const App = () => {
@@ -63,6 +64,7 @@ const App = () => {
           <Route path="settings">
             <Route index element={<Navigate to="notifications" replace />} />
             <Route path="notifications" element={<Notifications />} />
+            <Route path="pricing" element={<Pricing />} />
             <Route path="about" element={<About />} />
           </Route>
           

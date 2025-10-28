@@ -9,9 +9,10 @@ import * as Linking from 'expo-linking';
 import PaymentPage from './PaymentPage';
 import { API_BASE_URL } from './config';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import pricingService from './services/pricingService';
 
-// Single plan - Full Plan only
-const singlePlan = {
+// Dynamic plan - will be updated with pricing from API
+const getDefaultPlan = () => ({
   id: 'full',
   name: 'Full Plan',
   price: '₱199',
@@ -27,7 +28,7 @@ const singlePlan = {
   addon: '✅ Available',
   contract: '1 Year (Fixed)',
   preTermination: '₱200 if < 1 year',
-};
+});
 
 const paymentMethods = [
   {
@@ -58,6 +59,42 @@ const Subscription = () => {
   const [userProfile, setUserProfile] = useState(null);
   const [profileLoading, setProfileLoading] = useState(true);
   const [profileError, setProfileError] = useState(null);
+  
+  // Dynamic pricing state
+  const [currentPlan, setCurrentPlan] = useState(getDefaultPlan());
+  const [pricingLoading, setPricingLoading] = useState(true);
+
+  // Load dynamic pricing
+  useEffect(() => {
+    loadDynamicPricing();
+  }, []);
+
+  const loadDynamicPricing = async () => {
+    try {
+      console.log('💰 Loading dynamic subscription pricing...');
+      const subscriptionPricing = await pricingService.getSubscriptionPricing();
+      
+      const updatedPlan = {
+        ...getDefaultPlan(),
+        price: `₱${subscriptionPricing.monthlyFee}`,
+        priceValue: subscriptionPricing.monthlyFee,
+        extraBagCost: `₱${subscriptionPricing.extraBagCost}/bag`,
+        preTermination: `₱${subscriptionPricing.preTerminationFee} if < 1 year`,
+      };
+      
+      setCurrentPlan(updatedPlan);
+      console.log('✅ Dynamic pricing loaded:', {
+        monthlyFee: subscriptionPricing.monthlyFee,
+        extraBagCost: subscriptionPricing.extraBagCost,
+        preTerminationFee: subscriptionPricing.preTerminationFee
+      });
+    } catch (error) {
+      console.error('❌ Error loading dynamic pricing:', error);
+      // Keep default plan on error
+    } finally {
+      setPricingLoading(false);
+    }
+  };
 
   // Check if user has previously accepted terms
   useEffect(() => {
@@ -115,7 +152,7 @@ const Subscription = () => {
     fetchProfile();
   }, []);
 
-  const selectedPlanData = singlePlan;
+  const selectedPlanData = currentPlan;
 
   // Remove payment-related state and functions
   // Remove: selectedPaymentMethod, isProcessing, handlePaymentMethodSelect, handleConfirmPayment, handleGcashPayment
@@ -244,8 +281,8 @@ const Subscription = () => {
         <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 90 }]}>  
           <View style={styles.planContainerVertical}>
             <View style={[styles.planCardVertical, styles.selectedCard]}>
-              <Text style={styles.planName}>{singlePlan.name}</Text>
-              <Text style={styles.planPrice}>{singlePlan.price} <Text style={styles.perMonth}>/ month</Text></Text>
+              <Text style={styles.planName}>{currentPlan.name}</Text>
+              <Text style={styles.planPrice}>{currentPlan.price} <Text style={styles.perMonth}>/ month</Text></Text>
               <TouchableOpacity
                 style={styles.detailedButton}
                 onPress={() => setShowDetails(!showDetails)}

@@ -34,13 +34,36 @@ const createRequest = async (req, res) => {
       data.image_url = `/uploads/${req.file.filename}`;
     }
     
-    // Handle bag quantity and pricing
+    // Handle bag quantity and pricing - get dynamic pricing
     if (data.bag_quantity) {
       data.bag_quantity = parseInt(data.bag_quantity) || 1;
-      data.price_per_bag = 25.00; // Fixed price per bag
-      data.estimated_total = data.bag_quantity * 25.00;
       
-      console.log(`📦 Special pickup request: ${data.bag_quantity} bags × ₱25 = ₱${data.estimated_total}`);
+      // Get current pricing from database
+      let pricePerBag = 25.00; // Default fallback
+      try {
+        const pricingQuery = `
+          SELECT config_data FROM pricing_config 
+          WHERE is_active = true 
+          ORDER BY updated_at DESC 
+          LIMIT 1
+        `;
+        const pricingResult = await query(pricingQuery);
+        
+        if (pricingResult.rows.length > 0) {
+          const pricingConfig = pricingResult.rows[0].config_data;
+          pricePerBag = pricingConfig.specialPickup?.pricePerBag || 25.00;
+          console.log(`💰 Using dynamic pricing: ₱${pricePerBag} per bag`);
+        } else {
+          console.log(`💰 Using default pricing: ₱${pricePerBag} per bag`);
+        }
+      } catch (pricingError) {
+        console.error('⚠️ Error fetching dynamic pricing, using default:', pricingError);
+      }
+      
+      data.price_per_bag = pricePerBag;
+      data.estimated_total = data.bag_quantity * pricePerBag;
+      
+      console.log(`📦 Special pickup request: ${data.bag_quantity} bags × ₱${pricePerBag} = ₱${data.estimated_total}`);
     }
     
     const newRequest = await specialPickupModel.createSpecialPickupRequest(data);

@@ -1,8 +1,42 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import pricingService from '../app/services/pricingService';
 
-const WasteTypeBagSelector = ({ wasteSelections, setWasteSelections, pricePerBag = 25 }) => {
+const WasteTypeBagSelector = ({ wasteSelections, setWasteSelections, pricePerBag: propPricePerBag }) => {
+  const [dynamicPricing, setDynamicPricing] = useState({
+    pricePerBag: propPricePerBag || 25,
+    loading: true
+  });
+
+  // Load dynamic pricing on component mount
+  useEffect(() => {
+    loadDynamicPricing();
+  }, []);
+
+  const loadDynamicPricing = async () => {
+    try {
+      const specialPickupPricing = await pricingService.getSpecialPickupPricing();
+      setDynamicPricing({
+        pricePerBag: specialPickupPricing.pricePerBag,
+        minBags: specialPickupPricing.minBags,
+        maxBags: specialPickupPricing.maxBags,
+        loading: false
+      });
+      console.log('💰 Dynamic pricing loaded:', specialPickupPricing);
+    } catch (error) {
+      console.error('❌ Error loading dynamic pricing:', error);
+      // Use fallback pricing
+      setDynamicPricing({
+        pricePerBag: propPricePerBag || 25,
+        minBags: 1,
+        maxBags: 50,
+        loading: false
+      });
+    }
+  };
+
+  const pricePerBag = dynamicPricing.pricePerBag;
   const wasteTypes = [
     { type: 'Non-Biodegradable', icon: 'cube-outline', color: '#FF5722' },
     { type: 'Biodegradable', icon: 'leaf-outline', color: '#4CAF50' },
@@ -10,9 +44,10 @@ const WasteTypeBagSelector = ({ wasteSelections, setWasteSelections, pricePerBag
   ];
 
   const updateBagQuantity = (wasteType, quantity) => {
+    const maxBags = dynamicPricing.maxBags || 20;
     setWasteSelections(prev => ({
       ...prev,
-      [wasteType]: Math.max(0, Math.min(quantity, 20)) // Min 0, Max 20
+      [wasteType]: Math.max(0, Math.min(quantity, maxBags)) // Min 0, Max from pricing
     }));
   };
 
@@ -93,14 +128,14 @@ const WasteTypeBagSelector = ({ wasteSelections, setWasteSelections, pricePerBag
               </View>
 
               <TouchableOpacity 
-                style={[styles.controlButton, quantity >= 20 && styles.controlButtonDisabled]}
+                style={[styles.controlButton, quantity >= (dynamicPricing.maxBags || 20) && styles.controlButtonDisabled]}
                 onPress={() => incrementBags(item.type)}
-                disabled={quantity >= 20}
+                disabled={quantity >= (dynamicPricing.maxBags || 20)}
               >
                 <Ionicons 
                   name="add" 
                   size={18} 
-                  color={quantity >= 20 ? '#ccc' : '#fff'} 
+                  color={quantity >= (dynamicPricing.maxBags || 20) ? '#ccc' : '#fff'} 
                 />
               </TouchableOpacity>
             </View>
