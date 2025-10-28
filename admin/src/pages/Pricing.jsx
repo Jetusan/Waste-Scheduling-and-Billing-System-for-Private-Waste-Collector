@@ -196,7 +196,7 @@ const Pricing = () => {
                   type="number"
                   step="0.01"
                   value={pricingConfig.specialPickup.pricePerBag}
-                  onChange={(e) => updateNestedPricing('specialPickup', 'pricePerBag', null, e.target.value)}
+                  onChange={(e) => updatePricing('specialPickup', 'pricePerBag', e.target.value)}
                   disabled={!editMode}
                   className="price-input"
                 />
@@ -215,7 +215,7 @@ const Pricing = () => {
                   type="number"
                   min="1"
                   value={pricingConfig.specialPickup.minBags}
-                  onChange={(e) => updateNestedPricing('specialPickup', 'minBags', null, e.target.value)}
+                  onChange={(e) => updatePricing('specialPickup', 'minBags', e.target.value)}
                   disabled={!editMode}
                   className="price-input"
                 />
@@ -233,7 +233,7 @@ const Pricing = () => {
                   type="number"
                   min="1"
                   value={pricingConfig.specialPickup.maxBags}
-                  onChange={(e) => updateNestedPricing('specialPickup', 'maxBags', null, e.target.value)}
+                  onChange={(e) => updatePricing('specialPickup', 'maxBags', e.target.value)}
                   disabled={!editMode}
                   className="price-input"
                 />
@@ -262,7 +262,7 @@ const Pricing = () => {
                   type="number"
                   step="0.01"
                   value={pricingConfig.lateFees.lateFeeAmount}
-                  onChange={(e) => updateNestedPricing('lateFees', 'lateFeeAmount', null, e.target.value)}
+                  onChange={(e) => updatePricing('lateFees', 'lateFeeAmount', e.target.value)}
                   disabled={!editMode}
                   className="price-input"
                 />
@@ -279,7 +279,7 @@ const Pricing = () => {
                   type="number"
                   min="0"
                   value={pricingConfig.lateFees.gracePeriodDays}
-                  onChange={(e) => updateNestedPricing('lateFees', 'gracePeriodDays', null, e.target.value)}
+                  onChange={(e) => updatePricing('lateFees', 'gracePeriodDays', e.target.value)}
                   disabled={!editMode}
                   className="price-input"
                 />

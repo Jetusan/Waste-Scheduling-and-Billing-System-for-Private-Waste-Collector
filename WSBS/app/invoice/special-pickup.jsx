@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -19,25 +19,40 @@ const SpecialPickupInvoice = () => {
     if (params.requestData) {
       try {
         const data = JSON.parse(params.requestData);
+        console.log('📋 Parsed request data:', data);
         generateInvoice(data);
       } catch (err) {
-        console.error('Error parsing request data:', err);
+        console.error('❌ Error parsing request data:', err);
         setError('Invalid request data');
         setLoading(false);
       }
     } else {
+      console.error('❌ No request data provided');
       setError('No request data provided');
       setLoading(false);
     }
-  }, [params]);
+  }, [params.requestData]); // Only depend on requestData, not the entire params object
 
-  const generateInvoice = async (requestData) => {
+  const generateInvoice = useCallback(async (requestData) => {
     try {
+      console.log('🔄 Generating invoice for request data:', requestData);
       setLoading(true);
+      setError(null); // Clear any previous errors
       
       // Calculate pricing with potential discounts
-      const response = await fetch(`${API_BASE_URL}/admin/special-pickup-pricing?bagQuantity=${requestData.bagQuantity}&userType=${requestData.userType || 'regular'}`);
+      const pricingUrl = `${API_BASE_URL}/api/pricing/special-pickup-pricing?bagQuantity=${requestData.bagQuantity}&userType=${requestData.userType || 'regular'}`;
+      console.log('🔄 Fetching pricing from:', pricingUrl);
+      
+      const response = await fetch(pricingUrl);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ Pricing API error:', response.status, errorText);
+        throw new Error(`Pricing API error: ${response.status} - ${errorText}`);
+      }
+      
       const pricingData = await response.json();
+      console.log('✅ Pricing data received:', pricingData);
       
       // Generate invoice number
       const invoiceNumber = `SP-${Date.now()}-${Math.random().toString(36).substr(2, 4).toUpperCase()}`;
@@ -51,14 +66,15 @@ const SpecialPickupInvoice = () => {
         status: 'pending_confirmation'
       };
       
+      console.log('✅ Invoice generated successfully:', invoice);
       setInvoiceData(invoice);
     } catch (err) {
-      console.error('Error generating invoice:', err);
-      setError('Failed to generate invoice');
+      console.error('❌ Error generating invoice:', err);
+      setError(`Failed to generate invoice: ${err.message}`);
     } finally {
       setLoading(false);
     }
-  };
+  }, []); // Empty dependency array since we don't depend on any props or state
 
   const handleConfirmRequest = async () => {
     if (!invoiceData) return;
@@ -94,7 +110,7 @@ const SpecialPickupInvoice = () => {
         price_per_bag: invoiceData.pricing.pricePerBag
       };
       
-      const response = await fetch(`${API_BASE_URL}/special-pickup/create`, {
+      const response = await fetch(`${API_BASE_URL}/api/special-pickup`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
