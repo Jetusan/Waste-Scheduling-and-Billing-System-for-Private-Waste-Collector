@@ -15,9 +15,7 @@ const Pricing = () => {
       }
     },
     specialPickup: {
-      pricePerBag: 25.00,
-      minBags: 1,
-      maxBags: 50
+      pricePerBag: 25.00
     },
     lateFees: {
       lateFeeAmount: 50.00,
@@ -76,7 +74,7 @@ const Pricing = () => {
       ...prev,
       [section]: {
         ...prev[section],
-        [field]: parseFloat(value) || 0
+        [field]: value === '' ? 0 : (parseFloat(value) || 0)
       }
     }));
   };
@@ -195,52 +193,22 @@ const Pricing = () => {
                 <input
                   type="number"
                   step="0.01"
-                  value={pricingConfig.specialPickup.pricePerBag}
+                  min="0"
+                  value={pricingConfig.specialPickup.pricePerBag || ''}
                   onChange={(e) => updatePricing('specialPickup', 'pricePerBag', e.target.value)}
                   disabled={!editMode}
                   className="price-input"
+                  placeholder="Enter price per bag"
+                  style={{ 
+                    backgroundColor: editMode ? '#fff' : '#f5f5f5',
+                    cursor: editMode ? 'text' : 'not-allowed'
+                  }}
                 />
                 <span className="period">/bag</span>
               </div>
               <p className="price-description">
                 Standard rate for special pickup requests<br/>
                 25kg rice sack size bags
-              </p>
-            </div>
-
-            <div className="pricing-card">
-              <h4>Minimum Bags</h4>
-              <div className="price-input-group">
-                <input
-                  type="number"
-                  min="1"
-                  value={pricingConfig.specialPickup.minBags}
-                  onChange={(e) => updatePricing('specialPickup', 'minBags', e.target.value)}
-                  disabled={!editMode}
-                  className="price-input"
-                />
-                <span className="period">bags</span>
-              </div>
-              <p className="price-description">
-                Minimum number of bags per request
-              </p>
-            </div>
-
-            <div className="pricing-card">
-              <h4>Maximum Bags</h4>
-              <div className="price-input-group">
-                <input
-                  type="number"
-                  min="1"
-                  value={pricingConfig.specialPickup.maxBags}
-                  onChange={(e) => updatePricing('specialPickup', 'maxBags', e.target.value)}
-                  disabled={!editMode}
-                  className="price-input"
-                />
-                <span className="period">bags</span>
-              </div>
-              <p className="price-description">
-                Maximum number of bags per request
               </p>
             </div>
           </div>
@@ -261,10 +229,16 @@ const Pricing = () => {
                 <input
                   type="number"
                   step="0.01"
-                  value={pricingConfig.lateFees.lateFeeAmount}
+                  min="0"
+                  value={pricingConfig.lateFees.lateFeeAmount || ''}
                   onChange={(e) => updatePricing('lateFees', 'lateFeeAmount', e.target.value)}
                   disabled={!editMode}
                   className="price-input"
+                  placeholder="Enter late fee amount"
+                  style={{ 
+                    backgroundColor: editMode ? '#fff' : '#f5f5f5',
+                    cursor: editMode ? 'text' : 'not-allowed'
+                  }}
                 />
               </div>
               <p className="price-description">
@@ -278,10 +252,16 @@ const Pricing = () => {
                 <input
                   type="number"
                   min="0"
-                  value={pricingConfig.lateFees.gracePeriodDays}
+                  max="365"
+                  value={pricingConfig.lateFees.gracePeriodDays || ''}
                   onChange={(e) => updatePricing('lateFees', 'gracePeriodDays', e.target.value)}
                   disabled={!editMode}
                   className="price-input"
+                  placeholder="Enter grace period"
+                  style={{ 
+                    backgroundColor: editMode ? '#fff' : '#f5f5f5',
+                    cursor: editMode ? 'text' : 'not-allowed'
+                  }}
                 />
                 <span className="period">days</span>
               </div>
