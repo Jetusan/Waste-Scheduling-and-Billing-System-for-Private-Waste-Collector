@@ -8,6 +8,7 @@ import ModernLayout from './pages/ModernLayout';
 import Assignments from './pages/Assignments';
 import UsersCollectors from './pages/UserCollector';
 import Reports from './pages/Reports';
+import EnhancedReports from './pages/EnhancedReports';
 import Notifications from './pages/Notifications';
 import About from './pages/About';
 import Billing from './pages/Billing';
@@ -60,7 +61,8 @@ const App = () => {
           {/* Insights Routes */}
           <Route path="insights">
             <Route index element={<Navigate to="reports" replace />} />
-            <Route path="reports" element={<Reports />} />
+            <Route path="reports" element={<EnhancedReports />} />
+            <Route path="legacy-reports" element={<Reports />} />
           </Route>
           
           {/* Settings Routes */}
