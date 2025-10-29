@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import API_CONFIG from '../config/api';
 import '../styles/SimpleReports.css';
@@ -8,6 +8,7 @@ const API_URL = `${API_CONFIG.BASE_URL}/api`;
 const Reports = () => {
   const [loading, setLoading] = useState(false);
   const [generatedReports, setGeneratedReports] = useState([]);
+  const [loadingReports, setLoadingReports] = useState(true);
   
   // Filter states
   const [filters, setFilters] = useState({
@@ -20,6 +21,37 @@ const Reports = () => {
 
   // Sample barangays (you can fetch from API)
   const barangays = ['All Barangays', 'Barangay 1', 'Barangay 2', 'Barangay 3'];
+
+  // Load existing reports when component mounts
+  useEffect(() => {
+    loadExistingReports();
+  }, []);
+
+  const loadExistingReports = async () => {
+    try {
+      setLoadingReports(true);
+      console.log('🔄 Loading existing reports from database...');
+      const response = await axios.get(`${API_URL}/reports`);
+      
+      if (response.data && Array.isArray(response.data)) {
+        const formattedReports = response.data.map(report => ({
+          id: report.report_id,
+          type: report.type === 'collection-report' ? 'collection' : 'billing',
+          description: `${report.type === 'collection-report' ? 'Collection Report' : 'Billing Report'} - ${report.start_date} to ${report.end_date}`,
+          dateGenerated: new Date(report.date).toLocaleDateString(),
+          data: report // Store the full database report object
+        }));
+        
+        console.log('✅ Loaded reports from database:', formattedReports);
+        setGeneratedReports(formattedReports);
+      }
+    } catch (error) {
+      console.error('❌ Error loading existing reports:', error);
+      // Don't show alert for loading errors, just log them
+    } finally {
+      setLoadingReports(false);
+    }
+  };
 
   // Generate report
   const handleGenerateReport = async () => {
@@ -46,15 +78,8 @@ const Reports = () => {
       const response = await axios.post(`${API_URL}/reports/generate`, requestData);
       
       if (response.data && response.data.report) {
-        const newReport = {
-          id: Date.now(),
-          type: filters.reportType,
-          description: `${filters.reportType === 'collection' ? 'Collection Report' : 'Billing Report'} - ${filters.startDate} to ${filters.endDate}`,
-          dateGenerated: new Date().toLocaleDateString(),
-          data: response.data.report
-        };
-        
-        setGeneratedReports(prev => [newReport, ...prev]);
+        // Reload the reports list to include the newly generated report from database
+        await loadExistingReports();
         alert('Report generated successfully!');
       }
       
@@ -233,7 +258,11 @@ const Reports = () => {
       <div className="generated-reports-section">
         <h3>Generated Reports</h3>
         
-        {generatedReports.length === 0 ? (
+        {loadingReports ? (
+          <div className="no-reports">
+            <p>Loading existing reports...</p>
+          </div>
+        ) : generatedReports.length === 0 ? (
           <div className="no-reports">
             <p>No reports generated yet. Use the filters above to generate your first report.</p>
           </div>
