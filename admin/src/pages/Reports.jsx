@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import axios from 'axios';
 import API_CONFIG from '../config/api';
 import ReportVisualization from '../components/ReportVisualization';
+import logo from '../assets/images/LOGO.png';
 import '../styles/Reports.css';
 
 const API_URL = `${API_CONFIG.BASE_URL}/api`;
@@ -23,14 +24,14 @@ const Reports = () => {
   const [generatedReport, setGeneratedReport] = useState(null);
   const [showReport, setShowReport] = useState(false);
   
-  // Simplified report form - no modal needed
+  // Simplified report form
   const [reportForm, setReportForm] = useState({
     type: 'billing-payment',
     startDate: '',
     endDate: ''
   });
 
-  // Generate report - always PDF format
+  // Generate report
   const handleGenerateReport = async (e) => {
     e.preventDefault();
     
@@ -47,17 +48,13 @@ const Reports = () => {
         period: 'custom',
         start_date: reportForm.startDate,
         end_date: reportForm.endDate,
-        format: 'pdf', // Always PDF
+        format: 'pdf',
         generated_by: 'Admin User'
       };
-
-      console.log('Generating report with data:', requestData);
 
       // Call the backend API to generate the report
       const response = await axios.post(`${API_URL}/reports/generate`, requestData);
       
-      console.log('Report generation response:', response.data);
-
       // Store the generated report for display
       if (response.data && response.data.report) {
         setGeneratedReport(response.data.report);
@@ -89,7 +86,8 @@ const Reports = () => {
       const link = document.createElement('a');
       link.href = url;
       const reportType = generatedReport.type || 'report';
-      link.download = `WSBS_Report_${reportType}_${new Date().toISOString().split('T')[0]}.pdf`;
+      const dateRange = `${generatedReport.start_date} to ${generatedReport.end_date}`;
+      link.download = `WSBS_${reportType}_${dateRange}.pdf`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -137,24 +135,39 @@ const Reports = () => {
     setGeneratedReport(null);
   };
 
-  return (
-    <section className="simple-reports-page">
-      <div className="reports-header">
-        <h2><i className="fas fa-chart-bar"></i> Reports</h2>
-        <p className="reports-subtitle">Generate and view reports for your waste collection business</p>
-      </div>
+  // Format date for display
+  const formatDate = (dateString) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+  };
 
+  return (
+    <div className="reports-container">
       {/* Report View Section */}
       {showReport && generatedReport ? (
         <div className="report-view-section">
-          <div className="report-header">
-            <h2>Generated Report: {generatedReport.type}</h2>
-            <div className="report-actions">
-              <button className="action-btn" onClick={downloadReport}>
-                <i className="fas fa-download"></i> Download PDF
+          <div className="report-header-simple">
+            <div className="report-logo">
+              <img src={logo} alt="WSBS Logo" className="logo-image" />
+              <span className="logo-text">Waste Scheduling and Billing System</span>
+            </div>
+            <div className="report-info">
+              <h2>{generatedReport.type === 'billing-payment' ? 'Billing & Payment Report' : 
+                   generatedReport.type === 'regular-pickup' ? 'Collection Report' : 
+                   'Special Pickup Report'}</h2>
+              <p className="date-range">Period: {formatDate(generatedReport.start_date)} - {formatDate(generatedReport.end_date)}</p>
+            </div>
+            <div className="report-actions-simple">
+              <button className="btn-secondary" onClick={downloadReport}>
+                Download PDF
               </button>
-              <button className="action-btn" onClick={closeReport}>
-                <i className="fas fa-times"></i> Close
+              <button className="btn-primary" onClick={closeReport}>
+                Close Report
               </button>
             </div>
           </div>
@@ -165,76 +178,60 @@ const Reports = () => {
         </div>
       ) : (
         <>
-          {/* Simple Report Form - No Modal */}
+          {/* Simple Report Form */}
+          <div className="reports-header-simple">
+            <h1>Reports</h1>
+            <p>Generate and view reports for your waste collection business</p>
+          </div>
+
           <div className="simple-report-form">
             <form onSubmit={handleGenerateReport}>
               {/* Report Type Selection */}
-              <div className="form-section">
-                <h3>Select Report Type</h3>
-                <div className="report-type-cards">
-                  <div 
-                    className={`report-type-card ${reportForm.type === 'billing-payment' ? 'active' : ''}`}
+              <div className="form-group">
+                <label>Report Type</label>
+                <div className="report-type-options">
+                  <button
+                    type="button"
+                    className={`type-option ${reportForm.type === 'billing-payment' ? 'active' : ''}`}
                     onClick={() => setReportForm(prev => ({ ...prev, type: 'billing-payment' }))}
                   >
-                    <i className="fas fa-file-invoice-dollar"></i>
-                    <h4>Billing Report</h4>
-                    <p>Subscriber payments and billing information</p>
-                  </div>
-                  
-                  <div 
-                    className={`report-type-card ${reportForm.type === 'regular-pickup' ? 'active' : ''}`}
+                    Billing Report
+                  </button>
+                  <button
+                    type="button"
+                    className={`type-option ${reportForm.type === 'regular-pickup' ? 'active' : ''}`}
                     onClick={() => setReportForm(prev => ({ ...prev, type: 'regular-pickup' }))}
                   >
-                    <i className="fas fa-truck"></i>
-                    <h4>Collection Report</h4>
-                    <p>Waste collection activities and routes (includes regular pickups)</p>
-                  </div>
-                  
-                  <div 
-                    className={`report-type-card ${reportForm.type === 'special-pickup' ? 'active' : ''}`}
+                    Collection Report
+                  </button>
+                  <button
+                    type="button"
+                    className={`type-option ${reportForm.type === 'special-pickup' ? 'active' : ''}`}
                     onClick={() => setReportForm(prev => ({ ...prev, type: 'special-pickup' }))}
                   >
-                    <i className="fas fa-star"></i>
-                    <h4>Special Pickup Report</h4>
-                    <p>On-demand special pickup requests and revenue</p>
-                  </div>
+                    Special Pickup Report
+                  </button>
                 </div>
               </div>
 
               {/* Date Range Selection */}
-              <div className="form-section">
-                <h3>Select Date Range</h3>
-                
-                {/* Quick Date Buttons */}
-                <div className="quick-dates">
-                  <button type="button" className="quick-date-btn" onClick={() => setQuickRange('today')}>
-                    <i className="fas fa-calendar-day"></i> Today
-                  </button>
-                  <button type="button" className="quick-date-btn" onClick={() => setQuickRange('week')}>
-                    <i className="fas fa-calendar-week"></i> Last 7 Days
-                  </button>
-                  <button type="button" className="quick-date-btn" onClick={() => setQuickRange('month')}>
-                    <i className="fas fa-calendar-alt"></i> This Month
-                  </button>
-                  <button type="button" className="quick-date-btn" onClick={() => setQuickRange('lastMonth')}>
-                    <i className="fas fa-calendar"></i> Last Month
-                  </button>
+              <div className="form-group">
+                <label>Date Range</label>
+                <div className="date-range-presets">
+                  <button type="button" onClick={() => setQuickRange('today')}>Today</button>
+                  <button type="button" onClick={() => setQuickRange('week')}>Last 7 Days</button>
+                  <button type="button" onClick={() => setQuickRange('month')}>This Month</button>
+                  <button type="button" onClick={() => setQuickRange('lastMonth')}>Last Month</button>
                 </div>
-
-                {/* Custom Date Range */}
-                <div className="date-inputs">
+                <div className="date-inputs-simple">
                   <div className="date-input-group">
-                    <label><i className="fas fa-calendar-plus"></i> Start Date</label>
                     <input
                       type="date"
                       value={reportForm.startDate}
                       onChange={(e) => setReportForm(prev => ({ ...prev, startDate: e.target.value }))}
                       required
                     />
-                  </div>
-                  <div className="date-separator">to</div>
-                  <div className="date-input-group">
-                    <label><i className="fas fa-calendar-minus"></i> End Date</label>
+                    <span>to</span>
                     <input
                       type="date"
                       value={reportForm.endDate}
@@ -246,32 +243,20 @@ const Reports = () => {
               </div>
 
               {/* Generate Button */}
-              <div className="generate-section">
+              <div className="form-actions">
                 <button 
                   type="submit" 
                   disabled={loading || !reportForm.startDate || !reportForm.endDate}
-                  className="generate-report-btn"
+                  className="btn-generate"
                 >
-                  {loading ? (
-                    <>
-                      <i className="fas fa-spinner fa-spin"></i> Generating Report...
-                    </>
-                  ) : (
-                    <>
-                      <i className="fas fa-chart-bar"></i> Generate Report
-                    </>
-                  )}
+                  {loading ? 'Generating Report...' : 'Generate Report'}
                 </button>
-                <p className="generate-note">
-                  <i className="fas fa-info-circle"></i> 
-                  Report will be displayed in the browser. You can download as PDF if needed.
-                </p>
               </div>
             </form>
           </div>
         </>
       )}
-    </section>
+    </div>
   );
 };
 
