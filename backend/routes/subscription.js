@@ -18,26 +18,51 @@ router.post('/create-mobile-subscription', authenticateJWT, async (req, res) => 
       });
     }
 
-    // Check if user already has an active subscription
+    // Check if user already has a subscription for this plan (any status)
     const existingSubscription = await pool.query(
       `SELECT subscription_id, status, payment_status 
        FROM customer_subscriptions 
-       WHERE user_id = $1 AND status IN ('active', 'pending_payment')
+       WHERE user_id = $1 AND plan_id = $2
        ORDER BY created_at DESC LIMIT 1`,
-      [user_id]
+      [user_id, plan_id]
     );
 
     if (existingSubscription.rows.length > 0) {
       const existing = existingSubscription.rows[0];
       console.log('📋 Found existing subscription:', existing);
-      
+
+      if (['active', 'pending_payment'].includes(existing.status)) {
+        return res.json({
+          success: true,
+          subscription: {
+            subscription_id: existing.subscription_id,
+            status: existing.status,
+            payment_status: existing.payment_status,
+            message: 'Using existing subscription'
+          }
+        });
+      }
+
+      console.log('🔄 Reactivating existing subscription record');
+      const updatedSubscription = await pool.query(
+        `UPDATE customer_subscriptions
+         SET status = 'pending_payment',
+             payment_status = 'pending',
+             billing_start_date = NOW(),
+             updated_at = NOW()
+         WHERE subscription_id = $1
+         RETURNING subscription_id, status, payment_status`,
+        [existing.subscription_id]
+      );
+
+      const reactivated = updatedSubscription.rows[0];
       return res.json({
         success: true,
         subscription: {
-          subscription_id: existing.subscription_id,
-          status: existing.status,
-          payment_status: existing.payment_status,
-          message: 'Using existing subscription'
+          subscription_id: reactivated.subscription_id,
+          status: reactivated.status,
+          payment_status: reactivated.payment_status,
+          message: 'Reactivated existing subscription'
         }
       });
     }

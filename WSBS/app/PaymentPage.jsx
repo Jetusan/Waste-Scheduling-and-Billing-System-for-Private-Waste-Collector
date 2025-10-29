@@ -184,7 +184,18 @@ const PaymentPage = ({
       const subscriptionResult = await subscriptionResponse.json();
       
       if (!subscriptionResult.success) {
-        Alert.alert('Error', subscriptionResult.error || 'Failed to create subscription');
+        const errorMessage = subscriptionResult.error || subscriptionResult.message || 'Failed to create subscription';
+
+        if (subscriptionResult.errorCode === 'ACTIVE_SUBSCRIPTION_EXISTS' && subscriptionResult.subscription) {
+          Alert.alert(
+            'Subscription Already Active',
+            'You already have an active or pending subscription. Please use the renewal option or settle the outstanding invoice.',
+            [{ text: 'OK', onPress: onSuccess }]
+          );
+        } else {
+          Alert.alert('Error', errorMessage);
+        }
+
         setIsProcessing(false);
         return;
       }
@@ -205,10 +216,12 @@ const PaymentPage = ({
           }
         });
       } else {
-        // Cash on Collection - Show success message
+        // Cash on Collection - Ensure we only use the subscription route response
+        const cashInstructions = subscriptionResult.instructions ||
+          'Subscription pending. Please pay the collector during your next collection to activate it.';
         Alert.alert(
           'Subscription Created!', 
-          subscriptionResult.instructions,
+          cashInstructions,
           [{ text: 'OK', onPress: onSuccess }]
         );
       }
