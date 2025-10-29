@@ -39,12 +39,9 @@ const navConfig = [
   },
   {
     title: 'Reports',
-    icon: 'fas fa-chart-line',
-    key: 'insights',
-    description: 'Analytics & Insights',
-    items: [
-      { title: 'Business Reports', icon: 'fas fa-chart-bar', path: '/admin/insights/reports' }
-    ]
+    icon: 'fas fa-chart-bar',
+    path: '/admin/reports',
+    description: 'Business Reports & Analytics'
   },
   {
     title: 'Settings',
@@ -66,7 +63,7 @@ const pageTitles = {
   '/admin/operations/assignments': 'Collector Assignments',
   '/admin/billing': 'Billing',
   '/admin/pricing': 'Pricing Management',
-  '/admin/insights/reports': 'Business Reports',
+  '/admin/reports': 'Reports',
   '/admin/settings/notifications': 'Notifications',
   '/admin/settings/about': 'About',
   '/admin/profile': 'Profile Settings'

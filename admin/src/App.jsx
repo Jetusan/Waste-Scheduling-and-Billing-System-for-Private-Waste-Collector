@@ -58,12 +58,8 @@ const App = () => {
           {/* Pricing Routes */}
           <Route path="pricing" element={<Pricing />} />
           
-          {/* Insights Routes */}
-          <Route path="insights">
-            <Route index element={<Navigate to="reports" replace />} />
-            <Route path="reports" element={<EnhancedReports />} />
-            <Route path="legacy-reports" element={<Reports />} />
-          </Route>
+          {/* Reports Route */}
+          <Route path="reports" element={<Reports />} />
           
           {/* Settings Routes */}
           <Route path="settings">
