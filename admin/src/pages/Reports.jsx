@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import axios from 'axios';
 import API_CONFIG from '../config/api';
 import '../styles/SimpleReports.css';
@@ -140,13 +140,13 @@ const Reports = () => {
             className={`report-type-btn ${filters.reportType === 'collection' ? 'active' : ''}`}
             onClick={() => setFilters(prev => ({ ...prev, reportType: 'collection' }))}
           >
-            📦 Collection Report
+            Collection Report
           </button>
           <button 
             className={`report-type-btn ${filters.reportType === 'billing' ? 'active' : ''}`}
             onClick={() => setFilters(prev => ({ ...prev, reportType: 'billing' }))}
           >
-            💰 Billing Report
+            Billing Report
           </button>
         </div>
       </div>
@@ -223,7 +223,7 @@ const Reports = () => {
               onClick={handleGenerateReport}
               disabled={loading || !filters.startDate || !filters.endDate}
             >
-              {loading ? 'Generating...' : '📊 Generate Report'}
+              {loading ? 'Generating...' : 'Generate Report'}
             </button>
           </div>
         </div>
@@ -261,13 +261,13 @@ const Reports = () => {
                           className="btn-view"
                           onClick={() => viewReport(report)}
                         >
-                          👁️ View
+                          View
                         </button>
                         <button 
                           className="btn-download"
                           onClick={() => downloadReport(report)}
                         >
-                          📥 Download PDF
+                          Download PDF
                         </button>
                       </div>
                     </td>
