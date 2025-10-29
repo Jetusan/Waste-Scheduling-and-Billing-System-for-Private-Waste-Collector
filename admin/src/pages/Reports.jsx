@@ -269,6 +269,12 @@ const Reports = () => {
                         >
                           Download PDF
                         </button>
+                        <button 
+                          className="btn-delete"
+                          onClick={() => deleteReport(report)}
+                        >
+                          Delete
+                        </button>
                       </div>
                     </td>
                   </tr>
