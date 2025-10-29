@@ -73,7 +73,7 @@ router.get('/user-ledger/:userId', async (req, res) => {
       WITH ledger_entries AS (
         -- Invoice entries (debits)
         SELECT 
-          i.created_at as date,
+          i.generated_date as date,
           CASE 
             WHEN COALESCE(i.description, '') ILIKE '%special%' OR i.invoice_number LIKE 'SP-%' THEN 
               'Special Pickup - ' || COALESCE(i.description, 'Special Pickup Service')
@@ -86,7 +86,7 @@ router.get('/user-ledger/:userId', async (req, res) => {
           i.amount as debit,
           0 as credit,
           'invoice' as entry_type,
-          i.created_at as sort_date
+          i.generated_date as sort_date
         FROM invoices i
         WHERE i.user_id = $1
         

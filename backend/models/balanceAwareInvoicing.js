@@ -13,7 +13,7 @@ const getUserCurrentBalance = async (userId) => {
       SELECT 
         i.amount as debit,
         0 as credit,
-        i.created_at as sort_date,
+        i.generated_date as sort_date,
         'invoice' as entry_type
       FROM invoices i
       WHERE i.user_id = $1
