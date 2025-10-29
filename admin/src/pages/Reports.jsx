@@ -160,7 +160,7 @@ const Reports = () => {
 
   // Delete report
   const deleteReport = async (report) => {
-    if (!confirm(`Are you sure you want to delete this report?\n\n${report.description}`)) {
+    if (!window.confirm(`Are you sure you want to delete this report?\n\n${report.description}`)) {
       return;
     }
 
