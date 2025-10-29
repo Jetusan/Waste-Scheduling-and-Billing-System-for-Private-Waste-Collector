@@ -19,17 +19,15 @@ const getLastMonth = () => {
 
 const Reports = () => {
   const [loading, setLoading] = useState(false);
-  const [showModal, setShowModal] = useState(false);
   
-  // Simplified report form
+  // Simplified report form - no modal needed
   const [reportForm, setReportForm] = useState({
     type: 'billing',
     startDate: '',
-    endDate: '',
-    format: 'pdf'
+    endDate: ''
   });
 
-  // Generate report
+  // Generate report - always PDF format
   const handleGenerateReport = async (e) => {
     e.preventDefault();
     
@@ -45,7 +43,7 @@ const Reports = () => {
         type: reportForm.type,
         start_date: reportForm.startDate,
         end_date: reportForm.endDate,
-        format: reportForm.format,
+        format: 'pdf', // Always PDF
         generated_by: 'Admin User'
       };
 
@@ -61,7 +59,6 @@ const Reports = () => {
         await downloadReport(response.data.report);
       }
       
-      setShowModal(false);
       alert('Report generated successfully!');
       
     } catch (error) {
@@ -138,140 +135,107 @@ const Reports = () => {
   };
 
   return (
-    <section className="reports-content">
+    <section className="simple-reports-page">
       <div className="reports-header">
-        <h2>Reports</h2>
-        <button 
-          className="btn generate-btn"
-          onClick={() => setShowModal(true)}
-        >
-          <i className="fas fa-plus"></i> Generate Report
-        </button>
+        <h2><i className="fas fa-chart-bar"></i> Reports</h2>
+        <p className="reports-subtitle">Generate PDF reports for your waste collection business</p>
       </div>
 
-      <div className="reports-info">
-        <div className="info-card">
-          <h4><i className="fas fa-info-circle"></i> Simple Reporting</h4>
-          <p>
-            Generate PDF reports for your waste collection business. 
-            Choose a report type, select date range, and download your report.
-          </p>
-        </div>
-      </div>
-
-      {/* Generate Report Modal */}
-      {showModal && (
-        <div className="modal-overlay">
-          <div className="modal-content report-modal">
-            <div className="modal-header">
-              <h3>Generate Report</h3>
-              <button 
-                className="close-btn"
-                onClick={() => setShowModal(false)}
+      {/* Simple Report Form - No Modal */}
+      <div className="simple-report-form">
+        <form onSubmit={handleGenerateReport}>
+          {/* Report Type Selection */}
+          <div className="form-section">
+            <h3>Select Report Type</h3>
+            <div className="report-type-cards">
+              <div 
+                className={`report-type-card ${reportForm.type === 'billing' ? 'active' : ''}`}
+                onClick={() => setReportForm(prev => ({ ...prev, type: 'billing' }))}
               >
-                ×
+                <i className="fas fa-file-invoice-dollar"></i>
+                <h4>Billing Report</h4>
+                <p>Subscriber payments and billing information</p>
+              </div>
+              
+              <div 
+                className={`report-type-card ${reportForm.type === 'collection' ? 'active' : ''}`}
+                onClick={() => setReportForm(prev => ({ ...prev, type: 'collection' }))}
+              >
+                <i className="fas fa-truck"></i>
+                <h4>Collection Report</h4>
+                <p>Waste collection activities and routes</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Date Range Selection */}
+          <div className="form-section">
+            <h3>Select Date Range</h3>
+            
+            {/* Quick Date Buttons */}
+            <div className="quick-dates">
+              <button type="button" className="quick-date-btn" onClick={() => setQuickRange('today')}>
+                <i className="fas fa-calendar-day"></i> Today
+              </button>
+              <button type="button" className="quick-date-btn" onClick={() => setQuickRange('week')}>
+                <i className="fas fa-calendar-week"></i> Last 7 Days
+              </button>
+              <button type="button" className="quick-date-btn" onClick={() => setQuickRange('month')}>
+                <i className="fas fa-calendar-alt"></i> This Month
+              </button>
+              <button type="button" className="quick-date-btn" onClick={() => setQuickRange('lastMonth')}>
+                <i className="fas fa-calendar"></i> Last Month
               </button>
             </div>
 
-            <form onSubmit={handleGenerateReport}>
-              {/* Report Type */}
-              <div className="form-section">
-                <h4>Report Type</h4>
-                <div className="report-type-simple">
-                  <label className="radio-option">
-                    <input
-                      type="radio"
-                      name="type"
-                      value="billing"
-                      checked={reportForm.type === 'billing'}
-                      onChange={(e) => setReportForm(prev => ({ ...prev, type: e.target.value }))}
-                    />
-                    <span>Billing Report</span>
-                    <small>Subscriber payments and billing information</small>
-                  </label>
-                  
-                  <label className="radio-option">
-                    <input
-                      type="radio"
-                      name="type"
-                      value="collection"
-                      checked={reportForm.type === 'collection'}
-                      onChange={(e) => setReportForm(prev => ({ ...prev, type: e.target.value }))}
-                    />
-                    <span>Collection Report</span>
-                    <small>Waste collection activities and routes</small>
-                  </label>
-                </div>
+            {/* Custom Date Range */}
+            <div className="date-inputs">
+              <div className="date-input-group">
+                <label><i className="fas fa-calendar-plus"></i> Start Date</label>
+                <input
+                  type="date"
+                  value={reportForm.startDate}
+                  onChange={(e) => setReportForm(prev => ({ ...prev, startDate: e.target.value }))}
+                  required
+                />
               </div>
-
-              {/* Date Range */}
-              <div className="form-section">
-                <h4>Date Range</h4>
-                
-                {/* Quick Date Buttons */}
-                <div className="quick-dates">
-                  <button type="button" onClick={() => setQuickRange('today')}>Today</button>
-                  <button type="button" onClick={() => setQuickRange('week')}>Last 7 Days</button>
-                  <button type="button" onClick={() => setQuickRange('month')}>This Month</button>
-                  <button type="button" onClick={() => setQuickRange('lastMonth')}>Last Month</button>
-                </div>
-
-                {/* Custom Date Range */}
-                <div className="date-inputs">
-                  <div className="date-input-group">
-                    <label>Start Date</label>
-                    <input
-                      type="date"
-                      value={reportForm.startDate}
-                      onChange={(e) => setReportForm(prev => ({ ...prev, startDate: e.target.value }))}
-                      required
-                    />
-                  </div>
-                  <div className="date-input-group">
-                    <label>End Date</label>
-                    <input
-                      type="date"
-                      value={reportForm.endDate}
-                      onChange={(e) => setReportForm(prev => ({ ...prev, endDate: e.target.value }))}
-                      required
-                    />
-                  </div>
-                </div>
+              <div className="date-separator">to</div>
+              <div className="date-input-group">
+                <label><i className="fas fa-calendar-minus"></i> End Date</label>
+                <input
+                  type="date"
+                  value={reportForm.endDate}
+                  onChange={(e) => setReportForm(prev => ({ ...prev, endDate: e.target.value }))}
+                  required
+                />
               </div>
-
-              {/* Format */}
-              <div className="form-section">
-                <h4>Format</h4>
-                <select
-                  value={reportForm.format}
-                  onChange={(e) => setReportForm(prev => ({ ...prev, format: e.target.value }))}
-                >
-                  <option value="pdf">PDF</option>
-                  <option value="excel">Excel</option>
-                </select>
-              </div>
-
-              {/* Submit */}
-              <div className="modal-actions">
-                <button 
-                  type="button" 
-                  onClick={() => setShowModal(false)}
-                  className="btn-cancel"
-                >
-                  Cancel
-                </button>
-                <button 
-                  type="submit" 
-                  disabled={loading}
-                  className="btn-generate"
-                >
-                  {loading ? 'Generating...' : 'Generate Report'}
-                </button>
-              </div>
-            </form>
+            </div>
           </div>
-        </div>
-      )}
+
+          {/* Generate Button */}
+          <div className="generate-section">
+            <button 
+              type="submit" 
+              disabled={loading || !reportForm.startDate || !reportForm.endDate}
+              className="generate-report-btn"
+            >
+              {loading ? (
+                <>
+                  <i className="fas fa-spinner fa-spin"></i> Generating Report...
+                </>
+              ) : (
+                <>
+                  <i className="fas fa-file-pdf"></i> Generate PDF Report
+                </>
+              )}
+            </button>
+            <p className="generate-note">
+              <i className="fas fa-info-circle"></i> 
+              Report will be downloaded as PDF automatically
+            </p>
+          </div>
+        </form>
+      </div>
     </section>
   );
 };

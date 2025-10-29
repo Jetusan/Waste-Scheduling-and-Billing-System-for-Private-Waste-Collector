@@ -400,6 +400,22 @@ const SubscriptionStatusScreen = () => {
         // Remove this functionality - not needed
         Alert.alert('Feature Removed', 'Address updates are handled during registration.');
         break;
+      case 'track_collector':
+        // For cash payment users - show collection schedule/tracking info
+        router.push('/CollectionSchedule');
+        break;
+      case 'change_to_gcash':
+        // Allow cash users to switch to GCash payment
+        await handleChangeToGCash();
+        break;
+      case 'change_payment_method':
+        // Generic payment method change
+        await handleChangePaymentMethod();
+        break;
+      case 'view_invoice':
+        // Show invoice details
+        await handleViewInvoice();
+        break;
       default:
         Alert.alert('Coming Soon', 'This feature will be available soon.');
     }
@@ -434,6 +450,109 @@ const SubscriptionStatusScreen = () => {
     } catch (error) {
       Alert.alert('Error', 'Failed to process payment. Please try again.');
     }
+  };
+
+  const handleChangeToGCash = async () => {
+    try {
+      Alert.alert(
+        'Switch to GCash Payment',
+        'Would you like to switch from cash payment to GCash for this subscription?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { 
+            text: 'Switch to GCash', 
+            onPress: async () => {
+              try {
+                const token = await getToken();
+                const response = await fetch(`${API_BASE_URL}/api/billing/change-payment-method`, {
+                  method: 'POST',
+                  headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                  },
+                  body: JSON.stringify({
+                    subscription_id: subscriptionData.subscription.id,
+                    new_payment_method: 'manual_gcash'
+                  })
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                  Alert.alert('Success', 'Payment method changed to GCash. Please refresh to see updated options.');
+                  onRefresh(); // Refresh the subscription data
+                } else {
+                  Alert.alert('Error', result.error || 'Failed to change payment method');
+                }
+              } catch (error) {
+                Alert.alert('Error', 'Failed to change payment method. Please try again.');
+              }
+            }
+          }
+        ]
+      );
+    } catch (error) {
+      Alert.alert('Error', 'Failed to process request. Please try again.');
+    }
+  };
+
+  const handleChangePaymentMethod = async () => {
+    Alert.alert(
+      'Change Payment Method',
+      'Choose your new payment method:',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'GCash', 
+          onPress: () => handleChangeToGCash()
+        },
+        { 
+          text: 'Cash on Collection', 
+          onPress: async () => {
+            try {
+              const token = await getToken();
+              const response = await fetch(`${API_BASE_URL}/api/billing/change-payment-method`, {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${token}`,
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                  subscription_id: subscriptionData.subscription.id,
+                  new_payment_method: 'cash'
+                })
+              });
+              
+              const result = await response.json();
+              if (result.success) {
+                Alert.alert('Success', 'Payment method changed to Cash on Collection. Please refresh to see updated options.');
+                onRefresh();
+              } else {
+                Alert.alert('Error', result.error || 'Failed to change payment method');
+              }
+            } catch (error) {
+              Alert.alert('Error', 'Failed to change payment method. Please try again.');
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const handleViewInvoice = async () => {
+    if (!subscriptionData.currentInvoice) {
+      Alert.alert('No Invoice', 'No current invoice available to view.');
+      return;
+    }
+    
+    const invoice = subscriptionData.currentInvoice;
+    const invoiceDetails = `
+Invoice: ${invoice.invoiceNumber || invoice.invoice_number}
+Amount: ₱${Number(invoice.amount).toFixed(2)}
+Due Date: ${new Date(invoice.dueDate || invoice.due_date).toLocaleDateString()}
+Status: ${invoice.status.toUpperCase()}
+    `.trim();
+    
+    Alert.alert('Invoice Details', invoiceDetails);
   };
 
   const getStatusColor = (uiState) => {

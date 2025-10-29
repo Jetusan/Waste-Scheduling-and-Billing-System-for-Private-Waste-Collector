@@ -1040,16 +1040,6 @@ const CStartCollection = () => {
           )}
         </View>
         
-        <View style={styles.headerActions}>
-          <TouchableOpacity 
-            onPress={handleRouteIssue}
-            style={[styles.issueButton, reportingIssue && { opacity: 0.6 }]}
-            disabled={reportingIssue}
-          >
-            <Ionicons name="warning" size={20} color="#fff" />
-            <Text style={styles.issueButtonText}>Report Issue</Text>
-          </TouchableOpacity>
-        </View>
       </View>
 
       {/* Map Section (MapLibre when available) */}
@@ -1281,7 +1271,7 @@ const CStartCollection = () => {
                       const boundVal = amountInputs[stop.user_id] ?? (typeof info.price === 'number' ? String(info.price) : '');
                       return (
                         <View style={{ marginTop: 8 }}>
-                          <Text style={{ color: '#2e7d32', fontWeight: 'bold' }}>Payment Method: Cash on Collection</Text>
+                          <Text style={{ color: '#2e7d32', fontWeight: 'bold' }}>Payment Method: Cash on Hand</Text>
                           <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8 }}>
                             <TextInput
                               style={{
