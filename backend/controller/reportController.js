@@ -1711,7 +1711,7 @@ class ReportController {
       <body>
         <div class="header">
           <div class="logo-section">
-            <div class="logo">${wsbsLogoBase64 ? '' : 'LOGO'}</div>
+            <div class="logo">${wsbsLogoBase64 ? `<img src="data:image/png;base64,${wsbsLogoBase64}" alt="WSBS Logo" style="max-width: 60px; height: auto;">` : 'LOGO'}</div>
             <div class="company-info">
               <h1>WSBS - ${reportTypeDisplay}</h1>
               <p>Waste Scheduling and Billing System</p>
