@@ -112,30 +112,26 @@ class ReportController {
       let reportData = {};
       let reportType = type;
 
-      // Generate different types of reports based on your database schema
+      // Generate different types of reports based on simplified structure
       switch (type) {
         case 'waste-collection':
+        case 'collection':
         case 'regular-pickup':
-          console.log('Generating waste collection report...');
-          reportData = await ReportController.generateWasteCollectionReport(filters, start_date, end_date);
-          reportType = 'regular-pickup';
+          console.log('Generating unified collection report (regular + special pickups)...');
+          reportData = await ReportController.generateUnifiedCollectionReport(filters, start_date, end_date);
+          reportType = 'collection-report';
           break;
         case 'financial-summary':
         case 'billing-payment':
+        case 'billing':
           console.log('Generating financial report...');
           reportData = await ReportController.generateFinancialReport(filters, start_date, end_date);
-          reportType = 'billing-payment';
-          break;
-        case 'special-pickups':
-        case 'special-pickup':
-          console.log('Generating special pickups report...');
-          reportData = await ReportController.generateSpecialPickupsReport(filters, start_date, end_date);
-          reportType = 'special-pickup';
+          reportType = 'billing-report';
           break;
         default:
-          console.log('Unknown report type, defaulting to waste collection...');
-          reportData = await ReportController.generateWasteCollectionReport(filters, start_date, end_date);
-          reportType = 'regular-pickup';
+          console.log('Unknown report type, defaulting to collection report...');
+          reportData = await ReportController.generateUnifiedCollectionReport(filters, start_date, end_date);
+          reportType = 'collection-report';
       }
 
       console.log('Report generation successful, storing in database...');
@@ -1821,6 +1817,202 @@ class ReportController {
       </body>
       </html>
     `;
+  }
+
+  // 🔄 UNIFIED COLLECTION REPORT (Regular + Special Pickups)
+  static async generateUnifiedCollectionReport(filters = {}, startDate, endDate) {
+    try {
+      console.log('=== GENERATING UNIFIED COLLECTION REPORT ===');
+      console.log('Filters:', JSON.stringify(filters, null, 2));
+      console.log('Date range:', startDate, 'to', endDate);
+
+      // Get regular pickups from collection_stop_events
+      let regularQuery = `
+        SELECT 
+          cse.created_at as collection_date,
+          'Regular Pickup' as collection_type,
+          cse.action as status,
+          COALESCE(u.username, 'Unknown User') as resident_name,
+          COALESCE(b.barangay_name, 'Unknown Barangay') as location,
+          COALESCE(uc.username, 'Unknown Collector') as collector_name,
+          COALESCE(cse.amount, '0') as waste_amount,
+          'N/A' as special_notes
+        FROM collection_stop_events cse
+        LEFT JOIN users u ON CAST(cse.user_id AS INTEGER) = CAST(u.user_id AS INTEGER)
+        LEFT JOIN addresses a ON u.address_id = a.address_id
+        LEFT JOIN barangays b ON CAST(a.barangay_id AS INTEGER) = CAST(b.barangay_id AS INTEGER)
+        LEFT JOIN users uc ON CAST(cse.collector_id AS INTEGER) = CAST(uc.user_id AS INTEGER)
+        WHERE 1=1
+      `;
+
+      // Get special pickups from special_pickup_requests
+      let specialQuery = `
+        SELECT 
+          spr.created_at as collection_date,
+          'Special Pickup' as collection_type,
+          spr.status,
+          COALESCE(u.username, 'Unknown User') as resident_name,
+          COALESCE(b.barangay_name, 'Unknown Barangay') as location,
+          COALESCE(uc.username, 'Unknown Collector') as collector_name,
+          COALESCE(spr.final_price::text, '0') as waste_amount,
+          COALESCE(spr.waste_type, 'Mixed Waste') as special_notes
+        FROM special_pickup_requests spr
+        LEFT JOIN users u ON CAST(spr.user_id AS INTEGER) = CAST(u.user_id AS INTEGER)
+        LEFT JOIN addresses a ON u.address_id = a.address_id
+        LEFT JOIN barangays b ON CAST(a.barangay_id AS INTEGER) = CAST(b.barangay_id AS INTEGER)
+        LEFT JOIN users uc ON CAST(spr.collector_id AS INTEGER) = CAST(uc.user_id AS INTEGER)
+        WHERE 1=1
+      `;
+
+      const params = [];
+      let paramCount = 0;
+
+      // Apply date filters to both queries
+      if (startDate && endDate) {
+        paramCount += 2;
+        const dateFilter = ` AND DATE(created_at) BETWEEN CAST($${paramCount-1} AS DATE) AND CAST($${paramCount} AS DATE)`;
+        regularQuery += dateFilter;
+        specialQuery += dateFilter;
+        params.push(startDate, endDate);
+      }
+
+      // Apply barangay filter
+      if (filters.barangay && filters.barangay !== '' && filters.barangay !== 'All Barangays') {
+        if (!isNaN(parseInt(filters.barangay))) {
+          paramCount++;
+          const barangayFilter = ` AND b.barangay_id = $${paramCount}::integer`;
+          regularQuery += barangayFilter;
+          specialQuery += barangayFilter;
+          params.push(parseInt(filters.barangay));
+        }
+      }
+
+      // Apply status filter with mapping
+      if (filters.status && filters.status !== '') {
+        let dbStatus = filters.status;
+        // Map frontend status to database status
+        switch (filters.status) {
+          case 'completed':
+            dbStatus = 'collected';
+            break;
+          case 'missed':
+            dbStatus = 'missed';
+            break;
+          case 'pending':
+            dbStatus = 'pending';
+            break;
+        }
+        
+        paramCount++;
+        const statusFilter = ` AND status = $${paramCount}`;
+        regularQuery += statusFilter.replace('status', 'cse.action');
+        specialQuery += statusFilter.replace('status', 'spr.status');
+        params.push(dbStatus);
+      }
+
+      // Combine both queries with UNION
+      const combinedQuery = `
+        (${regularQuery})
+        UNION ALL
+        (${specialQuery})
+        ORDER BY collection_date DESC
+      `;
+
+      console.log('Executing unified collection query:', combinedQuery);
+      console.log('Query parameters:', params);
+
+      const result = await pool.query(combinedQuery, params);
+
+      // Calculate summary statistics
+      const totalCollections = result.rows.length;
+      const regularPickups = result.rows.filter(row => row.collection_type === 'Regular Pickup').length;
+      const specialPickups = result.rows.filter(row => row.collection_type === 'Special Pickup').length;
+      const completedCollections = result.rows.filter(row => 
+        row.status === 'collected' || row.status === 'completed'
+      ).length;
+      const missedCollections = result.rows.filter(row => row.status === 'missed').length;
+      const pendingCollections = result.rows.filter(row => 
+        row.status === 'pending' || row.status === 'in_progress'
+      ).length;
+
+      // Calculate completion rate
+      const completionRate = totalCollections > 0 ? 
+        ((completedCollections / totalCollections) * 100).toFixed(1) : 0;
+
+      // Group by location
+      const locationBreakdown = {};
+      result.rows.forEach(row => {
+        const location = row.location || 'Unknown Location';
+        if (!locationBreakdown[location]) {
+          locationBreakdown[location] = {
+            total: 0,
+            completed: 0,
+            regular: 0,
+            special: 0
+          };
+        }
+        locationBreakdown[location].total++;
+        if (row.status === 'collected' || row.status === 'completed') {
+          locationBreakdown[location].completed++;
+        }
+        if (row.collection_type === 'Regular Pickup') {
+          locationBreakdown[location].regular++;
+        } else {
+          locationBreakdown[location].special++;
+        }
+      });
+
+      // Group by collector
+      const collectorPerformance = {};
+      result.rows.forEach(row => {
+        const collector = row.collector_name || 'Unknown Collector';
+        if (!collectorPerformance[collector]) {
+          collectorPerformance[collector] = {
+            total: 0,
+            completed: 0,
+            regular: 0,
+            special: 0
+          };
+        }
+        collectorPerformance[collector].total++;
+        if (row.status === 'collected' || row.status === 'completed') {
+          collectorPerformance[collector].completed++;
+        }
+        if (row.collection_type === 'Regular Pickup') {
+          collectorPerformance[collector].regular++;
+        } else {
+          collectorPerformance[collector].special++;
+        }
+      });
+
+      const summary = {
+        totalCollections,
+        regularPickups,
+        specialPickups,
+        completedCollections,
+        missedCollections,
+        pendingCollections,
+        completionRate: parseFloat(completionRate),
+        regularPercentage: totalCollections > 0 ? ((regularPickups / totalCollections) * 100).toFixed(1) : 0,
+        specialPercentage: totalCollections > 0 ? ((specialPickups / totalCollections) * 100).toFixed(1) : 0
+      };
+
+      console.log('Collection report summary:', summary);
+
+      return {
+        type: 'collection-report',
+        period: `${startDate || 'all'} to ${endDate || 'all'}`,
+        summary,
+        locationBreakdown,
+        collectorPerformance,
+        collections: result.rows,
+        generatedAt: new Date().toISOString()
+      };
+
+    } catch (error) {
+      console.error('Error generating unified collection report:', error);
+      throw error;
+    }
   }
 }
 
