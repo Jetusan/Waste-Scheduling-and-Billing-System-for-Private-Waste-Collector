@@ -1,4 +1,16 @@
 const { pool } = require('../config/db');
+const fs = require('fs');
+const path = require('path');
+
+// Attempt to load WSBS logo for PDF reports
+let wsbsLogoBase64 = '';
+try {
+  const logoPath = path.join(__dirname, '..', '..', 'admin', 'src', 'assets', 'images', 'LOGO.png');
+  const logoBuffer = fs.readFileSync(logoPath);
+  wsbsLogoBase64 = logoBuffer.toString('base64');
+} catch (error) {
+  console.warn('⚠️ Unable to load WSBS logo for reports:', error.message);
+}
 
 class ReportController {
   // 📋 GET ALL REPORTS
@@ -1509,259 +1521,126 @@ class ReportController {
 
   // 🎨 GENERATE HTML TEMPLATE FOR PDF
   static generateReportHTML(reportData) {
-    const { type, generated_by, date, period, data, report_id, start_date, end_date } = reportData;
-    
+    const { type, generated_by, date, period, data = {}, report_id, start_date, end_date } = reportData;
+
+    // Helper functions
+    const formatDate = (value) => {
+      if (!value) return '—';
+      const parsed = new Date(value);
+      if (Number.isNaN(parsed.getTime())) return value;
+      return parsed.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' });
+    };
+
+    const formatCurrency = (value) => {
+      const numeric = Number(value);
+      if (Number.isNaN(numeric)) return '';
+      return `₱${numeric.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    };
+
+    const numericValue = (value) => {
+      const numeric = Number(value);
+      return Number.isNaN(numeric) ? 0 : numeric;
+    };
+
     // Format report type for display
     const reportTypeDisplay = {
-      'regular-pickup': 'Regular Pickup Report',
-      'billing-payment': 'Billing & Payment Report', 
+      'collection-report': 'Collection Report',
+      'billing-report': 'Billing Report', 
+      'regular-pickup': 'Collection Report',
+      'billing-payment': 'Billing Report',
       'special-pickup': 'Special Pickup Report'
-    }[type] || 'Report';
+    }[type] || 'WSBS Report';
 
-    // Generate summary section based on report type
-    let summaryHTML = '';
-    let detailTablesHTML = '';
-    
-    if (data && data.summary) {
-      const summary = data.summary;
-      
-      if (type === 'regular-pickup') {
-        summaryHTML = `
-          <div class="summary-grid">
-            <div class="summary-card">
-              <h4>Total Schedules</h4>
-              <p class="metric">${summary.totalSchedules || 0}</p>
-            </div>
-            <div class="summary-card">
-              <h4>Completed</h4>
-              <p class="metric">${summary.completed || 0}</p>
-            </div>
-            <div class="summary-card">
-              <h4>Pending</h4>
-              <p class="metric">${summary.pending || 0}</p>
-            </div>
-            <div class="summary-card">
-              <h4>Completion Rate</h4>
-              <p class="metric">${summary.completionRate || 0}%</p>
-            </div>
-          </div>
-        `;
+    const dateRangeLabel = (start_date && end_date)
+      ? `${formatDate(start_date)} – ${formatDate(end_date)}`
+      : (period && period !== 'custom' ? period : formatDate(date));
 
-        // Add detailed tables for regular pickup
-        if (data.collections && data.collections.length > 0) {
-          detailTablesHTML += `
-            <div class="section">
-              <h3>📋 Collection Schedule Details</h3>
-              <table class="data-table">
-                <thead>
-                  <tr>
-                    <th>Schedule ID</th>
-                    <th>Day</th>
-                    <th>Waste Type</th>
-                    <th>Time Range</th>
-                    <th>Status</th>
-                    <th>Created</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  ${data.collections.slice(0, 20).map(item => `
-                    <tr>
-                      <td>${item.schedule_id}</td>
-                      <td>${item.schedule_date}</td>
-                      <td>${item.waste_type}</td>
-                      <td>${item.time_range}</td>
-                      <td><span class="status-${item.status}">${item.status}</span></td>
-                      <td>${new Date(item.created_at).toLocaleDateString()}</td>
-                    </tr>
-                  `).join('')}
-                </tbody>
-              </table>
-              ${data.collections.length > 20 ? `<p class="note">Showing first 20 of ${data.collections.length} total schedules</p>` : ''}
-            </div>
+    // Generate summary cards and ledger rows
+    let summaryCardsHTML = '';
+    let ledgerRowsHTML = '';
+    let totalAmount = 0;
+
+    // Handle different report types
+    if (type === 'collection-report' || type === 'regular-pickup') {
+      const summary = data.summary || {};
+      summaryCardsHTML = `
+        <div class="summary-cards">
+          <div class="card"><span class="label">Total Collections</span><span class="value">${summary.totalCollections || summary.totalSchedules || 0}</span></div>
+          <div class="card"><span class="label">Regular Pickups</span><span class="value">${summary.regularPickups || 0}</span></div>
+          <div class="card"><span class="label">Special Pickups</span><span class="value">${summary.specialPickups || 0}</span></div>
+          <div class="card"><span class="label">Completion Rate</span><span class="value">${summary.completionRate || 0}%</span></div>
+          <div class="card"><span class="label">Missed</span><span class="value">${summary.missedCollections || 0}</span></div>
+        </div>
+      `;
+
+      const collections = Array.isArray(data.collections) ? data.collections : [];
+      if (collections.length === 0) {
+        ledgerRowsHTML = '<tr><td colspan="4" class="empty">No collection data available for this period.</td></tr>';
+      } else {
+        ledgerRowsHTML = collections.map(item => {
+          const amountValue = numericValue(item.waste_amount || item.final_price || item.amount);
+          totalAmount += amountValue;
+          const description = [item.collection_type || 'Regular Pickup', `Status: ${(item.status || '').toUpperCase()}`]
+            .concat(item.location ? [`Location: ${item.location}`] : [])
+            .concat(item.collector_name ? [`Collector: ${item.collector_name}`] : [])
+            .concat(item.special_notes && item.special_notes !== 'N/A' ? [item.special_notes] : [])
+            .join(' • ');
+          return `
+            <tr>
+              <td>${formatDate(item.collection_date || item.created_at)}</td>
+              <td>${item.resident_name || item.customer_name || 'Unknown Resident'}</td>
+              <td>${description}</td>
+              <td class="right">${amountValue ? formatCurrency(amountValue) : ''}</td>
+            </tr>
           `;
-        }
-
-        // Add waste type breakdown
-        if (data.wasteTypeBreakdown) {
-          detailTablesHTML += `
-            <div class="section">
-              <h3>🗂️ Waste Type Breakdown</h3>
-              <table class="data-table">
-                <thead>
-                  <tr>
-                    <th>Waste Type</th>
-                    <th>Count</th>
-                    <th>Percentage</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  ${Object.entries(data.wasteTypeBreakdown).map(([type, breakdown]) => {
-                    // Handle both old format (number) and new format (object with count/percentage)
-                    const count = typeof breakdown === 'object' ? breakdown.count : breakdown;
-                    const percentage = typeof breakdown === 'object' ? breakdown.percentage : 
-                      (summary.totalSchedules > 0 ? ((count / summary.totalSchedules) * 100).toFixed(1) : 0);
-                    return `
-                      <tr>
-                        <td>${type}</td>
-                        <td>${count}</td>
-                        <td>${percentage}%</td>
-                      </tr>
-                    `;
-                  }).join('')}
-                </tbody>
-              </table>
-            </div>
-          `;
-        }
-        
-      } else if (type === 'billing-payment') {
-        summaryHTML = `
-          <div class="summary-grid">
-            <div class="summary-card">
-              <h4>Total Invoices</h4>
-              <p class="metric">${summary.totalInvoices || 0}</p>
-            </div>
-            <div class="summary-card">
-              <h4>Total Amount</h4>
-              <p class="metric">₱${(summary.totalAmount || 0).toLocaleString()}</p>
-            </div>
-            <div class="summary-card">
-              <h4>Collection Rate</h4>
-              <p class="metric">${summary.collectionRate || 0}%</p>
-            </div>
-            <div class="summary-card">
-              <h4>Paid Amount</h4>
-              <p class="metric">₱${(summary.paidAmount || 0).toLocaleString()}</p>
-            </div>
-          </div>
-        `;
-
-        // Add detailed invoice table
-        if (data.invoices && data.invoices.length > 0) {
-          detailTablesHTML += `
-            <div class="section">
-              <h3>💰 Invoice Details</h3>
-              <table class="data-table">
-                <thead>
-                  <tr>
-                    <th>Invoice #</th>
-                    <th>Customer</th>
-                    <th>Plan</th>
-                    <th>Amount</th>
-                    <th>Status</th>
-                    <th>Generated</th>
-                    <th>Due Date</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  ${data.invoices.slice(0, 15).map(invoice => `
-                    <tr>
-                      <td>${invoice.invoice_number || invoice.invoice_id}</td>
-                      <td>${invoice.username || 'N/A'}</td>
-                      <td>${invoice.plan_name || 'N/A'}</td>
-                      <td>₱${parseFloat(invoice.amount || 0).toLocaleString()}</td>
-                      <td><span class="status-${invoice.invoice_status}">${invoice.invoice_status}</span></td>
-                      <td>${new Date(invoice.generated_date).toLocaleDateString()}</td>
-                      <td>${new Date(invoice.due_date).toLocaleDateString()}</td>
-                    </tr>
-                  `).join('')}
-                </tbody>
-              </table>
-              ${data.invoices.length > 15 ? `<p class="note">Showing first 15 of ${data.invoices.length} total invoices</p>` : ''}
-            </div>
-          `;
-        }
-        
-      } else if (type === 'special-pickup') {
-        summaryHTML = `
-          <div class="summary-grid">
-            <div class="summary-card">
-              <h4>Total Requests</h4>
-              <p class="metric">${summary.totalRequests || 0}</p>
-            </div>
-            <div class="summary-card">
-              <h4>Completed</h4>
-              <p class="metric">${summary.collected || 0}</p>
-            </div>
-            <div class="summary-card">
-              <h4>Total Revenue</h4>
-              <p class="metric">₱${(summary.totalRevenue || 0).toLocaleString()}</p>
-            </div>
-            <div class="summary-card">
-              <h4>Avg Price</h4>
-              <p class="metric">₱${summary.avgPrice || 0}</p>
-            </div>
-          </div>
-        `;
-
-        // Add special pickup details table
-        if (data.pickups && data.pickups.length > 0) {
-          detailTablesHTML += `
-            <div class="section">
-              <h3>🚛 Special Pickup Details</h3>
-              <table class="data-table">
-                <thead>
-                  <tr>
-                    <th>Request ID</th>
-                    <th>Waste Type</th>
-                    <th>Description</th>
-                    <th>Pickup Date</th>
-                    <th>Status</th>
-                    <th>Final Price</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  ${data.pickups.slice(0, 15).map(pickup => `
-                    <tr>
-                      <td>${pickup.request_id}</td>
-                      <td>${pickup.waste_type}</td>
-                      <td>${pickup.description ? pickup.description.substring(0, 50) + '...' : 'N/A'}</td>
-                      <td>${new Date(pickup.pickup_date).toLocaleDateString()}</td>
-                      <td><span class="status-${pickup.status}">${pickup.status}</span></td>
-                      <td>₱${parseFloat(pickup.final_price || 0).toLocaleString()}</td>
-                    </tr>
-                  `).join('')}
-                </tbody>
-              </table>
-              ${data.pickups.length > 15 ? `<p class="note">Showing first 15 of ${data.pickups.length} total requests</p>` : ''}
-            </div>
-          `;
-        }
-
-        // Add waste type breakdown for special pickup
-        if (data.summary && data.summary.wasteTypeBreakdown) {
-          detailTablesHTML += `
-            <div class="section">
-              <h3>🗂️ Waste Type Breakdown</h3>
-              <table class="data-table">
-                <thead>
-                  <tr>
-                    <th>Waste Type</th>
-                    <th>Total Requests</th>
-                    <th>Completed</th>
-                    <th>Completion Rate</th>
-                    <th>Total Revenue</th>
-                    <th>Avg Price</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  ${Object.entries(data.summary.wasteTypeBreakdown).map(([type, breakdown]) => `
-                    <tr>
-                      <td>${type}</td>
-                      <td>${breakdown.totalRequests || 0}</td>
-                      <td>${breakdown.completed || 0}</td>
-                      <td>${breakdown.completionRate || 0}%</td>
-                      <td>₱${parseFloat(breakdown.totalRevenue || 0).toLocaleString()}</td>
-                      <td>₱${parseFloat(breakdown.avgPrice || 0).toLocaleString()}</td>
-                    </tr>
-                  `).join('')}
-                </tbody>
-              </table>
-            </div>
-          `;
-        }
+        }).join('');
       }
+
+    } else if (type === 'billing-report' || type === 'billing-payment') {
+      const summary = data.summary || {};
+      summaryCardsHTML = `
+        <div class="summary-cards">
+          <div class="card"><span class="label">Total Invoices</span><span class="value">${summary.totalInvoices || 0}</span></div>
+          <div class="card"><span class="label">Paid Invoices</span><span class="value">${summary.paidInvoices || 0}</span></div>
+          <div class="card"><span class="label">Unpaid Invoices</span><span class="value">${summary.unpaidInvoices || 0}</span></div>
+          <div class="card"><span class="label">Collection Rate</span><span class="value">${summary.collectionRate || 0}%</span></div>
+          <div class="card"><span class="label">Total Amount</span><span class="value">${formatCurrency(summary.totalAmount || 0)}</span></div>
+        </div>
+      `;
+
+      const invoices = Array.isArray(data.invoices) ? data.invoices : [];
+      if (invoices.length === 0) {
+        ledgerRowsHTML = '<tr><td colspan="4" class="empty">No billing data available for this period.</td></tr>';
+      } else {
+        ledgerRowsHTML = invoices.map(invoice => {
+          const amountValue = numericValue(invoice.amount);
+          totalAmount += amountValue;
+          const description = `${invoice.plan_name || 'Subscription'} • Status: ${(invoice.invoice_status || '').toUpperCase()}${invoice.notes ? ' • ' + invoice.notes : ''}`;
+          return `
+            <tr>
+              <td>${formatDate(invoice.generated_date)}</td>
+              <td>${invoice.username || invoice.resident_name || 'Unknown User'}</td>
+              <td>${description}</td>
+              <td class="right">${formatCurrency(amountValue)}</td>
+            </tr>
+          `;
+        }).join('');
+      }
+    } else {
+      // Fallback for other report types
+      const summary = data.summary || {};
+      summaryCardsHTML = Object.entries(summary).slice(0, 5).map(([key, value]) => `
+        <div class="card"><span class="label">${key}</span><span class="value">${value}</span></div>
+      `).join('');
+      ledgerRowsHTML = '<tr><td colspan="4" class="empty">Detailed data unavailable for this report type.</td></tr>';
     }
+
+    const totalRow = totalAmount > 0 ? `
+      <tr class="total-row">
+        <td colspan="3" class="right"><strong>TOTAL AMOUNT</strong></td>
+        <td class="right"><strong>${formatCurrency(totalAmount)}</strong></td>
+      </tr>
+    ` : '';
 
     return `
       <!DOCTYPE html>
@@ -1770,45 +1649,63 @@ class ReportController {
         <meta charset="UTF-8">
         <title>WSBS ${reportTypeDisplay}</title>
         <style>
-          body { font-family: Arial, sans-serif; margin: 20px; line-height: 1.4; }
-          .header { background: #4CAF50; color: white; padding: 20px; text-align: center; margin-bottom: 20px; }
-          .report-info { background: #f8f9fa; padding: 15px; margin-bottom: 20px; border-left: 4px solid #4CAF50; }
-          .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 30px; }
-          .summary-card { background: white; border: 1px solid #ddd; padding: 15px; text-align: center; border-radius: 5px; }
-          .metric { font-size: 24px; font-weight: bold; color: #4CAF50; }
-          .section { margin-bottom: 30px; }
-          .section h3 { color: #333; margin-bottom: 15px; padding-bottom: 5px; border-bottom: 2px solid #4CAF50; }
-          .data-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px; }
-          .data-table th, .data-table td { padding: 8px; text-align: left; border-bottom: 1px solid #ddd; }
-          .data-table th { background-color: #f8f9fa; font-weight: bold; color: #333; }
-          .data-table tr:nth-child(even) { background-color: #f9f9f9; }
-          .status-completed, .status-paid { color: #28a745; font-weight: bold; }
-          .status-pending { color: #ffc107; font-weight: bold; }
-          .status-collected { color: #28a745; font-weight: bold; }
-          .note { font-style: italic; color: #666; margin-top: 10px; font-size: 11px; }
-          .footer { margin-top: 40px; text-align: center; color: #666; font-size: 12px; border-top: 1px solid #ddd; padding-top: 20px; }
+          * { box-sizing: border-box; }
+          body { font-family: Arial, sans-serif; margin: 0; padding: 20px; line-height: 1.4; color: #333; }
+          
+          .header { display: flex; align-items: center; justify-content: space-between; border: 2px solid #000; padding: 15px; margin-bottom: 20px; }
+          .logo-section { display: flex; align-items: center; }
+          .logo { width: 60px; height: 60px; border: 2px solid #000; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 14px; margin-right: 15px; ${wsbsLogoBase64 ? `background-image: url(data:image/png;base64,${wsbsLogoBase64}); background-size: contain; background-repeat: no-repeat; background-position: center;` : ''} }
+          .company-info h1 { margin: 0; font-size: 18px; font-weight: bold; }
+          .company-info p { margin: 2px 0; font-size: 12px; }
+          .date-info { text-align: right; font-size: 12px; }
+          .date-info p { margin: 2px 0; }
+          
+          .summary-cards { display: flex; flex-wrap: wrap; gap: 10px; margin: 20px 0; }
+          .summary-cards .card { flex: 1; min-width: 120px; border: 1px solid #ddd; padding: 10px; text-align: center; }
+          .summary-cards .label { display: block; font-size: 10px; color: #666; margin-bottom: 5px; }
+          .summary-cards .value { display: block; font-size: 16px; font-weight: bold; color: #4CAF50; }
+          
+          .ledger-table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+          .ledger-table th { background: #f5f5f5; border: 1px solid #000; padding: 8px; text-align: left; font-weight: bold; font-size: 12px; }
+          .ledger-table td { border: 1px solid #000; padding: 8px; font-size: 11px; vertical-align: top; }
+          .ledger-table .right { text-align: right; }
+          .ledger-table .empty { text-align: center; font-style: italic; color: #666; }
+          .ledger-table .total-row { background: #f0f0f0; font-weight: bold; }
+          
+          .footer { margin-top: 30px; text-align: center; font-size: 10px; color: #666; border-top: 1px solid #ddd; padding-top: 15px; }
         </style>
       </head>
       <body>
         <div class="header">
-          <h1>WSBS - ${reportTypeDisplay}</h1>
-          <p>Waste Scheduling and Billing System</p>
+          <div class="logo-section">
+            <div class="logo">${wsbsLogoBase64 ? '' : 'LOGO'}</div>
+            <div class="company-info">
+              <h1>WSBS - ${reportTypeDisplay}</h1>
+              <p>Waste Scheduling and Billing System</p>
+            </div>
+          </div>
+          <div class="date-info">
+            <p><strong>As of from – to [Date]</strong></p>
+            <p>${dateRangeLabel}</p>
+          </div>
         </div>
         
-        <div class="report-info">
-          <p><strong>Report ID:</strong> #${report_id}</p>
-          <p><strong>Generated By:</strong> ${generated_by}</p>
-          <p><strong>Generated Date:</strong> ${date}</p>
-          <p><strong>Period:</strong> ${period}</p>
-          ${start_date ? `<p><strong>Date Range:</strong> ${start_date} to ${end_date}</p>` : ''}
-        </div>
+        ${summaryCardsHTML}
         
-        <div class="section">
-          <h3>📊 Executive Summary</h3>
-          ${summaryHTML}
-        </div>
-        
-        ${detailTablesHTML}
+        <table class="ledger-table">
+          <thead>
+            <tr>
+              <th>DATE</th>
+              <th>WHO?</th>
+              <th>DESCRIPTION</th>
+              <th>AMOUNT</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${ledgerRowsHTML}
+            ${totalRow}
+          </tbody>
+        </table>
         
         <div class="footer">
           <p>Generated by WSBS (Waste Scheduling and Billing System) on ${new Date().toLocaleString()}</p>
@@ -1835,7 +1732,7 @@ class ReportController {
           COALESCE(u.username, 'Unknown User') as resident_name,
           COALESCE(b.barangay_name, 'Unknown Barangay') as location,
           COALESCE(uc.username, 'Unknown Collector') as collector_name,
-          COALESCE(cse.amount, '0') as waste_amount,
+          COALESCE(cse.amount::text, '0') as waste_amount,
           'N/A' as special_notes
         FROM collection_stop_events cse
         LEFT JOIN users u ON CAST(cse.user_id AS INTEGER) = CAST(u.user_id AS INTEGER)
@@ -1870,9 +1767,10 @@ class ReportController {
       // Apply date filters to both queries
       if (startDate && endDate) {
         paramCount += 2;
-        const dateFilter = ` AND DATE(created_at) BETWEEN CAST($${paramCount-1} AS DATE) AND CAST($${paramCount} AS DATE)`;
-        regularQuery += dateFilter;
-        specialQuery += dateFilter;
+        const regularDateFilter = ` AND DATE(cse.created_at) BETWEEN CAST($${paramCount-1} AS DATE) AND CAST($${paramCount} AS DATE)`;
+        const specialDateFilter = ` AND DATE(spr.created_at) BETWEEN CAST($${paramCount-1} AS DATE) AND CAST($${paramCount} AS DATE)`;
+        regularQuery += regularDateFilter;
+        specialQuery += specialDateFilter;
         params.push(startDate, endDate);
       }
 
