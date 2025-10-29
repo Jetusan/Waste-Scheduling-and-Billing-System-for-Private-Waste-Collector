@@ -49,9 +49,10 @@ router.post('/create-mobile-subscription', authenticateJWT, async (req, res) => 
         plan_id, 
         status, 
         payment_status, 
+        billing_start_date,
         created_at,
         updated_at
-      ) VALUES ($1, $2, 'pending_payment', 'unpaid', NOW(), NOW())
+      ) VALUES ($1, $2, 'pending_payment', 'unpaid', NOW(), NOW(), NOW())
       RETURNING subscription_id, status, payment_status`,
       [user_id, plan_id]
     );
