@@ -5,9 +5,31 @@ const path = require('path');
 // Attempt to load WSBS logo for PDF reports
 let wsbsLogoBase64 = '';
 try {
-  const logoPath = path.join(__dirname, '..', '..', 'admin', 'src', 'assets', 'images', 'LOGO.png');
-  const logoBuffer = fs.readFileSync(logoPath);
-  wsbsLogoBase64 = logoBuffer.toString('base64');
+  // Try multiple possible paths for the logo
+  const possiblePaths = [
+    path.join(__dirname, '..', '..', 'admin', 'src', 'assets', 'images', 'LOGO.png'),
+    path.join(__dirname, '..', 'admin', 'src', 'assets', 'images', 'LOGO.png'),
+    'c:\\Users\\jytti\\OneDrive\\Desktop\\WASTE\\admin\\src\\assets\\images\\LOGO.png'
+  ];
+  
+  let logoBuffer = null;
+  for (const logoPath of possiblePaths) {
+    try {
+      if (fs.existsSync(logoPath)) {
+        logoBuffer = fs.readFileSync(logoPath);
+        console.log('✅ WSBS logo loaded from:', logoPath);
+        break;
+      }
+    } catch (err) {
+      continue;
+    }
+  }
+  
+  if (logoBuffer) {
+    wsbsLogoBase64 = logoBuffer.toString('base64');
+  } else {
+    console.warn('⚠️ WSBS logo not found in any expected location');
+  }
 } catch (error) {
   console.warn('⚠️ Unable to load WSBS logo for reports:', error.message);
 }
@@ -1580,15 +1602,21 @@ class ReportController {
         ledgerRowsHTML = collections.map(item => {
           const amountValue = numericValue(item.waste_amount || item.final_price || item.amount);
           totalAmount += amountValue;
-          const description = [item.collection_type || 'Regular Pickup', `Status: ${(item.status || '').toUpperCase()}`]
-            .concat(item.location ? [`Location: ${item.location}`] : [])
-            .concat(item.collector_name ? [`Collector: ${item.collector_name}`] : [])
-            .concat(item.special_notes && item.special_notes !== 'N/A' ? [item.special_notes] : [])
-            .join(' • ');
+          
+          // Improved description formatting
+          const statusText = (item.status || '').toUpperCase();
+          const locationText = item.location && item.location !== 'Unknown Barangay' ? item.location : '';
+          const collectorText = item.collector_name && item.collector_name !== 'Unknown Collector' ? item.collector_name : '';
+          
+          let description = `${item.collection_type || 'Regular Pickup'} - ${statusText}`;
+          if (locationText) description += ` in ${locationText}`;
+          if (collectorText) description += ` by ${collectorText}`;
+          if (item.special_notes && item.special_notes !== 'N/A') description += ` (${item.special_notes})`;
+          
           return `
             <tr>
               <td>${formatDate(item.collection_date || item.created_at)}</td>
-              <td>${item.resident_name || item.customer_name || 'Unknown Resident'}</td>
+              <td>${item.resident_name || item.customer_name || 'System User'}</td>
               <td>${description}</td>
               <td class="right">${amountValue ? formatCurrency(amountValue) : ''}</td>
             </tr>
@@ -1615,11 +1643,16 @@ class ReportController {
         ledgerRowsHTML = invoices.map(invoice => {
           const amountValue = numericValue(invoice.amount);
           totalAmount += amountValue;
-          const description = `${invoice.plan_name || 'Subscription'} • Status: ${(invoice.invoice_status || '').toUpperCase()}${invoice.notes ? ' • ' + invoice.notes : ''}`;
+          
+          // Improved billing description
+          const statusText = (invoice.invoice_status || '').toUpperCase();
+          let description = `${invoice.plan_name || 'Subscription'} - ${statusText}`;
+          if (invoice.notes && invoice.notes.trim()) description += ` (${invoice.notes})`;
+          
           return `
             <tr>
               <td>${formatDate(invoice.generated_date)}</td>
-              <td>${invoice.username || invoice.resident_name || 'Unknown User'}</td>
+              <td>${invoice.username || invoice.resident_name || 'System User'}</td>
               <td>${description}</td>
               <td class="right">${formatCurrency(amountValue)}</td>
             </tr>
@@ -1685,7 +1718,7 @@ class ReportController {
             </div>
           </div>
           <div class="date-info">
-            <p><strong>As of from – to [Date]</strong></p>
+            <p><strong>Report Period</strong></p>
             <p>${dateRangeLabel}</p>
           </div>
         </div>
@@ -1696,7 +1729,7 @@ class ReportController {
           <thead>
             <tr>
               <th>DATE</th>
-              <th>WHO?</th>
+              <th>USERS</th>
               <th>DESCRIPTION</th>
               <th>AMOUNT</th>
             </tr>
@@ -1738,7 +1771,8 @@ class ReportController {
         LEFT JOIN users u ON CAST(cse.user_id AS INTEGER) = CAST(u.user_id AS INTEGER)
         LEFT JOIN addresses a ON u.address_id = a.address_id
         LEFT JOIN barangays b ON CAST(a.barangay_id AS INTEGER) = CAST(b.barangay_id AS INTEGER)
-        LEFT JOIN users uc ON CAST(cse.collector_id AS INTEGER) = CAST(uc.user_id AS INTEGER)
+        LEFT JOIN collectors c ON CAST(cse.collector_id AS INTEGER) = CAST(c.collector_id AS INTEGER)
+        LEFT JOIN users uc ON CAST(c.user_id AS INTEGER) = CAST(uc.user_id AS INTEGER)
         WHERE 1=1
       `;
 
@@ -1757,7 +1791,8 @@ class ReportController {
         LEFT JOIN users u ON CAST(spr.user_id AS INTEGER) = CAST(u.user_id AS INTEGER)
         LEFT JOIN addresses a ON u.address_id = a.address_id
         LEFT JOIN barangays b ON CAST(a.barangay_id AS INTEGER) = CAST(b.barangay_id AS INTEGER)
-        LEFT JOIN users uc ON CAST(spr.collector_id AS INTEGER) = CAST(uc.user_id AS INTEGER)
+        LEFT JOIN collectors c ON CAST(spr.collector_id AS INTEGER) = CAST(c.collector_id AS INTEGER)
+        LEFT JOIN users uc ON CAST(c.user_id AS INTEGER) = CAST(uc.user_id AS INTEGER)
         WHERE 1=1
       `;
 
