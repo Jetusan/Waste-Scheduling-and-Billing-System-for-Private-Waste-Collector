@@ -94,17 +94,28 @@ const Reports = () => {
   // Download report as PDF
   const downloadReport = async (report) => {
     try {
-      const pdfResponse = await axios.post(`${API_URL}/reports/generate-pdf`, {
-        reportData: report.data
-      }, {
-        responseType: 'blob'
-      });
+      let pdfResponse;
+      
+      // Check if this is a database report (has report_id) or a new report
+      if (report.data.report_id) {
+        // Use the database report download endpoint
+        pdfResponse = await axios.get(`${API_URL}/reports/${report.data.report_id}/download?format=pdf`, {
+          responseType: 'blob'
+        });
+      } else {
+        // Use the generate-pdf endpoint for new reports
+        pdfResponse = await axios.post(`${API_URL}/reports/generate-pdf`, {
+          reportData: report.data
+        }, {
+          responseType: 'blob'
+        });
+      }
 
       const blob = new Blob([pdfResponse.data], { type: 'application/pdf' });
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `WSBS_${report.type}_${report.dateGenerated}.pdf`;
+      link.download = `WSBS_${report.type}_${report.dateGenerated.replace(/\//g, '-')}.pdf`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -145,6 +156,27 @@ const Reports = () => {
     }
 
     setFilters(prev => ({ ...prev, startDate, endDate }));
+  };
+
+  // Delete report
+  const deleteReport = async (report) => {
+    if (!confirm(`Are you sure you want to delete this report?\n\n${report.description}`)) {
+      return;
+    }
+
+    try {
+      if (report.data.report_id) {
+        await axios.delete(`${API_URL}/reports/${report.data.report_id}`);
+        await loadExistingReports(); // Reload the list
+        alert('Report deleted successfully!');
+      } else {
+        // For local reports, just remove from state
+        setGeneratedReports(prev => prev.filter(r => r.id !== report.id));
+      }
+    } catch (error) {
+      console.error('Error deleting report:', error);
+      alert('Failed to delete report. Please try again.');
+    }
   };
 
   return (
