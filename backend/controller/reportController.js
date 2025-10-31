@@ -43,6 +43,10 @@ class ReportController {
         ORDER BY created_at DESC
       `;
       const result = await pool.query(query);
+      console.log(`📋 Found ${result.rows.length} reports in database`);
+      if (result.rows.length > 0) {
+        console.log('Latest report IDs:', result.rows.slice(0, 3).map(r => r.report_id));
+      }
       res.json(result.rows);
     } catch (error) {
       console.error('Error fetching reports:', error);
@@ -69,8 +73,12 @@ class ReportController {
       const { id } = req.params;
       const { format = 'json' } = req.query; // Support format parameter
       
+      console.log(`📥 Fetching report with ID: ${id}`);
+      
       const query = `SELECT * FROM reports WHERE report_id = $1`;
       const result = await pool.query(query, [id]);
+      
+      console.log(`📊 Query result: Found ${result.rows.length} reports`);
       
       if (result.rows.length === 0) {
         return res.status(404).json({ error: 'Report not found' });
@@ -188,7 +196,22 @@ class ReportController {
         end_date
       ]);
 
-      console.log('Report stored successfully:', reportResult.rows[0].report_id);
+      const newReportId = reportResult.rows[0].report_id;
+      console.log('Report stored successfully:', newReportId);
+
+      // Verify the report was actually stored by querying it back
+      try {
+        const verifyQuery = `SELECT report_id, type, status FROM reports WHERE report_id = $1`;
+        const verifyResult = await pool.query(verifyQuery, [newReportId]);
+        
+        if (verifyResult.rows.length > 0) {
+          console.log('✅ Report verification successful:', verifyResult.rows[0]);
+        } else {
+          console.error('❌ Report verification failed: Report not found after creation');
+        }
+      } catch (verifyError) {
+        console.error('❌ Report verification error:', verifyError);
+      }
 
       res.json({
         message: 'Report generated successfully',

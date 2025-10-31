@@ -397,11 +397,19 @@ const ReportViewModal = ({ report, onClose }) => {
       try {
         setLoading(true);
         const API_URL = `${API_CONFIG.BASE_URL}/api`;
+        console.log(`Fetching report data for ID: ${report.data.report_id}`);
+        
         const response = await axios.get(`${API_URL}/reports/${report.data.report_id}`);
         setReportData(response.data);
+        console.log('Report data loaded successfully');
       } catch (error) {
         console.error('Error fetching report data:', error);
-        alert('Failed to load report data');
+        
+        if (error.response?.status === 404) {
+          alert(`Report #${report.data.report_id} not found. It may have been deleted or there was an issue during generation.`);
+        } else {
+          alert(`Failed to load report data: ${error.response?.data?.error || error.message}`);
+        }
         onClose();
       } finally {
         setLoading(false);
