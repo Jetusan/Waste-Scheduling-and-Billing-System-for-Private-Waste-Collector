@@ -1387,7 +1387,8 @@ class ReportController {
 
   static async getBarangays(req, res) {
     try {
-      const query = `SELECT barangay_id, barangay_name FROM barangays ORDER BY barangay_name`;
+      // Only show San Isidro barangay in the reports filter
+      const query = `SELECT barangay_id, barangay_name FROM barangays WHERE barangay_name = 'San Isidro' ORDER BY barangay_name`;
       const result = await pool.query(query);
       res.json(result.rows);
     } catch (error) {
