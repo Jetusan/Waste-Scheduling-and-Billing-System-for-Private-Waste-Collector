@@ -1566,10 +1566,10 @@ class ReportController {
 
     // Format report type for display
     const reportTypeDisplay = {
-      'collection-report': 'Collection Report',
-      'billing-report': 'Billing Report', 
-      'regular-pickup': 'Collection Report',
-      'billing-payment': 'Billing Report',
+      'collection-report': 'Waste Pickup Report',
+      'billing-report': 'Cash Collection Report', 
+      'regular-pickup': 'Waste Pickup Report',
+      'billing-payment': 'Cash Collection Report',
       'special-pickup': 'Special Pickup Report'
     }[type] || 'WSBS Report';
 
@@ -1603,12 +1603,33 @@ class ReportController {
           const amountValue = numericValue(item.waste_amount || item.final_price || item.amount);
           totalAmount += amountValue;
           
-          // Improved description formatting
-          const statusText = (item.status || '').toUpperCase();
+          // Clean status formatting for waste pickup reports
+          const statusText = (item.status || '').toLowerCase();
           const locationText = item.location && item.location !== 'Unknown Barangay' ? item.location : '';
           const collectorText = item.collector_name && item.collector_name !== 'Unknown Collector' ? item.collector_name : '';
           
-          let description = `${item.collection_type || 'Regular Pickup'} - ${statusText}`;
+          // Format status for display (with SP- prefix for special pickups)
+          let displayStatus = '';
+          if (item.collection_type === 'Special Pickup') {
+            if (statusText === 'collected' || statusText === 'completed') {
+              displayStatus = 'SP-Collected';
+            } else if (statusText === 'missed') {
+              displayStatus = 'SP-Missed';
+            } else {
+              displayStatus = `SP-${statusText.charAt(0).toUpperCase() + statusText.slice(1)}`;
+            }
+          } else {
+            if (statusText === 'collected') {
+              displayStatus = 'Collected';
+            } else if (statusText === 'missed') {
+              displayStatus = 'Missed';
+            } else {
+              displayStatus = statusText.charAt(0).toUpperCase() + statusText.slice(1);
+            }
+          }
+          
+          // Clean description without status text
+          let description = `${item.collection_type || 'Regular Pickup'}`;
           if (locationText) description += ` in ${locationText}`;
           if (collectorText) description += ` by ${collectorText}`;
           if (item.special_notes && item.special_notes !== 'N/A') description += ` (${item.special_notes})`;
@@ -1618,7 +1639,7 @@ class ReportController {
               <td>${formatDate(item.collection_date || item.created_at)}</td>
               <td>${item.resident_name || item.customer_name || 'System User'}</td>
               <td>${description}</td>
-              <td class="right">${amountValue ? formatCurrency(amountValue) : ''}</td>
+              <td class="right">${displayStatus}</td>
             </tr>
           `;
         }).join('');
@@ -1668,7 +1689,8 @@ class ReportController {
       ledgerRowsHTML = '<tr><td colspan="4" class="empty">Detailed data unavailable for this report type.</td></tr>';
     }
 
-    const totalRow = totalAmount > 0 ? `
+    // Only show total row for billing reports (not for collection reports)
+    const totalRow = (totalAmount > 0 && (type === 'billing-report' || type === 'billing-payment')) ? `
       <tr class="total-row">
         <td colspan="3" class="right"><strong>TOTAL AMOUNT</strong></td>
         <td class="right"><strong>${formatCurrency(totalAmount)}</strong></td>
@@ -1731,7 +1753,7 @@ class ReportController {
               <th>DATE</th>
               <th>USERS</th>
               <th>DESCRIPTION</th>
-              <th>AMOUNT</th>
+              <th>${type === 'collection-report' || type === 'regular-pickup' ? 'STATUS' : 'AMOUNT'}</th>
             </tr>
           </thead>
           <tbody>

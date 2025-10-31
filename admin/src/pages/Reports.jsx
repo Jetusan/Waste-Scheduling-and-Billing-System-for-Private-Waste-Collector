@@ -34,13 +34,39 @@ const Reports = () => {
       const response = await axios.get(`${API_URL}/reports`);
       
       if (response.data && Array.isArray(response.data)) {
-        const formattedReports = response.data.map(report => ({
-          id: report.report_id,
-          type: report.type === 'collection-report' ? 'collection' : 'billing',
-          description: `${report.type === 'collection-report' ? 'Collection Report' : 'Billing Report'} - ${report.start_date} to ${report.end_date}`,
-          dateGenerated: new Date(report.date).toLocaleDateString(),
-          data: report // Store the full database report object
-        }));
+        const formattedReports = response.data.map(report => {
+          // Format dates from ISO string to readable format
+          const formatDate = (dateStr) => {
+            if (!dateStr) return dateStr;
+            // Handle ISO format dates like 2025-10-28T00:00:00.000Z
+            if (dateStr.includes('T') && dateStr.includes('Z')) {
+              const date = new Date(dateStr);
+              return date.toLocaleDateString('en-US', { 
+                year: 'numeric', 
+                month: 'long', 
+                day: 'numeric' 
+              });
+            }
+            // Handle regular date strings
+            const date = new Date(dateStr);
+            if (!isNaN(date.getTime())) {
+              return date.toLocaleDateString('en-US', { 
+                year: 'numeric', 
+                month: 'long', 
+                day: 'numeric' 
+              });
+            }
+            return dateStr;
+          };
+          
+          return {
+            id: report.report_id,
+            type: report.type === 'collection-report' ? 'collection' : 'billing',
+            description: `${report.type === 'collection-report' ? 'Waste Pickup Report' : 'Cash Collection Report'} - ${formatDate(report.start_date)} to ${formatDate(report.end_date)}`,
+            dateGenerated: new Date(report.date).toLocaleDateString(),
+            data: report // Store the full database report object
+          };
+        });
         
         console.log('✅ Loaded reports from database:', formattedReports);
         setGeneratedReports(formattedReports);
@@ -128,8 +154,12 @@ const Reports = () => {
   };
 
   // View report details
+  const [viewModalOpen, setViewModalOpen] = useState(false);
+  const [selectedReport, setSelectedReport] = useState(null);
+  
   const viewReport = (report) => {
-    alert(`Viewing report: ${report.description}\n\nGenerated on: ${report.dateGenerated}\n\nThis would open a detailed view of the report.`);
+    setSelectedReport(report);
+    setViewModalOpen(true);
   };
 
   // Set quick date ranges
@@ -197,13 +227,13 @@ const Reports = () => {
             className={`report-type-btn ${filters.reportType === 'collection' ? 'active' : ''}`}
             onClick={() => setFilters(prev => ({ ...prev, reportType: 'collection' }))}
           >
-            Collection Report
+            Waste Pickup Report
           </button>
           <button 
             className={`report-type-btn ${filters.reportType === 'billing' ? 'active' : ''}`}
             onClick={() => setFilters(prev => ({ ...prev, reportType: 'billing' }))}
           >
-            Billing Report
+            Cash Collection Report
           </button>
         </div>
       </div>
@@ -344,6 +374,213 @@ const Reports = () => {
             </table>
           </div>
         )}
+      </div>
+
+      {/* View Report Modal */}
+      {viewModalOpen && selectedReport && (
+        <ReportViewModal 
+          report={selectedReport}
+          onClose={() => setViewModalOpen(false)}
+        />
+      )}
+    </div>
+  );
+};
+
+// Report View Modal Component
+const ReportViewModal = ({ report, onClose }) => {
+  const [reportData, setReportData] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchReportData = async () => {
+      try {
+        setLoading(true);
+        const API_URL = `${API_CONFIG.BASE_URL}/api`;
+        const response = await axios.get(`${API_URL}/reports/${report.data.report_id}`);
+        setReportData(response.data);
+      } catch (error) {
+        console.error('Error fetching report data:', error);
+        alert('Failed to load report data');
+        onClose();
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchReportData();
+  }, [report.data.report_id, onClose]);
+
+  const formatDate = (value) => {
+    if (!value) return '—';
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return value;
+    return parsed.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' });
+  };
+
+  const formatCurrency = (value) => {
+    const numeric = Number(value);
+    if (Number.isNaN(numeric)) return '';
+    return `₱${numeric.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  };
+
+  const renderReportContent = () => {
+    if (loading) {
+      return <div className="loading">Loading report data...</div>;
+    }
+
+    if (!reportData || !reportData.data) {
+      return <div className="error">No report data available</div>;
+    }
+
+    const { type, data, start_date, end_date } = reportData;
+    const isCollectionReport = type === 'collection-report' || type === 'regular-pickup';
+    const reportTitle = isCollectionReport ? 'Waste Pickup Report' : 'Cash Collection Report';
+    
+    // Format date range
+    const dateRangeLabel = (start_date && end_date)
+      ? `${formatDate(start_date)} – ${formatDate(end_date)}`
+      : formatDate(reportData.date);
+
+    // Generate summary cards
+    const summary = data.summary || {};
+    let summaryCards = [];
+    
+    if (isCollectionReport) {
+      summaryCards = [
+        { label: 'Total Collections', value: summary.totalCollections || summary.totalSchedules || 0 },
+        { label: 'Regular Pickups', value: summary.regularPickups || 0 },
+        { label: 'Special Pickups', value: summary.specialPickups || 0 },
+        { label: 'Completion Rate', value: `${summary.completionRate || 0}%` },
+        { label: 'Missed', value: summary.missedCollections || 0 }
+      ];
+    } else {
+      summaryCards = [
+        { label: 'Total Invoices', value: summary.totalInvoices || 0 },
+        { label: 'Paid Invoices', value: summary.paidInvoices || 0 },
+        { label: 'Unpaid Invoices', value: summary.unpaidInvoices || 0 },
+        { label: 'Collection Rate', value: `${summary.collectionRate || 0}%` },
+        { label: 'Total Amount', value: formatCurrency(summary.totalAmount || 0) }
+      ];
+    }
+
+    // Generate table rows
+    const collections = Array.isArray(data.collections) ? data.collections : [];
+    const invoices = Array.isArray(data.invoices) ? data.invoices : [];
+    const dataItems = isCollectionReport ? collections : invoices;
+
+    return (
+      <div className="report-content">
+        <div className="report-header">
+          <div className="report-title">
+            <h2>WSBS - {reportTitle}</h2>
+            <p>Waste Scheduling and Billing System</p>
+          </div>
+          <div className="report-period">
+            <strong>Report Period</strong>
+            <p>{dateRangeLabel}</p>
+          </div>
+        </div>
+
+        <div className="summary-cards">
+          {summaryCards.map((card, index) => (
+            <div key={index} className="summary-card">
+              <span className="label">{card.label}</span>
+              <span className="value">{card.value}</span>
+            </div>
+          ))}
+        </div>
+
+        <div className="report-table">
+          <table>
+            <thead>
+              <tr>
+                <th>DATE</th>
+                <th>USERS</th>
+                <th>DESCRIPTION</th>
+                <th>{isCollectionReport ? 'STATUS' : 'AMOUNT'}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {dataItems.length === 0 ? (
+                <tr>
+                  <td colSpan="4" className="empty">No data available for this period.</td>
+                </tr>
+              ) : (
+                dataItems.map((item, index) => {
+                  if (isCollectionReport) {
+                    // Collection report formatting
+                    const statusText = (item.status || '').toLowerCase();
+                    let displayStatus = '';
+                    
+                    if (item.collection_type === 'Special Pickup') {
+                      if (statusText === 'collected' || statusText === 'completed') {
+                        displayStatus = 'SP-Collected';
+                      } else if (statusText === 'missed') {
+                        displayStatus = 'SP-Missed';
+                      } else {
+                        displayStatus = `SP-${statusText.charAt(0).toUpperCase() + statusText.slice(1)}`;
+                      }
+                    } else {
+                      if (statusText === 'collected') {
+                        displayStatus = 'Collected';
+                      } else if (statusText === 'missed') {
+                        displayStatus = 'Missed';
+                      } else {
+                        displayStatus = statusText.charAt(0).toUpperCase() + statusText.slice(1);
+                      }
+                    }
+
+                    const locationText = item.location && item.location !== 'Unknown Barangay' ? item.location : '';
+                    const collectorText = item.collector_name && item.collector_name !== 'Unknown Collector' ? item.collector_name : '';
+                    
+                    let description = `${item.collection_type || 'Regular Pickup'}`;
+                    if (locationText) description += ` in ${locationText}`;
+                    if (collectorText) description += ` by ${collectorText}`;
+                    if (item.special_notes && item.special_notes !== 'N/A') description += ` (${item.special_notes})`;
+
+                    return (
+                      <tr key={index}>
+                        <td>{formatDate(item.collection_date || item.created_at)}</td>
+                        <td>{item.resident_name || item.customer_name || 'System User'}</td>
+                        <td>{description}</td>
+                        <td>{displayStatus}</td>
+                      </tr>
+                    );
+                  } else {
+                    // Billing report formatting
+                    const statusText = (item.invoice_status || '').toUpperCase();
+                    let description = `${item.plan_name || 'Subscription'} - ${statusText}`;
+                    if (item.notes && item.notes.trim()) description += ` (${item.notes})`;
+
+                    return (
+                      <tr key={index}>
+                        <td>{formatDate(item.generated_date)}</td>
+                        <td>{item.username || item.resident_name || 'System User'}</td>
+                        <td>{description}</td>
+                        <td>{formatCurrency(item.amount)}</td>
+                      </tr>
+                    );
+                  }
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <h3>Report Preview</h3>
+          <button className="close-btn" onClick={onClose}>×</button>
+        </div>
+        <div className="modal-body">
+          {renderReportContent()}
+        </div>
       </div>
     </div>
   );
