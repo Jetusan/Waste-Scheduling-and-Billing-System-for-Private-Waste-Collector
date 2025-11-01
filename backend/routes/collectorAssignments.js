@@ -111,18 +111,13 @@ router.get('/today', async (req, res) => {
     
     // Add subdivision filter if specified
     if (subdivision && subdivision !== 'null' && subdivision !== 'undefined') {
-      // Special handling for VSM Heights Phase 1 - only show residents on Wed, Thu, Fri
+      // All subdivisions are now available every day for demonstration purposes
       const isVSMHeights = subdivision.toLowerCase().includes('vsm');
       const isMondayTest = subdivision.toLowerCase().includes('monday test');
-      const isCollectionDay = ['Wednesday', 'Thursday', 'Friday'].includes(todayName);
       
-      if (isVSMHeights && !isCollectionDay) {
-        console.log(`🚫 VSM Heights Phase 1 collection not available on ${todayName} (only Wed, Thu, Fri)`);
-        return res.json({ 
-          assignment: null, 
-          stops: [],
-          message: `VSM Heights Phase 1 collection is scheduled for Wednesday, Thursday, and Friday only. Today is ${todayName}.`
-        });
+      // VSM Heights Phase 1 is now available on any day for demonstration
+      if (isVSMHeights) {
+        console.log(`✅ VSM Heights Phase 1 collection available on ${todayName} (demonstration mode)`);
       }
       
       // Monday Test Area is available on any day for testing purposes
@@ -132,7 +127,7 @@ router.get('/today', async (req, res) => {
       
       residentsQuery += ` AND (a.subdivision = $${queryParams.length + 1} OR s.subdivision_name = $${queryParams.length + 1})`;
       queryParams.push(subdivision);
-      console.log(`🏘️ Filtering residents by subdivision: ${subdivision} (Available: ${isMondayTest || isCollectionDay ? 'Yes' : 'No'})`);
+      console.log(`🏘️ Filtering residents by subdivision: ${subdivision} (Available: Yes - All Days)`);
     }
     
     residentsQuery += ` ORDER BY a.subdivision, a.block, a.lot, b.barangay_name, u.user_id LIMIT 100`;
