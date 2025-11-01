@@ -79,12 +79,14 @@ router.get('/today', async (req, res) => {
         b.barangay_name,
         s.subdivision_name,
         cs.status as subscription_status,
-        cs.subscription_id
+        cs.subscription_id,
+        ul.gate_image_url
       FROM users u
       LEFT JOIN user_names un ON u.name_id = un.name_id
       LEFT JOIN addresses a ON u.address_id = a.address_id
       LEFT JOIN barangays b ON a.barangay_id = b.barangay_id
       LEFT JOIN subdivisions s ON a.subdivision_id = s.subdivision_id
+      LEFT JOIN user_locations ul ON u.user_id = ul.user_id AND ul.kind = 'home' AND ul.is_current = true
       JOIN customer_subscriptions cs ON u.user_id = cs.user_id
       WHERE u.role_id = 3 
         AND u.approval_status = 'approved'
@@ -186,7 +188,8 @@ router.get('/today', async (req, res) => {
         latest_action: null,
         latest_updated_at: null,
         subscription_status: resident.subscription_status,
-        subscription_id: resident.subscription_id
+        subscription_id: resident.subscription_id,
+        gate_image_url: resident.gate_image_url
       });
     }
 

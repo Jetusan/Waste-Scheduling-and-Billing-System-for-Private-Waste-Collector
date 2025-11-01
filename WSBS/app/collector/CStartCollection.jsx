@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useCallback, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, TextInput, Alert, Modal } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, TextInput, Alert, Modal, Image } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -1225,6 +1225,24 @@ const CStartCollection = () => {
                     )}
                     {stop.barangay_name && <Text style={{ color: '#666', fontSize: 12 }}>🏘️ {stop.barangay_name}</Text>}
                     {stop.planned_waste_type && <Text style={{ color: '#2e7d32', fontWeight: 'bold' }}>🗑️ {stop.planned_waste_type}</Text>}
+                    
+                    {/* Gate Image Display */}
+                    {stop.gate_image_url ? (
+                      <View style={styles.gateImageContainer}>
+                        <Text style={styles.gateImageLabel}>🏠 Front Gate:</Text>
+                        <View style={styles.photosContainer}>
+                          <Image 
+                            source={{ uri: `${API_BASE_URL}${stop.gate_image_url}` }} 
+                            style={styles.gateImage}
+                            resizeMode="cover"
+                          />
+                        </View>
+                      </View>
+                    ) : (
+                      <View style={styles.noImageContainer}>
+                        <Text style={styles.noImageText}>📷 No gate image available</Text>
+                      </View>
+                    )}
                     {/* Show subscription status badge */}
                     {(() => {
                       const info = paymentInfo[stop.user_id];
@@ -1951,5 +1969,46 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  // Gate Image Styles
+  gateImageContainer: {
+    marginTop: 8,
+    marginBottom: 4,
+  },
+  gateImageLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#4CAF50',
+    marginBottom: 4,
+  },
+  photosContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginBottom: 8,
+  },
+  gateImage: {
+    width: '100%',
+    height: 120,
+    borderRadius: 8,
+    backgroundColor: '#f0f0f0',
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  noImageContainer: {
+    marginTop: 8,
+    marginBottom: 4,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: '#f8f9fa',
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+    borderStyle: 'dashed',
+  },
+  noImageText: {
+    fontSize: 11,
+    color: '#6c757d',
+    fontStyle: 'italic',
+    textAlign: 'center',
   },
 }); 
