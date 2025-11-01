@@ -56,17 +56,13 @@ export default function Schedule() {
     evt.barangays.some(b => b.barangay_name === userBarangay)
   );
 
-  // For San Isidro, VSM Heights Phase 1 - show only Wed, Thu, Fri
-  const sanIsidroScheduleDays = ['Wednesday', 'Thursday', 'Friday'];
+  // Demo mode: All schedules available every day for VSM Heights Phase 1
   const isSanIsidroVSM = userBarangay === 'San Isidro' && 
     filteredSchedules.some(evt => evt.subdivision && evt.subdivision.toLowerCase().includes('vsm'));
   
   if (isSanIsidroVSM) {
-    filteredSchedules = filteredSchedules.filter(evt => 
-      sanIsidroScheduleDays.some(day => 
-        day.toLowerCase() === (evt.schedule_date || '').trim().toLowerCase()
-      )
-    );
+    console.log('✅ VSM Heights Phase 1 schedules available every day (demo mode)');
+    // No filtering - show all schedules for demonstration
   }
 
   return (
@@ -94,7 +90,7 @@ export default function Schedule() {
             <View style={styles.infoCard}>
               <Ionicons name="information-circle" size={20} color="#4CAF50" />
               <Text style={styles.infoText}>
-                Collection Schedule for VSM Heights Phase 1: Wednesday, Thursday, Friday
+                Collection Schedule for VSM Heights Phase 1: Available Every Day (Demo Mode)
               </Text>
             </View>
           )}

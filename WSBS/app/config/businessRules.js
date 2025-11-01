@@ -18,8 +18,8 @@ export const WORKING_HOURS = {
  * Regular collection schedule configuration
  */
 export const REGULAR_COLLECTION = {
-  // Days when regular collection happens (0 = Sunday, 1 = Monday, ..., 6 = Saturday)
-  days: [3, 4, 5], // Wednesday, Thursday, Friday
+  // Days when regular collection happens - NOW AVAILABLE EVERY DAY FOR DEMO
+  days: [0, 1, 2, 3, 4, 5, 6], // Every day for demonstration purposes
   
   // Schedule details for each day
   schedule: {
@@ -68,29 +68,14 @@ export const SPECIAL_PICKUP = {
       '15:00-17:00'
     ],
     
-    // Day-specific rules - Following advisor's requirement: Only Mon, Tue, Sat allowed
+    // Day-specific rules - NOW AVAILABLE EVERY DAY FOR DEMONSTRATION
     dayRules: {
-      0: { allowed: false, label: 'Sunday', restrictions: ['not_allowed'] }, // Sunday - NOT ALLOWED
+      0: { allowed: true, label: 'Sunday', restrictions: [] }, // Sunday - ALLOWED
       1: { allowed: true, label: 'Monday', restrictions: [] }, // Monday - ALLOWED
       2: { allowed: true, label: 'Tuesday', restrictions: [] }, // Tuesday - ALLOWED
-      3: { // Wednesday - Collection Day - NOT ALLOWED
-        allowed: false, 
-        label: 'Wednesday',
-        restrictions: ['collection_day'],
-        reason: 'Wednesday is reserved for regular non-biodegradable waste collection'
-      },
-      4: { // Thursday - Collection Day - NOT ALLOWED
-        allowed: false,
-        label: 'Thursday', 
-        restrictions: ['collection_day'],
-        reason: 'Thursday is reserved for regular biodegradable waste collection'
-      },
-      5: { // Friday - Collection Day - NOT ALLOWED
-        allowed: false,
-        label: 'Friday',
-        restrictions: ['collection_day'],
-        reason: 'Friday is reserved for regular recyclable waste collection'
-      },
+      3: { allowed: true, label: 'Wednesday', restrictions: [] }, // Wednesday - ALLOWED
+      4: { allowed: true, label: 'Thursday', restrictions: [] }, // Thursday - ALLOWED
+      5: { allowed: true, label: 'Friday', restrictions: [] }, // Friday - ALLOWED
       6: { allowed: true, label: 'Saturday', restrictions: [] } // Saturday - ALLOWED
     }
   },
@@ -218,12 +203,12 @@ export const validateSpecialPickupSchedule = (requestedDate, requestedTime, user
 };
 
 /**
- * Gets list of available days for special pickup - Following advisor's requirement
- * @returns {Array} - Array of available day numbers (Monday=1, Tuesday=2, Saturday=6)
+ * Gets list of available days for special pickup - NOW AVAILABLE EVERY DAY FOR DEMO
+ * @returns {Array} - Array of available day numbers (0=Sunday, 1=Monday, ..., 6=Saturday)
  */
 export const getAvailableDays = () => {
-  // Fixed to advisor's requirement: Only Monday, Tuesday, Saturday
-  return [1, 2, 6]; // Monday, Tuesday, Saturday
+  // Demo mode: All days available for demonstration purposes
+  return [0, 1, 2, 3, 4, 5, 6]; // Every day of the week
 };
 
 /**

@@ -20,7 +20,8 @@ router.get('/today', async (req, res) => {
     
     console.log(`🕐 Looking for ${todayName} collections (collector_id: ${collector_id || 'none'}, barangay_id: ${barangay_id || 'all'}, subdivision: ${subdivision || 'all'})`);
 
-    // Step 1: Check if there are collection schedules for today
+    // Step 1: For demonstration purposes, always show collections regardless of day
+    // Get all available schedules and use the first one as template
     let scheduleQuery = `
       SELECT DISTINCT
         cs.schedule_id,
@@ -32,10 +33,10 @@ router.get('/today', async (req, res) => {
       FROM collection_schedules cs
       JOIN schedule_barangays sb ON cs.schedule_id = sb.schedule_id
       JOIN barangays b ON sb.barangay_id = b.barangay_id
-      WHERE LOWER(cs.schedule_date) = LOWER($1)
+      WHERE 1=1
     `;
     
-    const scheduleParams = [todayName];
+    const scheduleParams = [];
     
     // Add barangay filter if specified
     if (barangay_id) {
@@ -44,28 +45,44 @@ router.get('/today', async (req, res) => {
       console.log(`🏘️ Filtering schedules by barangay_id: ${barangay_id}`);
     }
     
-    scheduleQuery += ` ORDER BY cs.schedule_id, b.barangay_name`;
+    scheduleQuery += ` ORDER BY cs.schedule_id, b.barangay_name LIMIT 1`;
 
     let schedulesResult;
     try {
       schedulesResult = await pool.queryWithRetry(scheduleQuery, scheduleParams);
-      console.log(`📅 Found ${schedulesResult.rows.length} collection schedules for ${todayName}`);
+      console.log(`📅 Demo Mode: Using template schedule for ${todayName} (found ${schedulesResult.rows.length} schedules)`);
       
+      // If no schedules exist at all, create a default one for demo
       if (schedulesResult.rows.length === 0) {
-        console.log(`❌ No collection schedules found for ${todayName}${barangay_id ? ` in barangay ${barangay_id}` : ''}`);
-        return res.json({ 
-          assignment: null,
-          stops: [],
-          message: `No collection schedules for ${todayName}${barangay_id ? ' in selected barangay' : ''}`
-        });
+        console.log(`📅 Demo Mode: Creating default schedule for demonstration`);
+        schedulesResult = {
+          rows: [{
+            schedule_id: 'demo-1',
+            schedule_date: todayName,
+            waste_type: 'Mixed Waste',
+            time_range: '6:00 AM - 12:00 PM',
+            barangay_id: barangay_id ? parseInt(barangay_id, 10) : 1,
+            barangay_name: 'Demo Barangay'
+          }]
+        };
+      } else {
+        // Use existing schedule but override the date to today for demo
+        schedulesResult.rows[0].schedule_date = todayName;
       }
     } catch (e) {
       console.error(`❌ Error querying schedules:`, e.message);
       return res.status(500).json({ error: 'Failed to fetch collection schedules' });
     }
 
-    // Step 2: Get residents with active subscriptions in scheduled barangays
-    const scheduledBarangayIds = [...new Set(schedulesResult.rows.map(s => s.barangay_id))];
+    // Step 2: Get residents with active subscriptions in all barangays (not just scheduled ones)
+    let targetBarangayIds = [];
+    if (barangay_id) {
+      targetBarangayIds = [parseInt(barangay_id, 10)];
+    } else {
+      // Get all barangays for demo mode
+      const allBarangaysResult = await pool.queryWithRetry('SELECT barangay_id FROM barangays ORDER BY barangay_id LIMIT 10');
+      targetBarangayIds = allBarangaysResult.rows.map(b => b.barangay_id);
+    }
     
     let residentsQuery = `
       SELECT DISTINCT
@@ -100,7 +117,7 @@ router.get('/today', async (req, res) => {
         )
     `;
     
-    const queryParams = [scheduledBarangayIds];
+    const queryParams = [targetBarangayIds];
     
     // Add specific barangay filter if specified
     if (barangay_id) {
@@ -195,11 +212,11 @@ router.get('/today', async (req, res) => {
       time_range: primarySchedule.time_range,
       date_label: todayName,
       schedule_date: todayName,
-      barangay_count: scheduledBarangayIds.length
+      barangay_count: targetBarangayIds.length
     };
 
     console.log(`📋 Returning schedule-integrated assignment for ${todayName}`);
-    console.log(`🚚 Returning ${stops.length} stops from ${scheduledBarangayIds.length} scheduled barangays`);
+    console.log(`🚚 Returning ${stops.length} stops from ${targetBarangayIds.length} target barangays`);
     console.log(`👥 Residents:`, stops.map(s => ({ 
       user_id: s.user_id, 
       name: s.resident_name, 

@@ -132,23 +132,19 @@ const CSelectSubdivision = () => {
           message = checkData.message;
         }
         
-        // Check if this is VSM Heights Phase 1 and not collection day
+        // All subdivisions are now available every day for demonstration purposes
         const isVSM = subdivision.subdivision_name?.toLowerCase().includes('vsm');
-        const isCollectionDay = ['Wednesday', 'Thursday', 'Friday'].includes(today);
         
-        if (isVSM && !isCollectionDay) {
-          Alert.alert(
-            'Collection Day Notice',
-            `VSM Heights Phase 1 collection is scheduled for Wednesday, Thursday, and Friday only.\n\nToday is ${today}. Please return on a collection day.`,
-            [{ text: 'OK' }]
-          );
-        } else {
-          Alert.alert(
-            'No Collections Available',
-            message,
-            [{ text: 'OK' }]
-          );
+        // VSM Heights Phase 1 is now available on any day for demonstration
+        if (isVSM) {
+          console.log(`✅ VSM Heights Phase 1 available on ${today} (demonstration mode)`);
         }
+        
+        Alert.alert(
+          'No Collections Available',
+          message,
+          [{ text: 'OK' }]
+        );
       }
     } catch (err) {
       console.error('Error checking subdivision collections:', err);
@@ -173,10 +169,9 @@ const CSelectSubdivision = () => {
     const collectionCount = collectionCounts[subdivision.subdivision_id] || 0;
     const isVSM = subdivision.subdivision_name?.toLowerCase().includes('vsm');
     const today = new Date().toLocaleDateString('en-US', { weekday: 'long', timeZone: 'Asia/Manila' });
-    const isCollectionDay = ['Wednesday', 'Thursday', 'Friday'].includes(today);
     
-    // Determine availability
-    const isAvailable = (isVSM && isCollectionDay) || !isVSM;
+    // All subdivisions are now available every day for demonstration purposes
+    const isAvailable = true;
     
     return (
       <TouchableOpacity
@@ -216,9 +211,9 @@ const CSelectSubdivision = () => {
             <Text style={styles.collectionCount}>
               {collectionCount} residents to collect
             </Text>
-            {!isAvailable && isVSM && (
+            {isVSM && (
               <Text style={styles.scheduleNote}>
-                📅 Available: Wed, Thu, Fri only
+                📅 Available: Every day (Demo Mode)
               </Text>
             )}
             {subdivision.description && (

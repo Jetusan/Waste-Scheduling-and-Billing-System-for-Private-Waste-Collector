@@ -64,14 +64,12 @@ router.get('/:barangay_id', authenticateJWT, async (req, res) => {
       LEFT JOIN schedule_barangays sb ON csch.schedule_id = sb.schedule_id 
         AND sb.barangay_id = $1
       WHERE s.barangay_id = $1 
-        AND LOWER(csch.schedule_date) = LOWER($2)
         AND cs.subscription_id IS NOT NULL
       GROUP BY s.subdivision_id
     `;
 
     const collectionCountsResult = await pool.queryWithRetry(collectionCountsQuery, [
-      parseInt(barangay_id, 10), 
-      today
+      parseInt(barangay_id, 10)
     ]);
 
     // Build collection counts map
@@ -166,11 +164,10 @@ router.get('/assignments/today-subdivision', authenticateJWT, async (req, res) =
       FROM collection_schedules cs
       JOIN schedule_barangays sb ON cs.schedule_id = sb.schedule_id
       JOIN barangays b ON sb.barangay_id = b.barangay_id
-      WHERE LOWER(cs.schedule_date) = LOWER($1)
-        AND b.barangay_id = $2
+      WHERE b.barangay_id = $1
     `;
     
-    const scheduleParams = [today, parseInt(barangay_id, 10)];
+    const scheduleParams = [parseInt(barangay_id, 10)];
     
     // Add subdivision filter if specified
     if (subdivision && subdivision !== 'null' && subdivision !== 'undefined') {
